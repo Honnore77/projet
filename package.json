@@ -1,0 +1,72 @@
+{
+  "name": "pdu-parc-auto",
+  "productName": "PDU Parc Auto",
+  "version": "3.0.0",
+  "description": "Gestion du parc automobile du PDU : serveur Laravel, site web et application Windows partageant la meme base",
+  "author": "PDU",
+  "license": "UNLICENSED",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "dev:api": "php artisan serve --port=8000",
+    "build": "vite build",
+    "dev:desktop": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
+    "start:desktop": "npm run build && electron .",
+    "dist:win": "npm run build && electron-builder --win",
+    "dist:portable": "npm run build && electron-builder --win portable"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.7",
+    "jspdf": "^2.5.2",
+    "jspdf-autotable": "^3.8.4",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "vite": "^8.0.0",
+    "vite-plugin-pwa": "^1.3.0",
+    "wait-on": "^8.0.2"
+  },
+  "build": {
+    "appId": "ci.pdu.parcauto",
+    "productName": "PDU Parc Auto",
+    "directories": {
+      "output": "release",
+      "buildResources": "resources/static/icons"
+    },
+    "files": [
+      "public/app/**/*",
+      "electron/**/*",
+      "package.json"
+    ],
+    "win": {
+      "icon": "resources/static/icons/icon-512.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "PDU Parc Auto"
+    }
+  }
+}

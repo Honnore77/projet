@@ -1,0 +1,36 @@
+# Dependances
+/node_modules
+/vendor
+
+# Construction de l'interface (regeneree par `npm run build` au deploiement)
+/public/app
+/release
+
+# Environnement et secrets
+.env
+.env.backup
+.env.production
+/storage/*.key
+/storage/pail
+auth.json
+
+# Laravel
+/public/storage
+/public/hot
+/storage/framework/cache/*
+!/storage/framework/cache/.gitignore
+/storage/framework/sessions/*
+!/storage/framework/sessions/.gitignore
+/storage/framework/views/*
+!/storage/framework/views/.gitignore
+/storage/logs/*
+!/storage/logs/.gitignore
+/database/*.sqlite
+/database/*.sqlite-journal
+
+# Divers
+*.log
+.DS_Store
+Thumbs.db
+.phpunit.result.cache
+/.vite
