@@ -3,10 +3,19 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance } from '../core/db.js';
-import { dateFR, daysBetween, num, sum, groupBy } from '../core/utils.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange } from '../core/db.js';
+
+import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
 const C = (key, label, width) => ({ key, label, width });
+
+/** Libelles du suivi de vidange, tels qu'ils paraissent dans les exports. */
+const LIBELLE_VIDANGE = {
+  inconnu: 'non suivie',
+  ok: 'à jour',
+  proche: 'à prévoir',
+  depassee: 'dépassée'
+};
 
 /* ------------------------------ VEHICULES -------------------------- */
 
@@ -21,11 +30,13 @@ export function dsVehicles(list = allVehicles()) {
       C('immatAncienne', 'Immat. ancienne', 16),
       C('couleur', 'Couleur', 12),
       C('energie', 'Énergie', 11),
-      C('groupe', 'Groupe', 12),
       C('section', 'Section', 18),
       C('utilisateur', 'Utilisateur', 20),
       C('statut', 'Statut', 13),
       C('km', 'Kilométrage', 13),
+      C('kmVidange', 'Vidange due à (km)', 15),
+      C('vidangeRestant', 'Km avant vidange', 15),
+      C('vidangeEtat', 'Suivi vidange', 14),
       C('coutEntretien', 'Coût entretien', 15),
       C('coutCarburant', 'Coût carburant', 15)
     ],
@@ -37,11 +48,13 @@ export function dsVehicles(list = allVehicles()) {
       immatAncienne: v.immatAncienne || '',
       couleur: v.couleur || '',
       energie: v.energie || '',
-      groupe: v.groupe || '',
       section: v.section || '',
       utilisateur: v.utilisateur || '',
       statut: v.statut || '',
       km: num(v.km),
+      kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
+      vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
+      vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut],
       coutEntretien: maintenanceCost(immatOf(v)),
       coutCarburant: fuelCost(immatOf(v))
     }))
@@ -59,8 +72,12 @@ export function dsUsers(list = DB.users) {
       C('fonction', 'Fonction au PDU', 24),
       C('section', 'Section', 20),
       C('statut', 'Statut', 12),
+      C('poolConducteur', 'Conducteur du pool', 14),
+      C('telephone', 'Téléphone', 14),
+      C('permis', 'N° de permis', 14),
       C('nbIncidents', 'Nb incidents', 12),
-      C('dernierIncident', 'Dernier incident', 18)
+      C('dernierIncident', 'Dernier incident', 18),
+      C('observations', 'Observations', 28)
     ],
     rows: list.map((u) => {
       const h = u.historique || [];
@@ -71,8 +88,12 @@ export function dsUsers(list = DB.users) {
         fonction: u.fonction || '',
         section: u.section || '',
         statut: u.statut || '',
+        poolConducteur: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
+        telephone: u.telephone || '',
+        permis: u.permis || '',
         nbIncidents: h.length,
-        dernierIncident: last ? `${dateFR(last.date)} — ${last.nature || ''}` : ''
+        dernierIncident: last ? `${dateFR(last.date)} — ${last.nature || ''}` : '',
+        observations: u.observations || ''
       };
     })
   };
@@ -143,9 +164,9 @@ export function dsDotationPool(list = DB.dotationPool) {
   };
 }
 
-export function dsDotationMission(list = DB.dotationMission) {
+export function dsCarburantMissions(list = missionsAvecCarburant()) {
   return {
-    title: 'Dotation mission',
+    title: 'Carburant des missions',
     columns: [
       C('conducteur', 'Conducteur', 22),
       C('destination', 'Destination', 22),
@@ -159,50 +180,59 @@ export function dsDotationMission(list = DB.dotationMission) {
       C('totalLitres', 'Total litres', 12),
       C('totalMontant', 'Total montant', 14)
     ],
-    rows: list.map((d) => ({
-      conducteur: d.conducteur || '',
-      destination: d.destination || '',
-      dateDepart: dateFR(d.dateDepart),
-      dateRetour: dateFR(d.dateRetour),
-      kmDepart: num(d.kmDepart),
-      kmRetour: num(d.kmRetour),
-      diff: num(d.diff),
-      nbRav: (d.ravitaillements || []).length,
-      stations: (d.ravitaillements || []).map((r) => r.station).filter(Boolean).join(', '),
-      totalLitres: num(d.totalLitres),
-      totalMontant: num(d.totalMontant)
-    })),
-    note: `Total : ${sum(list, (d) => d.totalLitres)} L — ${sum(list, (d) => d.totalMontant)} F`
+    rows: list.map((m) => {
+      const rav = m.ravitaillements || [];
+      return {
+        conducteur: m.conducteur || '',
+        destination: m.destination || '',
+        dateDepart: dateFR(m.dateDepart),
+        dateRetour: dateFR(m.dateRetour),
+        kmDepart: num(m.kmDepart),
+        kmRetour: num(m.kmArrivee),
+        diff: num(m.kmArrivee) - num(m.kmDepart),
+        nbRav: rav.length,
+        stations: rav.map((r) => r.station).filter(Boolean).join(', '),
+        totalLitres: sum(rav, (r) => r.quantite),
+        totalMontant: sum(rav, ravMontant)
+      };
+    }),
+    note:
+      `Total : ${sum(list, (m) => sum(m.ravitaillements || [], (r) => r.quantite))} L — ` +
+      `${sum(list, (m) => sum(m.ravitaillements || [], ravMontant))} F`
   };
 }
 
-export function dsRavitaillements(list = DB.dotationMission) {
+/** Chaque point de ravitaillement, ligne a ligne, tel que sur le rapport. */
+export function dsRavitaillementsMissions(list = DB.missions) {
   const rows = [];
-  list.forEach((d) => {
-    (d.ravitaillements || []).forEach((r) => {
+  list.forEach((m) => {
+    (m.ravitaillements || []).forEach((r) => {
       rows.push({
-        conducteur: d.conducteur || '',
-        destination: d.destination || '',
-        dateDepart: dateFR(d.dateDepart),
+        ref: m.ref || '',
+        conducteur: m.conducteur || '',
+        destination: m.destination || '',
+        date: dateFR(r.date) || dateFR(m.dateDepart),
         station: r.station || '',
         quantite: num(r.quantite),
-        prix: num(r.prix),
-        montant: num(r.quantite) * num(r.prix)
+        prix: num(r.prixL),
+        montant: ravMontant(r)
       });
     });
   });
   return {
     title: 'Ravitaillements',
     columns: [
+      C('ref', 'Mission', 12),
       C('conducteur', 'Conducteur', 22),
       C('destination', 'Destination', 20),
-      C('dateDepart', 'Départ', 12),
-      C('station', 'Station-service', 22),
+      C('date', 'Date', 12),
+      C('station', 'Point de ravitaillement', 24),
       C('quantite', 'Quantité (L)', 12),
       C('prix', 'Prix / L', 11),
       C('montant', 'Montant', 13)
     ],
-    rows
+    rows,
+    note: `Total : ${sum(rows, (r) => r.quantite)} L — ${sum(rows, (r) => r.montant)} F`
   };
 }
 
@@ -242,6 +272,41 @@ export function dsMissions(list = DB.missions) {
       };
     }),
     note: `${list.filter((m) => !m.paye).length} mission(s) en attente de paiement sur ${list.length}.`
+  };
+}
+
+/**
+ * TABLEAU DE SUIVI DES MISSIONS — colonnes du document de suivi du PDU.
+ *
+ * Les deux dernieres colonnes portent sur le conducteur et non sur la ligne :
+ * elles servent a verifier que les missions tournent bien entre conducteurs
+ * du pool. Elles sont calculees sur l'ensemble des missions, pas seulement
+ * sur celles retenues par les filtres, sinon le cumul ne voudrait rien dire.
+ */
+export function dsSuiviMissions(list = DB.missions) {
+  const parConducteur = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
+  const totalDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
+
+  return {
+    title: 'Suivi des missions',
+    columns: [
+      C('conducteur', 'Nom du conducteur', 24),
+      C('nbMissions', 'Nb de missions du conducteur', 14),
+      C('vehicule', 'Immatriculation du véhicule', 18),
+      C('periode', 'Période (départ → retour)', 24),
+      C('destination', 'Destination', 24),
+      C('jours', 'Nb de jours effectués', 13),
+      C('cumulJours', 'Cumul des jours du conducteur', 15)
+    ],
+    rows: list.map((m) => ({
+      conducteur: m.conducteur || '',
+      nbMissions: totalDe(m).length,
+      vehicule: m.vehicule || '',
+      periode: `${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
+      destination: m.destination || '',
+      jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
+      cumulJours: sum(totalDe(m), (x) => x.jours)
+    }))
   };
 }
 
@@ -393,8 +458,8 @@ export function dsAll() {
     dsUsers(),
     dsIncidents(),
     dsDotationPool(),
-    dsDotationMission(),
-    dsRavitaillements(),
+    dsCarburantMissions(),
+    dsRavitaillementsMissions(),
     dsMissions(),
     dsMissionsParConducteur(),
     dsMaintenance(),

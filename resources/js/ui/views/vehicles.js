@@ -1,16 +1,19 @@
 /* ===================================================================
-   VÉHICULES — pool / mission / service, avec creation, modification,
-   changement de categorie et suppression.
+   VÉHICULES — pool / mission / service.
+
+   Chaque sous-rubrique presente les vehicules en tableau, une ligne par
+   vehicule, avec toutes les informations du formulaire.
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES,
-  insert, update, remove, moveVehicle, immatOf, maintenanceCost, fuelCost
+  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS,
+  insert, update, remove, moveVehicle, immatOf, maintenanceCost, fuelCost, etatVidange
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, norm } from '../../core/utils.js';
+import { esc, fmt, num, norm } from '../../core/utils.js';
 import {
-  card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, COLORS
+  card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
+  dataTable, COLORS
 } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
@@ -26,27 +29,55 @@ export function statutColor(s) {
   return COLORS.red;
 }
 
+/** Pastille resumant l'etat de la vidange d'un vehicule. */
+export function badgeVidange(e) {
+  if (e.statut === 'inconnu') {
+    return '<span style="color:#8aa0a6">non suivie</span>';
+  }
+  if (e.statut === 'depassee') {
+    return `<span class="badge" style="background:${COLORS.red}">Dépassée de ${fmt(-e.restant)} km</span>`;
+  }
+  if (e.statut === 'proche') {
+    return `<span class="badge" style="background:${COLORS.orange}">⚠ Dans ${fmt(e.restant)} km</span>`;
+  }
+  return `<span class="badge" style="background:${COLORS.green}">Dans ${fmt(e.restant)} km</span>`;
+}
+
 /** Champs du formulaire vehicule (partages creation / modification). */
 function vehicleFields(v = {}, cat = 'pool') {
   const withSection = cat !== 'mission';
-  const sections = [...new Set(DB.users.map((u) => u.section).filter(Boolean))];
   const agents = DB.users.map((u) => `${u.nom} ${u.prenoms}`.trim()).filter(Boolean);
+  const marques = [...new Set(
+    DB.vehicles.pool.concat(DB.vehicles.mission, DB.vehicles.service).map((x) => x.marque).filter(Boolean)
+  )];
+
   return [
-    { key: 'marque', label: 'Marque', required: true, value: v.marque, list: [...new Set(DB.vehicles.pool.concat(DB.vehicles.mission, DB.vehicles.service).map((x) => x.marque).filter(Boolean))] },
+    { key: 'marque', label: 'Marque', required: true, value: v.marque, list: marques },
     { key: 'modele', label: 'Modèle', value: v.modele },
     { key: 'immatNouvelle', label: 'Nouvelle immatriculation', required: true, value: v.immatNouvelle },
     { key: 'immatAncienne', label: 'Ancienne immatriculation', value: v.immatAncienne },
     { key: 'couleur', label: 'Couleur', value: v.couleur },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
-    { key: 'groupe', label: 'Groupe', value: v.groupe },
     { key: 'statut', label: 'Statut', type: 'select', options: STATUTS_VEHICULE, value: v.statut || 'Disponible' },
     ...(withSection
       ? [
-          { key: 'section', label: 'Section', value: v.section, list: sections },
-          { key: 'utilisateur', label: 'Utilisateur', value: v.utilisateur, list: agents }
+          {
+            key: 'section',
+            label: 'Section',
+            type: 'select',
+            options: SECTIONS,
+            allowEmpty: true,
+            emptyLabel: '— aucune —',
+            value: v.section
+          },
+          { key: 'utilisateur', label: 'Utilisateur', value: v.utilisateur, list: agents,
+            hint: agents.length ? 'Agents enregistrés dans UTILISATEURS' : 'Enregistrez d’abord les agents dans UTILISATEURS' }
         ]
       : []),
     { key: 'km', label: 'Kilométrage', type: 'number', value: v.km },
+    { key: 'kmVidange', label: 'Kilométrage de vidange', type: 'number', value: v.kmVidange,
+      hint: 'Kilométrage auquel la vidange devra être faite' },
+    { key: 'etatVidange', label: 'Suivi de la vidange', type: 'static', value: '' },
     { key: 'categorie', label: 'Catégorie', type: 'select', options: CATEGORIES.map((c) => ({ value: c.key, label: c.label })), value: cat },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: v.observations }
   ];
@@ -55,9 +86,10 @@ function vehicleFields(v = {}, cat = 'pool') {
 export function renderVehicles(page) {
   const cat = state.sub.VEHICULES || 'pool';
   const f = state.filters.vehicules;
+  const withSection = cat !== 'mission';
 
   page.appendChild(
-    card('VÉHICULES', 'Véhicules de pool, de mission et de service. Cliquez sur « Fiche complète » pour voir tout l’historique d’un véhicule.', COLORS.green)
+    card('VÉHICULES', 'Véhicules de pool, de mission et de service. Cliquez sur « Fiche » pour voir tout l’historique d’un véhicule.', COLORS.green)
   );
 
   page.appendChild(
@@ -78,9 +110,9 @@ export function renderVehicles(page) {
         onChange: (v) => { f.statut = v; rerender(); }
       },
       {
-        type: 'text',
-        placeholder: 'Filtrer par section / utilisateur',
+        type: 'select',
         value: f.section,
+        options: [{ value: '', label: 'Toutes les sections' }, ...SECTIONS],
         onChange: (v) => { f.section = v; rerender(); }
       }
     ])
@@ -88,10 +120,7 @@ export function renderVehicles(page) {
 
   let list = DB.vehicles[cat].slice().reverse();
   if (f.statut) list = list.filter((v) => v.statut === f.statut);
-  if (f.section) {
-    const q = norm(f.section);
-    list = list.filter((v) => norm(`${v.section || ''} ${v.utilisateur || ''}`).includes(q));
-  }
+  if (f.section) list = list.filter((v) => v.section === f.section);
 
   page.appendChild(
     toolbar([
@@ -118,69 +147,104 @@ export function renderVehicles(page) {
     return;
   }
 
-  list.forEach((v) => page.appendChild(vehicleEntry(v, cat)));
-}
+  const headers = [
+    'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'Couleur', 'Énergie', 'Statut',
+    ...(withSection ? ['Section', 'Utilisateur'] : []),
+    'Km', 'Vidange<br>à', 'Suivi vidange', 'Carburant', 'Entretien', 'Observations', ''
+  ];
 
-function vehicleEntry(v, cat) {
-  const im = immatOf(v);
-  const e = el('<div class="entry"></div>');
-  e.style.borderLeftColor = CAT_COLORS[cat];
-  e.dataset.search = norm(
-    `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.statut} ${v.section} ${v.utilisateur} ${v.groupe}`
+  const rows = list.map((v) => {
+    const im = immatOf(v);
+    return [
+      `<b>${esc(v.marque || '')}</b>`,
+      esc(v.modele || ''),
+      esc(v.immatNouvelle || ''),
+      esc(v.immatAncienne || ''),
+      esc(v.couleur || ''),
+      esc(v.energie || ''),
+      `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
+      ...(withSection ? [esc(v.section || ''), esc(v.utilisateur || '')] : []),
+      `<span style="display:block;text-align:right">${fmt(v.km)}</span>`,
+      `<span style="display:block;text-align:right">${v.kmVidange === '' || v.kmVidange === undefined ? '—' : fmt(v.kmVidange)}</span>`,
+      badgeVidange(etatVidange(v)),
+      `<span style="display:block;text-align:right">${fmt(fuelCost(im))} F</span>`,
+      `<span style="display:block;text-align:right">${fmt(maintenanceCost(im))} F</span>`,
+      esc(v.observations || ''),
+      `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
+        (canWrite()
+          ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button>` +
+            ` <button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+          : '')
+    ];
+  });
+
+  page.appendChild(
+    dataTable(headers, rows, (tr, i) => {
+      const v = list[i];
+      tr.dataset.search = norm(
+        `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.statut} ${v.section} ${v.utilisateur}`
+      );
+      tr.querySelector('[data-sheet]').onclick = () => openVehicleSheet(immatOf(v));
+
+      const ed = tr.querySelector('[data-edit]');
+      if (ed) ed.onclick = () => openVehicleForm(v, cat);
+
+      const del = tr.querySelector('[data-del]');
+      if (del) {
+        del.onclick = async () => {
+          const ok = await confirmDialog({
+            title: 'Supprimer le véhicule',
+            message: `Supprimer définitivement ${v.marque} ${v.modele} (${immatOf(v) || 'sans immatriculation'}) ?\n\nLes dotations, missions et fiches d'entretien liées à cette immatriculation seront conservées.`,
+            okLabel: 'Supprimer',
+            danger: true
+          });
+          if (!ok) return;
+          remove(`vehicles.${cat}`, v.id);
+          toast('Véhicule supprimé.', 'ok');
+          rerender();
+        };
+      }
+    })
   );
-
-  e.innerHTML =
-    `<div class="row1"><h4>${esc(v.marque)} ${esc(v.modele)}</h4>` +
-    `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut)}</span></div>` +
-    `<div class="meta">${esc(v.immatNouvelle || '—')}${v.immatAncienne ? ` <small>(anc. ${esc(v.immatAncienne)})</small>` : ''} · ${esc(v.couleur || '—')} · ${esc(v.energie || '—')}</div>` +
-    '<div class="fields">' +
-    (v.groupe ? `<b>Groupe :</b> ${esc(v.groupe)}<br>` : '') +
-    (v.section ? `<b>Section :</b> ${esc(v.section)}<br>` : '') +
-    (v.utilisateur ? `<b>Utilisateur :</b> ${esc(v.utilisateur)}<br>` : '') +
-    `<b>Km :</b> ${fmt(v.km)} · <b>Carburant :</b> ${fmt(fuelCost(im))} F · <b>Entretien :</b> ${fmt(maintenanceCost(im))} F` +
-    (v.observations ? `<br><b>Observations :</b> ${esc(v.observations)}` : '') +
-    '</div>' +
-    '<div class="actions">' +
-    `<button class="miniBtn" style="background:${COLORS.blue}" data-sheet>Fiche complète</button>` +
-    (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier</button>` : '') +
-    (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
-    '</div>';
-
-  e.querySelector('[data-sheet]').onclick = () => openVehicleSheet(im);
-  const editBtn = e.querySelector('[data-edit]');
-  if (editBtn) editBtn.onclick = () => openVehicleForm(v, cat);
-  const delBtn = e.querySelector('[data-del]');
-  if (delBtn) {
-    delBtn.onclick = async () => {
-      const ok = await confirmDialog({
-        title: 'Supprimer le véhicule',
-        message: `Supprimer définitivement ${v.marque} ${v.modele} (${im || 'sans immatriculation'}) ?\n\nLes dotations, missions et fiches d'entretien liées à cette immatriculation seront conservées.`,
-        okLabel: 'Supprimer',
-        danger: true
-      });
-      if (!ok) return;
-      remove(`vehicles.${cat}`, v.id);
-      toast('Véhicule supprimé.', 'ok');
-      rerender();
-    };
-  }
-  return e;
 }
 
 /** Formulaire de creation / modification. */
 export function openVehicleForm(vehicle, cat) {
   const isEdit = !!vehicle;
   const fields = vehicleFields(vehicle || {}, cat);
+  // On ne propose le kilometrage de vidange qu une seule fois par ouverture.
+  let propositionFaite = isEdit;
 
   openForm({
     title: isEdit ? `Modifier — ${vehicle.marque} ${vehicle.modele}` : `Nouveau véhicule — ${CATEGORIES.find((c) => c.key === cat).label}`,
     fields,
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer le véhicule',
+    onInput: (values, scope) => {
+      const cible = scope.querySelector('[data-key="kmVidange"]');
+      const suivi = scope.querySelector('[data-key="etatVidange"]');
+
+      // Sur un vehicule neuf, on propose le kilometrage courant augmente de
+      // l'intervalle de vidange. La proposition ne se fait qu'une fois : si
+      // l'utilisateur efface ou corrige, on ne la lui réimpose pas.
+      if (cible && !cible.value && !propositionFaite && num(values.km) > 0) {
+        cible.value = num(values.km) + num(DB.settings.seuilVidangeKm);
+        propositionFaite = true;
+      }
+
+      if (suivi) {
+        const e = etatVidange({ km: values.km, kmVidange: cible ? cible.value : '' });
+        suivi.value =
+          e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange pour activer le suivi'
+            : e.statut === 'depassee' ? `⚠ Vidange dépassée de ${fmt(-e.restant)} km`
+              : e.statut === 'proche' ? `⚠ Vidange dans ${fmt(e.restant)} km`
+                : `Vidange dans ${fmt(e.restant)} km`;
+      }
+    },
     onSubmit: (values) => {
       const targetCat = values.categorie || cat;
       const immat = String(values.immatNouvelle || '').trim().toUpperCase();
-      const doublon = DB.vehicles[targetCat]
-        .concat(targetCat !== 'pool' ? DB.vehicles.pool : [], targetCat !== 'mission' ? DB.vehicles.mission : [], targetCat !== 'service' ? DB.vehicles.service : [])
+      const doublon = DB.vehicles.pool
+        .concat(DB.vehicles.mission, DB.vehicles.service)
         .find((x) => x.id !== (vehicle && vehicle.id) && String(x.immatNouvelle || '').trim().toUpperCase() === immat);
       if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
 
@@ -191,11 +255,11 @@ export function openVehicleForm(vehicle, cat) {
         immatAncienne: values.immatAncienne,
         couleur: values.couleur,
         energie: values.energie,
-        groupe: values.groupe,
         section: values.section || '',
         utilisateur: values.utilisateur || '',
         statut: values.statut,
         km: values.km,
+        kmVidange: values.kmVidange,
         observations: values.observations
       };
 
@@ -230,4 +294,3 @@ async function doExport(kind, list, cat) {
     toast("L'export a échoué.", 'err');
   }
 }
-

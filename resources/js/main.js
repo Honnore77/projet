@@ -1,14 +1,12 @@
 /* ===================================================================
-   Point d'entree unique — site web, PWA et application de bureau.
+   Point d'entree unique — application de bureau et PWA.
    =================================================================== */
 
 import './styles/app.css';
 import { initDB, persistNow } from './core/db.js';
-import { restoreSession, isLogged, loadStoredCredentials, invalidateSession } from './core/auth.js';
-import { startSync, stopSync, syncNow } from './core/sync.js';
-import { needsServerUrl, hasToken } from './core/api.js';
+import { restoreSession, isLogged } from './core/auth.js';
 import { renderLogin } from './ui/login.js';
-import { mountShell, rerender } from './ui/shell.js';
+import { mountShell } from './ui/shell.js';
 import { destroyCharts } from './ui/charts.js';
 import { toast } from './ui/components.js';
 
@@ -26,13 +24,7 @@ async function boot() {
     return;
   }
 
-  // Adresse du serveur et jeton d'acces conserves sur ce poste.
-  loadStoredCredentials();
-
-  // Sur le bureau, tant qu'aucune base n'a jamais ete jointe, on considere
-  // qu'il s'agit d'une premiere mise en service.
-  if (needsServerUrl()) ctx.firstRun = ctx.firstRun || !hasToken();
-
+  // Une session ouverte dans le meme onglet survit a un rafraichissement.
   if (restoreSession() && isLogged()) {
     showApp();
   } else {
@@ -42,7 +34,6 @@ async function boot() {
 
 function showLogin(ctx = {}) {
   destroyCharts();
-  stopSync();
   document.body.classList.remove('readonly');
   renderLogin(root, {
     firstRun: ctx.firstRun,
@@ -53,20 +44,6 @@ function showLogin(ctx = {}) {
 
 function showApp() {
   mountShell(root, { onLogout: () => showLogin({}) });
-
-  startSync({
-    onSessionLost: () => {
-      invalidateSession();
-      toast('Session expirée sur le serveur — reconnectez-vous.', 'err', 5000);
-      showLogin({});
-    }
-  });
-
-  // Premiere descente au plus tot : l'interface affiche le miroir local en
-  // attendant, puis se rafraichit quand le serveur a repondu.
-  syncNow({ quiet: true }).then((res) => {
-    if (res && res.ok && (res.received || res.sent)) rerender();
-  });
 }
 
 // Ecriture immediate avant fermeture, pour ne perdre aucune saisie.

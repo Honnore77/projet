@@ -1,40 +1,44 @@
 /* ===================================================================
-   DOTATION — carburant du pool et dotations de mission
-   (avec ravitaillements multiples).
+   DOTATION EN CARBURANT — deux sous-rubriques :
+
+     POOL     dotations des vehicules du pool, saisies ici
+     MISSION  carburant des missions, saisi dans le rapport de mission
+              et presente ici en tableau
+
+   La saisie du carburant de mission reste dans le rapport : un seul
+   endroit de saisie par deplacement, donc pas de double comptage.
    =================================================================== */
 
-import { DB, ETATS_VIDANGE, insert, update, remove, knownImmats, knownDrivers, vehicleByImmat } from '../../core/db.js';
+import {
+  DB, ETATS_VIDANGE, insert, update, remove, knownImmats, vehicleByImmat,
+  carburantMissions, missionsAvecCarburant, ravMontant
+} from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
-  statTile, subEmpty, COLORS
+  statTile, dataTable, COLORS
 } from '../components.js';
-import { state, rerender } from '../shell.js';
+import { state, navigate, rerender } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
-import { dsDotationPool, dsDotationMission, dsRavitaillements } from '../../export/datasets.js';
+import { dsDotationPool, dsCarburantMissions, dsRavitaillementsMissions } from '../../export/datasets.js';
 
 const SUBS = [
-  { key: 'pool', label: 'POOL' },
-  { key: 'mission', label: 'MISSION' }
+  { key: 'pool', label: 'DOTATION EN CARBURANT POOL' },
+  { key: 'mission', label: 'DOTATION EN CARBURANT MISSION' }
 ];
 
 export function renderDotation(page) {
   const sub = state.sub.DOTATION || 'pool';
   page.appendChild(
-    subtabs(
-      SUBS.map((s) => ({ key: s.key, label: `${s.label} (${s.key === 'pool' ? DB.dotationPool.length : DB.dotationMission.length})` })),
-      sub,
-      (k) => { state.sub.DOTATION = k; rerender(); },
-      { pool: COLORS.orange, mission: COLORS.orange }
-    )
+    subtabs(SUBS, sub, (k) => { state.sub.DOTATION = k; rerender(); }, { pool: COLORS.orange, mission: COLORS.purple })
   );
-  if (sub === 'pool') renderPool(page);
-  else renderMission(page);
+  if (sub === 'mission') renderMission(page);
+  else renderPool(page);
 }
 
-/* ============================== POOL ============================== */
+/* ===================== DOTATION CARBURANT POOL ===================== */
 
 function poolFields(d = {}) {
   return [
@@ -47,15 +51,20 @@ function poolFields(d = {}) {
     { key: 'prixL', label: 'Prix / L', type: 'number', required: true, value: d.prixL },
     { key: 'montant', label: 'Montant calculé', type: 'static', value: d.montant ? fmt(d.montant) : '0' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
-    { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'A jour' },
+    { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations }
   ];
 }
 
 function renderPool(page) {
   const f = state.filters.dotationPool;
+
   page.appendChild(
-    card('DOTATION POOL', 'Date · Immatriculation · Marque/Modèle · Énergie · Kilométrage · Quantité · Prix/L · Montant · Station-service · État vidange.', COLORS.orange)
+    card(
+      'DOTATION EN CARBURANT — POOL',
+      'Date · Immatriculation · Marque/Modèle · Énergie · Kilométrage · Quantité · Prix/L · Montant · Station-service · État vidange.',
+      COLORS.orange
+    )
   );
 
   page.appendChild(
@@ -91,48 +100,60 @@ function renderPool(page) {
     return;
   }
 
-  list.forEach((d) => {
-    const e = el('<div class="entry"></div>');
-    e.style.borderLeftColor = d.vidange === 'En retard' ? COLORS.red : COLORS.orange;
-    e.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.station} ${d.date}`);
-    e.innerHTML =
-      `<div class="row1"><h4>${esc(d.immat)}</h4><span class="badge" style="background:${COLORS.orange}">${fmt(d.montant)} F</span></div>` +
-      `<div class="meta">${esc(dateFR(d.date))} · ${esc(d.marqueModele || '—')} · ${esc(d.energie || '—')}</div>` +
-      `<div class="fields"><b>Quantité :</b> ${fmt(d.quantite)} L · <b>Prix/L :</b> ${fmt(d.prixL)} F<br>` +
-      `<b>Station :</b> ${esc(d.station || '—')} · <b>Vidange :</b> ${esc(d.vidange || '—')} · <b>Km :</b> ${fmt(d.km)}` +
-      (d.observations ? `<br><b>Observations :</b> ${esc(d.observations)}` : '') +
-      '</div>' +
-      '<div class="actions">' +
-      (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier</button>` : '') +
-      (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
-      '</div>';
-    const ed = e.querySelector('[data-edit]');
-    if (ed) ed.onclick = () => openPoolForm(d);
-    const del = e.querySelector('[data-del]');
-    if (del) {
-      del.onclick = async () => {
-        if (!(await confirmDialog({ title: 'Supprimer la dotation', message: `Supprimer la dotation du ${dateFR(d.date)} pour ${d.immat} ?`, okLabel: 'Supprimer', danger: true }))) return;
-        remove('dotationPool', d.id);
-        toast('Dotation supprimée.', 'ok');
-        rerender();
-      };
-    }
-    page.appendChild(e);
-  });
+  const headers = [
+    'Date', 'Immatriculation', 'Marque / Modèle', 'Énergie', 'Kilométrage',
+    'Quantité<br>(L)', 'Prix / L', 'Montant', 'Station-service', 'État<br>vidange', 'Observations', ''
+  ];
+
+  const rows = list.map((d) => [
+    esc(dateFR(d.date)),
+    `<b>${esc(d.immat || '')}</b>`,
+    esc(d.marqueModele || ''),
+    esc(d.energie || ''),
+    `<span style="display:block;text-align:right">${fmt(d.km)}</span>`,
+    `<span style="display:block;text-align:right">${fmt(d.quantite)}</span>`,
+    `<span style="display:block;text-align:right">${fmt(d.prixL)}</span>`,
+    `<span style="display:block;text-align:right"><b>${fmt(d.montant)} F</b></span>`,
+    esc(d.station || ''),
+    `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
+    esc(d.observations || ''),
+    canWrite()
+      ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+        `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+      : ''
+  ]);
+
+  page.appendChild(
+    dataTable(headers, rows, (tr, i) => {
+      const d = list[i];
+      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.station} ${d.date}`);
+
+      const ed = tr.querySelector('[data-edit]');
+      if (ed) ed.onclick = () => openPoolForm(d);
+
+      const del = tr.querySelector('[data-del]');
+      if (del) {
+        del.onclick = async () => {
+          if (!(await confirmDialog({ title: 'Supprimer la dotation', message: `Supprimer la dotation du ${dateFR(d.date)} pour ${d.immat} ?`, okLabel: 'Supprimer', danger: true }))) return;
+          remove('dotationPool', d.id);
+          toast('Dotation supprimée.', 'ok');
+          rerender();
+        };
+      }
+    })
+  );
 }
 
 function openPoolForm(d) {
   const isEdit = !!d;
-  const fields = poolFields(d || {});
   openForm({
     title: isEdit ? `Modifier la dotation — ${d.immat}` : 'Nouvelle dotation — POOL',
-    fields,
+    fields: poolFields(d || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la dotation',
     onInput: (values, scope) => {
       const montant = num(values.quantite) * num(values.prixL);
       const mNode = scope.querySelector('[data-key="montant"]');
       if (mNode) mNode.value = `${fmt(montant)} F`;
-      // pre-remplissage marque/modele depuis la fiche vehicule
       const mm = scope.querySelector('[data-key="marqueModele"]');
       if (mm && !mm.value && values.immat) {
         const v = vehicleByImmat(values.immat);
@@ -162,179 +183,108 @@ function openPoolForm(d) {
   });
 }
 
-/* ============================= MISSION ============================ */
-
-function missionDotFields(d = {}) {
-  return [
-    { key: 'conducteur', label: 'Conducteur', required: true, value: d.conducteur, list: knownDrivers() },
-    { key: 'vehicule', label: 'Véhicule (immatriculation)', value: d.vehicule, list: knownImmats() },
-    { key: 'destination', label: 'Destination', value: d.destination },
-    { key: 'dateDepart', label: 'Date départ', type: 'date', value: d.dateDepart || todayISO() },
-    { key: 'dateRetour', label: 'Date retour', type: 'date', value: d.dateRetour },
-    { key: 'kmDepart', label: 'Km départ', type: 'number', value: d.kmDepart },
-    { key: 'kmRetour', label: 'Km retour', type: 'number', value: d.kmRetour },
-    { key: 'diff', label: 'Distance parcourue', type: 'static', value: d.diff ? fmt(d.diff) : '0' }
-  ];
-}
+/* =================== DOTATION CARBURANT MISSION ==================== */
 
 function renderMission(page) {
   const f = state.filters.dotationMission;
+
   page.appendChild(
-    card('DOTATION MISSION', 'Conducteur · Destination · Dates et kilométrages · Ravitaillements multiples dans différentes stations-service. Totaux litres et montants calculés automatiquement.', COLORS.orange)
+    card(
+      'DOTATION EN CARBURANT — MISSION',
+      'Le carburant consommé en mission, tel qu’il a été saisi dans le rapport de mission : conducteur, véhicule, période, destination, points de ravitaillement, litres et montant.',
+      COLORS.purple
+    )
   );
+
+  let list = missionsAvecCarburant();
+  if (f.dateFrom) list = list.filter((m) => !m.dateDepart || m.dateDepart >= f.dateFrom);
+  if (f.dateTo) list = list.filter((m) => !m.dateDepart || m.dateDepart <= f.dateTo);
+  if (f.conducteur) list = list.filter((m) => norm(m.conducteur || '').includes(norm(f.conducteur)));
+  list.sort((a, b) => String(b.dateDepart).localeCompare(String(a.dateDepart)));
 
   page.appendChild(
     filterBar([
-      { type: 'date', title: 'Du', value: f.dateFrom, onChange: (v) => { f.dateFrom = v; rerender(); } },
-      { type: 'date', title: 'Au', value: f.dateTo, onChange: (v) => { f.dateTo = v; rerender(); } },
+      { type: 'date', title: 'Départ à partir du', value: f.dateFrom, onChange: (v) => { f.dateFrom = v; rerender(); } },
+      { type: 'date', title: 'Départ jusqu’au', value: f.dateTo, onChange: (v) => { f.dateTo = v; rerender(); } },
       { type: 'text', placeholder: 'Conducteur', value: f.conducteur, onChange: (v) => { f.conducteur = v; rerender(); } }
     ])
   );
 
-  let list = DB.dotationMission.slice();
-  if (f.dateFrom) list = list.filter((d) => !d.dateDepart || d.dateDepart >= f.dateFrom);
-  if (f.dateTo) list = list.filter((d) => !d.dateDepart || d.dateDepart <= f.dateTo);
-  if (f.conducteur) list = list.filter((d) => norm(d.conducteur || '').includes(norm(f.conducteur)));
-  list.sort((a, b) => String(b.dateDepart).localeCompare(String(a.dateDepart)));
-
+  const total = carburantMissions(list);
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Dotations', fmt(list.length), 'sur la période filtrée', COLORS.orange));
-  grid.appendChild(statTile('Litres', fmt(sum(list, (d) => d.totalLitres)), 'tous ravitaillements', COLORS.blue));
-  grid.appendChild(statTile('Montant', `${fmt(sum(list, (d) => d.totalMontant))} F`, 'dépense carburant mission', COLORS.green));
+  grid.appendChild(statTile('Missions', fmt(list.length), 'avec du carburant saisi', COLORS.purple));
+  grid.appendChild(statTile('Litres', fmt(total.litres), 'tous ravitaillements', COLORS.blue));
+  grid.appendChild(statTile('Montant', `${fmt(total.montant)} F`, 'dépense carburant mission', COLORS.green));
   page.appendChild(grid);
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Ajouter une dotation mission', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openMissionDotForm(null) },
+      canWrite() && {
+        label: '✎ Saisir dans un rapport de mission',
+        cls: 'addBtn',
+        color: COLORS.purple,
+        write: true,
+        onClick: () => { state.sub.MISSION = 'rapport'; navigate('MISSION'); }
+      },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', 'mission', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'mission', list) }
     ])
   );
 
   if (!list.length) {
-    page.appendChild(emptyState(DB.dotationMission.length ? 'Aucune dotation ne correspond aux filtres.' : 'Aucune dotation mission enregistrée.'));
+    page.appendChild(
+      emptyState('Aucun carburant de mission saisi. Renseignez-le dans MISSION → Rapport de mission.')
+    );
     return;
   }
 
-  list.forEach((d) => {
-    const rav = d.ravitaillements || [];
-    const e = el('<div class="entry"></div>');
-    e.style.borderLeftColor = COLORS.orange;
-    e.dataset.search = norm(`${d.conducteur} ${d.destination} ${d.vehicule || ''}`);
-    const ravHtml = rav.length
-      ? rav.map((r) => `<div class="subEntryRow"><span>${esc(r.station || '—')} — ${fmt(r.quantite)} L × ${fmt(r.prix)} F</span><b>${fmt(num(r.quantite) * num(r.prix))} F</b></div>`).join('')
-      : subEmpty('Aucun ravitaillement');
-    e.innerHTML =
-      `<div class="row1"><h4>${esc(d.conducteur)}</h4><span class="badge" style="background:${COLORS.orange}">${fmt(d.totalMontant)} F</span></div>` +
-      `<div class="meta">${esc(d.destination || '—')}${d.vehicule ? ` · ${esc(d.vehicule)}` : ''} · ${esc(dateFR(d.dateDepart))} → ${esc(dateFR(d.dateRetour) || '…')}</div>` +
-      `<div class="fields"><b>Km :</b> ${fmt(d.kmDepart)} → ${fmt(d.kmRetour)} (Δ ${fmt(d.diff)} km) · <b>Total :</b> ${fmt(d.totalLitres)} L</div>` +
-      `<div class="subBlock"><h5>Ravitaillements (${rav.length})</h5>${ravHtml}</div>` +
-      '<div class="actions">' +
-      (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier</button>` : '') +
-      (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
-      '</div>';
-    const ed = e.querySelector('[data-edit]');
-    if (ed) ed.onclick = () => openMissionDotForm(d);
-    const del = e.querySelector('[data-del]');
-    if (del) {
-      del.onclick = async () => {
-        if (!(await confirmDialog({ title: 'Supprimer la dotation mission', message: `Supprimer la dotation de ${d.conducteur} (${d.destination || 'sans destination'}) ?`, okLabel: 'Supprimer', danger: true }))) return;
-        remove('dotationMission', d.id);
-        toast('Dotation supprimée.', 'ok');
-        rerender();
-      };
-    }
-    page.appendChild(e);
+  const headers = [
+    'Mission', 'Conducteur', 'Véhicule', 'Destination', 'Période',
+    'Km départ', 'Km arrivée', 'Distance', 'Points de ravitaillement',
+    'Quantité<br>(L)', 'Montant', ''
+  ];
+
+  const rows = list.map((m) => {
+    const rav = m.ravitaillements || [];
+    return [
+      `<b>${esc(m.ref || '')}</b>`,
+      esc(m.conducteur || ''),
+      esc(m.vehicule || ''),
+      esc(m.destination || ''),
+      `${esc(dateFR(m.dateDepart) || '…')}<br>→ ${esc(dateFR(m.dateRetour) || '…')}`,
+      `<span style="display:block;text-align:right">${fmt(m.kmDepart)}</span>`,
+      `<span style="display:block;text-align:right">${fmt(m.kmArrivee)}</span>`,
+      `<span style="display:block;text-align:right">${fmt(num(m.kmArrivee) - num(m.kmDepart))}</span>`,
+      rav.map((r) => `${esc(r.station || '—')} (${fmt(r.quantite)} L × ${fmt(r.prixL)} F)`).join('<br>'),
+      `<span style="display:block;text-align:right">${fmt(sum(rav, (r) => r.quantite))}</span>`,
+      `<span style="display:block;text-align:right"><b>${fmt(sum(rav, ravMontant))} F</b></span>`,
+      `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-rapport>Rapport</button>`
+    ];
   });
-}
 
-function openMissionDotForm(d) {
-  const isEdit = !!d;
-  const rav = (d && d.ravitaillements ? d.ravitaillements : []).map((r) => Object.assign({}, r));
-
-  openForm({
-    title: isEdit ? `Modifier la dotation — ${d.conducteur}` : 'Nouvelle dotation — MISSION',
-    fields: missionDotFields(d || {}),
-    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la dotation',
-    onInput: (values, scope) => {
-      const node = scope.querySelector('[data-key="diff"]');
-      if (node) node.value = `${fmt(num(values.kmRetour) - num(values.kmDepart))} km`;
-    },
-    extra: (scope) => {
-      const block = el('<div class="subBlock" style="margin-top:14px"><h5>Ravitaillements</h5><div data-ravlist></div>' +
-        '<div class="fGrid" style="margin-top:8px">' +
-        '<div class="fRow"><label>Station-service</label><input data-rstation></div>' +
-        '<div class="fRow"><label>Quantité (L)</label><input type="number" step="any" data-rqte></div>' +
-        '<div class="fRow"><label>Prix / L</label><input type="number" step="any" data-rprix></div>' +
-        '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
-        '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>Total</b></span><b data-rtotal>0 L — 0 F</b></div></div>');
-
-      const listBox = block.querySelector('[data-ravlist]');
-      const totalBox = block.querySelector('[data-rtotal]');
-
-      const draw = () => {
-        listBox.innerHTML = rav.length
-          ? rav
-              .map(
-                (r, i) =>
-                  `<div class="subEntryRow"><span>${esc(r.station || '—')} — ${fmt(r.quantite)} L × ${fmt(r.prix)} F = ${fmt(num(r.quantite) * num(r.prix))} F</span>` +
-                  `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 8px" data-rdel="${i}">✕</button></div>`
-              )
-              .join('')
-          : subEmpty('Aucun ravitaillement ajouté');
-        totalBox.textContent = `${fmt(sum(rav, (r) => r.quantite))} L — ${fmt(sum(rav, (r) => num(r.quantite) * num(r.prix)))} F`;
-        listBox.querySelectorAll('[data-rdel]').forEach((b) => {
-          b.onclick = () => { rav.splice(Number(b.dataset.rdel), 1); draw(); };
-        });
+  page.appendChild(
+    dataTable(headers, rows, (tr, i) => {
+      const m = list[i];
+      tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.vehicule} ${m.destination}`);
+      tr.querySelector('[data-rapport]').onclick = () => {
+        state.sub.MISSION = 'rapport';
+        state.filters.missions.conducteur = m.conducteur || '';
+        navigate('MISSION');
       };
-      draw();
-
-      block.querySelector('[data-radd]').onclick = () => {
-        const station = block.querySelector('[data-rstation]').value.trim();
-        const quantite = num(block.querySelector('[data-rqte]').value);
-        const prix = num(block.querySelector('[data-rprix]').value);
-        if (!station || quantite <= 0) {
-          toast('Renseignez la station et une quantité valide.', 'err');
-          return;
-        }
-        rav.push({ station, quantite, prix });
-        block.querySelector('[data-rstation]').value = '';
-        block.querySelector('[data-rqte]').value = '';
-        block.querySelector('[data-rprix]').value = '';
-        draw();
-      };
-      scope.insertBefore(block, scope.querySelector('.err'));
-    },
-    onSubmit: (values) => {
-      const payload = {
-        conducteur: values.conducteur,
-        vehicule: String(values.vehicule || '').trim().toUpperCase(),
-        destination: values.destination,
-        dateDepart: values.dateDepart,
-        dateRetour: values.dateRetour,
-        kmDepart: num(values.kmDepart),
-        kmRetour: num(values.kmRetour),
-        diff: num(values.kmRetour) - num(values.kmDepart),
-        ravitaillements: rav,
-        totalLitres: sum(rav, (r) => r.quantite),
-        totalMontant: sum(rav, (r) => num(r.quantite) * num(r.prix))
-      };
-      if (isEdit) update('dotationMission', d.id, payload);
-      else insert('dotationMission', payload);
-      toast(isEdit ? 'Dotation mise à jour.' : 'Dotation enregistrée.', 'ok');
-      rerender();
-      return null;
-    }
-  });
+    })
+  );
 }
 
 async function doExport(kind, sub, list) {
   try {
-    const datasets = sub === 'pool' ? [dsDotationPool(list)] : [dsDotationMission(list), dsRavitaillements(list)];
+    const datasets = sub === 'pool'
+      ? [dsDotationPool(list)]
+      : [dsCarburantMissions(list), dsRavitaillementsMissions(list)];
     const name = sub === 'pool' ? 'PDU_dotation_pool' : 'PDU_dotation_mission';
+    const titre = sub === 'pool' ? 'Dotation carburant — pool' : 'Dotation carburant — missions';
     const res = kind === 'excel'
       ? await exportExcel(datasets, name)
-      : await exportPdf(datasets, name, { title: 'Dotation carburant' });
+      : await exportPdf(datasets, name, { title: titre });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

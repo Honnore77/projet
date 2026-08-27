@@ -33,10 +33,10 @@ export function toast(message, kind = 'ok', ms = 2600) {
  * Ouvre une modale generique.
  * @returns {{close:Function, body:HTMLElement, root:HTMLElement}}
  */
-export function openModal({ title, bodyHtml = '', bodyNode = null, buttons = [], onClose }) {
+export function openModal({ title, bodyHtml = '', bodyNode = null, buttons = [], onClose, wide = false }) {
   const back = el('<div class="modalBack"></div>');
   const modal = el(`
-    <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal${wide ? ' wide' : ''}" role="dialog" aria-modal="true">
       <header><h3>${esc(title)}</h3><button type="button" aria-label="Fermer">&times;</button></header>
       <div class="body"></div>
       <div class="foot"></div>

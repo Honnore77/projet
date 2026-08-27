@@ -22,27 +22,97 @@ input,select,textarea{font-family:inherit;}
 .bootSplash p{color:var(--muted);font-size:14px;margin:0;}
 
 /* ---------------- LOGIN ---------------- */
-#login{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  height:100%;padding:32px 24px;background:var(--bg);gap:14px;overflow-y:auto;}
-#login img.brand{width:100%;max-width:320px;height:auto;margin-bottom:4px;}
-#login h1{font-size:19px;font-weight:700;color:var(--green);text-align:center;margin:0 0 4px;letter-spacing:.3px;}
+/* La page defile d'un bloc : en-tete, formulaire, illustration, pied. */
+#login{display:flex;flex-direction:column;height:100%;overflow-y:auto;background:var(--white);}
+
+/* ---- en-tete : PDU a gauche, titre au centre, armoirie a droite ---- */
+.cxEntete{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:14px 16px;background:var(--white);flex-shrink:0;}
+.cxEntete img{height:clamp(44px,9vw,62px);width:auto;object-fit:contain;}
+.cxTitre{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;min-width:0;}
+.cxTitre span:first-child{font-size:clamp(13px,3.2vw,17px);font-weight:800;color:var(--green);
+  text-align:center;line-height:1.25;letter-spacing:.2px;}
+/* Petit filet bicolore, repris de la charte : orange puis gris. */
+.cxTrait{display:block;width:76px;height:3px;border-radius:2px;
+  background:linear-gradient(90deg,var(--orange) 0 58%,#c7d2d4 58% 100%);}
+.cxEtat{display:flex;flex-direction:column;align-items:center;gap:3px;}
+.cxEtat small{font-size:9px;font-weight:700;color:var(--text);text-align:center;line-height:1.2;
+  letter-spacing:.2px;}
+
+/* ------------------------- corps du formulaire ---------------------- */
+.cxCorps{flex:1 0 auto;display:flex;flex-direction:column;align-items:center;
+  width:100%;max-width:420px;margin:0 auto;padding:22px 22px 26px;}
+.cxBadge{width:78px;height:78px;border-radius:50%;background:var(--green-soft);
+  display:flex;align-items:center;justify-content:center;color:var(--green);margin-bottom:14px;}
+.cxBadge svg{width:42px;height:42px;}
+#login h1{font-size:24px;font-weight:800;color:var(--green);letter-spacing:.6px;margin:0;}
+.cxSous{font-size:13.5px;color:var(--muted);margin:6px 0 22px;text-align:center;}
+
+.cxChampBloc{width:100%;margin-bottom:14px;}
+.cxChampBloc label{display:block;font-size:13px;font-weight:700;color:var(--green);
+  margin:0 0 7px 2px;}
+.cxChamp{display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--white);
+  border:1px solid var(--line);border-radius:12px;transition:border-color .12s,box-shadow .12s;}
+.cxChamp:focus-within{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,138,59,.12);}
+.cxIcone{display:flex;color:#8aa0a6;flex-shrink:0;}
+.cxIcone svg{width:21px;height:21px;}
+.cxChamp input{flex:1;min-width:0;border:0;outline:0;background:transparent;
+  padding:14px 0;font-size:15px;color:var(--text);}
+.cxOeil{border:0;background:transparent;color:#8aa0a6;padding:6px;display:flex;flex-shrink:0;}
+.cxOeil svg{width:21px;height:21px;}
+.cxOeil:active{color:var(--green);}
+
+.cxOptions{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  width:100%;margin:2px 0 16px;flex-wrap:wrap;}
+.cxCase{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text);cursor:pointer;}
+.cxCase input{width:18px;height:18px;accent-color:var(--green);}
+.cxLien{border:0;background:transparent;color:var(--orange);font-size:13px;font-weight:600;
+  padding:0;text-decoration:underline;}
+
+.cxBouton{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;
+  padding:15px;border:0;border-radius:12px;background:var(--green-dark);color:#fff;
+  font-size:15px;font-weight:700;letter-spacing:.6px;}
+.cxBouton svg{width:20px;height:20px;}
+.cxBouton:active{background:#00551F;}
+.cxBouton:disabled{opacity:.6;}
+
+.cxOu{display:flex;align-items:center;gap:12px;width:100%;margin:18px 0 14px;
+  color:var(--muted);font-size:12px;font-weight:700;}
+.cxOu::before,.cxOu::after{content:"";flex:1;height:1px;background:var(--line);}
+
+#login .err{width:100%;text-align:left;margin-bottom:6px;}
+#login .btnGhost{max-width:none;}
+
+/* ------------------- illustration et pied de page ------------------- */
+/* L'illustration est une photo de 396 px de large. Sur un ecran etroit elle
+   remplit le bandeau. Au-dela, l'agrandir la rendrait floue et rognerait les
+   vehicules : elle garde donc sa taille utile, centree sur un fond reprenant
+   ses propres tons, et ses bords lateraux sont estompes pour que le raccord
+   ne se voie pas. */
+.cxIllustration{flex-shrink:0;height:clamp(150px,24vw,190px);
+  display:flex;justify-content:center;overflow:hidden;
+  background:linear-gradient(180deg,#fbfbfb 0%,#e1eae4 56%,#bfc7c0 100%);}
+.cxPhoto{width:100%;height:100%;
+  background-image:url('./bandeau-connexion.png');
+  background-size:cover;background-position:center bottom;background-repeat:no-repeat;}
+
+@media (min-width:600px){
+  .cxPhoto{width:auto;aspect-ratio:396 / 154;
+    -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);
+    mask-image:linear-gradient(90deg,transparent 0,#000 13%,#000 87%,transparent 100%);}
+}
+.cxPied{flex-shrink:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
+  background:#dff0e6;text-align:center;font-size:11.5px;line-height:1.6;color:#4a6b58;}
 .field{width:100%;max-width:340px;}
 .field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin:0 0 5px 3px;
   text-transform:uppercase;letter-spacing:.4px;}
 .field input,.field select{width:100%;padding:14px 16px;font-size:16px;border:1px solid #d7dee0;
   border-radius:12px;background:var(--white);color:var(--text);outline:none;}
 .field input:focus,.field select:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,138,59,.12);}
-.btnPrimary{width:100%;max-width:340px;padding:15px;border:none;border-radius:14px;background:var(--green);
-  color:#fff;font-size:16px;font-weight:600;letter-spacing:.2px;}
-.btnPrimary:active{background:var(--green-dark);}
-.btnPrimary:disabled{opacity:.55;}
 .btnGhost{width:100%;max-width:340px;padding:14px;border:1px solid #d7dee0;border-radius:14px;
   background:var(--white);color:var(--text);font-size:14.5px;font-weight:600;}
 .btnGhost:active{background:#eef2f2;}
-.note{font-size:12px;color:var(--muted);text-align:center;margin-top:14px;max-width:340px;line-height:1.5;}
 .err{color:var(--red);font-size:13px;min-height:16px;text-align:center;max-width:340px;}
-.divider{width:100%;max-width:340px;display:flex;align-items:center;gap:10px;color:#8aa0a6;font-size:12px;margin:2px 0;}
-.divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--line);}
 
 /* ---------------- SHELL ---------------- */
 #dashboard{display:flex;flex-direction:column;height:100%;}
@@ -197,6 +267,19 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 .modal header button{border:none;background:#eef2f2;color:var(--text);width:32px;height:32px;border-radius:10px;
   font-size:17px;line-height:1;}
 .modal .body{padding:14px 16px;overflow-y:auto;flex:1;}
+
+/* Fenetre d'apercu avant export : le document doit etre lisible, donc large. */
+.modal.wide{max-width:1120px;height:94vh;max-height:94vh;}
+.modal.wide .body{padding:0;display:flex;flex-direction:column;}
+.apercuCadre{flex:1;width:100%;border:0;background:#525659;}
+.apercuTables{padding:14px 16px;overflow:auto;}
+.apercuTables h4{margin:14px 0 6px;font-size:12.5px;letter-spacing:.4px;color:var(--green);
+  text-transform:uppercase;}
+.apercuTables h4:first-child{margin-top:0;}
+.apercuNote{font-size:12px;color:var(--muted);margin:6px 0 0;}
+.apercuEntete{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 16px;
+  background:#eef2f2;border-bottom:1px solid var(--line);font-size:12.5px;color:var(--muted);}
+.apercuEntete b{color:var(--text);}
 .modal .foot{display:flex;gap:9px;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:var(--white);
   border-top:1px solid var(--line);flex-shrink:0;}
 .modal .foot button{flex:1;border:none;padding:13px;border-radius:12px;font-size:14.5px;font-weight:600;}

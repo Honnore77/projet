@@ -36,7 +36,7 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['logo-pdu.jpg', 'icons/icon-192.png', 'icons/icon-512.png'],
+      includeAssets: ['logo-pdu.png', 'icons/icon-192.png', 'icons/icon-512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,jpg,svg,woff2}'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,

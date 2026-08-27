@@ -1,20 +1,17 @@
 /* ===================================================================
-   RÉGLAGES — comptes, serveur, synchronisation, seuils, sauvegardes.
+   RÉGLAGES — comptes, seuils d'alerte, sauvegarde et restauration.
    Rubrique reservee aux administrateurs (voir MODULES dans shell.js).
    =================================================================== */
 
-import { DB, persistNow, replaceDB, emptyDB, saveSettings, queueEverything, outboxSize, remove } from '../../core/db.js';
+import { DB, persistNow, replaceDB, emptyDB, saveSettings } from '../../core/db.js';
 import {
-  ROLES, currentUser, canAdmin, roleLabel, isOfflineSession,
-  fetchAccounts, createAccount, updateAccount, deleteAccount, resetPassword,
-  changeOwnPassword, forgetDevice
+  ROLES, currentUser, canAdmin, roleLabel, listAccounts,
+  createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
 } from '../../core/auth.js';
-import { platformName, dataLocation, saveFile, openTextFile, isDesktop } from '../../core/storage.js';
-import { api, setServerUrl, getServerUrl, ApiError } from '../../core/api.js';
-import { syncNow, syncState, resetSyncState } from '../../core/sync.js';
+import { platformName, dataLocation, saveFile, openTextFile } from '../../core/storage.js';
 import { esc, el, num } from '../../core/utils.js';
 import {
-  card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, emptyState, COLORS
+  card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
 import { rerender } from '../shell.js';
 
@@ -25,135 +22,18 @@ export function renderSettings(page) {
   }
 
   page.appendChild(
-    card('RÉGLAGES', 'Comptes utilisateurs, serveur et synchronisation, seuils d’alerte, sauvegarde et restauration.', COLORS.purple)
+    card('RÉGLAGES', 'Comptes utilisateurs, seuils d’alerte du tableau de bord, sauvegarde et restauration des données.', COLORS.purple)
   );
 
-  renderSyncSection(page);
   renderAccountsSection(page);
   renderThresholdsSection(page);
   renderBackupSection(page);
-}
-
-/* --------------------------- Synchronisation ----------------------- */
-
-function renderSyncSection(page) {
-  page.appendChild(sectionLabel('SERVEUR ET SYNCHRONISATION', COLORS.blue));
-
-  const s = syncState();
-  const etat = isOfflineSession()
-    ? '🟠 Session ouverte hors ligne — reconnectez-vous pour synchroniser'
-    : s.online
-      ? '🟢 Connecté au serveur'
-      : '🔴 Hors ligne — les modifications sont mises en attente';
-
-  const box = el('<div class="card"><h3 style="color:#1976D2">ÉTAT</h3><p></p></div>');
-  box.querySelector('p').textContent =
-    `${etat}\n` +
-    `Serveur : ${getServerUrl() || (isDesktop ? 'non configuré' : window.location.origin)}\n` +
-    `Modifications en attente d’envoi : ${s.pending}\n` +
-    `Dernière synchronisation : ${s.lastPull ? new Date(s.lastPull).toLocaleString('fr-FR') : 'jamais'}` +
-    (s.lastError ? `\nDernière erreur : ${s.lastError}` : '');
-  page.appendChild(box);
-
-  page.appendChild(
-    toolbar([
-      {
-        label: '🔄 Synchroniser maintenant',
-        cls: 'addBtn',
-        color: COLORS.blue,
-        onClick: async () => {
-          toast('Synchronisation en cours…', 'info');
-          const res = await syncNow({ full: false });
-          toast(
-            res.ok
-              ? `Synchronisé — ${res.sent || 0} envoyée(s), ${res.received || 0} reçue(s).`
-              : res.error,
-            res.ok ? 'ok' : 'err'
-          );
-          rerender();
-        }
-      },
-      {
-        label: '⬆ Tout renvoyer au serveur',
-        color: COLORS.orange,
-        onClick: async () => {
-          const ok = await confirmDialog({
-            title: 'Tout renvoyer au serveur',
-            message:
-              `Les ${countRecords()} enregistrements de ce poste seront renvoyés au serveur.\n\n` +
-              'Pour chaque fiche, la version de ce poste remplacera celle du serveur si elle est plus récente. ' +
-              'À utiliser après une restauration de sauvegarde, ou si vous doutez que tout soit bien remonté.',
-            okLabel: 'Tout renvoyer'
-          });
-          if (!ok) return;
-          queueEverything();
-          const res = await syncNow();
-          toast(res.ok ? 'Envoi terminé.' : res.error, res.ok ? 'ok' : 'err');
-          rerender();
-        }
-      },
-      isDesktop && {
-        label: '🖧 Changer l’adresse du serveur',
-        color: COLORS.grey,
-        onClick: openServerForm
-      },
-      {
-        label: '🚪 Déconnecter ce poste',
-        color: COLORS.red,
-        onClick: async () => {
-          const pending = outboxSize();
-          const ok = await confirmDialog({
-            title: 'Déconnecter ce poste',
-            message:
-              (pending
-                ? `⚠ ${pending} modification(s) n’ont pas encore été envoyées au serveur et seront perdues.\n\n`
-                : '') +
-              'Le jeton d’accès sera révoqué sur le serveur et ce poste oubliera le compte : ' +
-              'la prochaine connexion exigera le réseau.',
-            okLabel: 'Déconnecter',
-            danger: true
-          });
-          if (!ok) return;
-          await forgetDevice();
-          window.location.reload();
-        }
-      }
-    ])
-  );
-}
-
-function openServerForm() {
-  openForm({
-    title: 'Adresse du serveur',
-    intro: 'Changer de serveur revient à repartir d’une base différente. Les données déjà présentes sur ce poste restent, mais devront être renvoyées.',
-    fields: [{ key: 'url', label: 'Adresse', required: true, full: true, value: getServerUrl(), placeholder: 'https://…' }],
-    okLabel: 'Tester et enregistrer',
-    onSubmit: async (v) => {
-      const previous = getServerUrl();
-      setServerUrl(v.url);
-      try {
-        await api.health();
-      } catch (e) {
-        setServerUrl(previous);
-        return e instanceof ApiError && e.isOffline
-          ? 'Serveur injoignable à cette adresse.'
-          : `Réponse inattendue : ${e.message}`;
-      }
-      DB.sync.serverUrl = getServerUrl();
-      resetSyncState();
-      await persistNow();
-      toast('Adresse enregistrée. Reconnectez-vous pour ouvrir une session.', 'ok');
-      rerender();
-      return null;
-    }
-  });
 }
 
 /* ------------------------------ Comptes ---------------------------- */
 
 function renderAccountsSection(page) {
   page.appendChild(sectionLabel('COMPTES ET ACCÈS', COLORS.purple));
-
   page.appendChild(
     toolbar([
       { label: '+ Créer un compte', cls: 'addBtn', color: COLORS.purple, onClick: openCreateAccount },
@@ -161,59 +41,40 @@ function renderAccountsSection(page) {
     ])
   );
 
-  const holder = el('<div></div>');
-  page.appendChild(holder);
-  holder.appendChild(emptyState('Chargement des comptes…'));
-
-  fetchAccounts()
-    .then((accounts) => {
-      holder.innerHTML = '';
-      if (!accounts.length) {
-        holder.appendChild(emptyState('Aucun compte.'));
-        return;
+  const accounts = listAccounts();
+  page.appendChild(
+    dataTable(
+      ['Identifiant', 'Nom', 'Rôle', 'État', 'Dernière connexion', 'Actions'],
+      accounts.map((a) => [
+        `<b>${esc(a.login)}</b>${a.mustChange ? '<br><small style="color:#F47B20">mot de passe à changer</small>' : ''}`,
+        esc(a.nom || ''),
+        esc(roleLabel(a.role)),
+        a.actif ? '🟢 Actif' : '🔴 Désactivé',
+        a.lastLogin ? new Date(a.lastLogin).toLocaleString('fr-FR') : '—',
+        `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.orange};padding:5px 8px" data-reset>🔑</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del>✕</button>`
+      ]),
+      (tr, i) => {
+        const a = accounts[i];
+        tr.querySelector('[data-edit]').onclick = () => openEditAccount(a);
+        tr.querySelector('[data-reset]').onclick = () => openResetPassword(a);
+        tr.querySelector('[data-del]').onclick = async () => {
+          if (!(await confirmDialog({ title: 'Supprimer le compte', message: `Supprimer définitivement le compte « ${a.login} » ?`, okLabel: 'Supprimer', danger: true }))) return;
+          const res = deleteAccount(a.id);
+          toast(res.ok ? 'Compte supprimé.' : res.error, res.ok ? 'ok' : 'err');
+          rerender();
+        };
       }
-      holder.appendChild(
-        dataTable(
-          ['Identifiant', 'Nom', 'Rôle', 'État', 'Dernière connexion', 'Actions'],
-          accounts.map((a) => [
-            `<b>${esc(a.login)}</b>${a.mustChange ? '<br><small style="color:#F47B20">mot de passe à changer</small>' : ''}`,
-            esc(a.nom || ''),
-            esc(roleLabel(a.role)),
-            a.actif ? '🟢 Actif' : '🔴 Désactivé',
-            a.lastLogin ? new Date(a.lastLogin).toLocaleString('fr-FR') : '—',
-            `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit>✎</button> ` +
-              `<button class="miniBtn" style="background:${COLORS.orange};padding:5px 8px" data-reset>🔑</button> ` +
-              `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del>✕</button>`
-          ]),
-          (tr, i) => {
-            const a = accounts[i];
-            tr.querySelector('[data-edit]').onclick = () => openEditAccount(a);
-            tr.querySelector('[data-reset]').onclick = () => openResetPassword(a);
-            tr.querySelector('[data-del]').onclick = async () => {
-              if (!(await confirmDialog({ title: 'Supprimer le compte', message: `Supprimer définitivement le compte « ${a.login} » ?`, okLabel: 'Supprimer', danger: true }))) return;
-              const res = await deleteAccount(a.id);
-              toast(res.ok ? 'Compte supprimé.' : res.error, res.ok ? 'ok' : 'err');
-              rerender();
-            };
-          }
-        )
-      );
-    })
-    .catch((e) => {
-      holder.innerHTML = '';
-      holder.appendChild(
-        emptyState(
-          e instanceof ApiError && e.isOffline
-            ? 'La gestion des comptes demande une connexion au serveur.'
-            : `Comptes indisponibles : ${e.message}`
-        )
-      );
-    });
+    )
+  );
 
   page.appendChild(
     el(
       '<div class="card"><h3 style="color:#5b7178">RÔLES</h3><p>' +
         ROLES.map((r) => `${r.label} — ${r.desc}`).join('\n') +
+        '\n\nLe bouton « Continuer en visiteur » de l’écran de connexion ouvre une session ' +
+        'de consultation sans compte.' +
         '</p></div>'
     )
   );
@@ -255,8 +116,8 @@ function openEditAccount(a) {
     title: `Modifier le compte — ${a.login}`,
     fields: accountFields(a, false),
     okLabel: 'Enregistrer',
-    onSubmit: async (v) => {
-      const res = await updateAccount(a.id, { nom: v.nom, role: v.role, actif: v.actif === 'oui' });
+    onSubmit: (v) => {
+      const res = updateAccount(a.id, { nom: v.nom, role: v.role, actif: v.actif === 'oui' });
       if (!res.ok) return res.error;
       toast('Compte mis à jour.', 'ok');
       rerender();
@@ -268,7 +129,7 @@ function openEditAccount(a) {
 function openResetPassword(a) {
   openForm({
     title: `Réinitialiser le mot de passe — ${a.login}`,
-    intro: 'Le titulaire devra le changer à sa prochaine connexion. Ses sessions ouvertes seront fermées.',
+    intro: 'Le titulaire devra le changer à sa prochaine connexion.',
     fields: [
       { key: 'password', label: 'Nouveau mot de passe', type: 'password', required: true, full: true },
       { key: 'password2', label: 'Confirmer', type: 'password', required: true, full: true }
@@ -288,8 +149,8 @@ function openResetPassword(a) {
 /** Accessible aussi depuis la connexion quand un changement est impose. */
 export function openChangeOwnPassword(onDone) {
   const u = currentUser();
-  if (!u) {
-    toast('Aucun compte connecté.', 'info');
+  if (!u || u.guest) {
+    toast('Le mode visiteur n’a pas de mot de passe.', 'info');
     return;
   }
   openForm({
@@ -323,8 +184,9 @@ function renderThresholdsSection(page) {
         `Devise : ${esc(s.devise)}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
-        `Intervalle de vidange indicatif : ${num(s.seuilVidangeKm)} km\n\n` +
-        'Ces réglages sont partagés : ils s’appliquent à tous les postes.' +
+        `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
+` +
+        `Alerte vidange quand il reste moins de : ${num(s.seuilAlerteVidangeKm)} km` +
         '</p></div>'
     )
   );
@@ -342,7 +204,10 @@ function openSettingsForm() {
       { key: 'devise', label: 'Symbole monétaire', value: s.devise },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
-      { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'number', value: s.seuilVidangeKm }
+      { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'number', value: s.seuilVidangeKm,
+        hint: 'Sert à proposer le kilométrage de la prochaine vidange' },
+      { key: 'seuilAlerteVidangeKm', label: 'Alerte vidange (km restants)', type: 'number', value: s.seuilAlerteVidangeKm,
+        hint: 'Alerte dès qu’il reste moins que cela à parcourir' }
     ],
     okLabel: 'Enregistrer',
     onSubmit: (v) => {
@@ -351,9 +216,10 @@ function openSettingsForm() {
         devise: v.devise || 'F',
         seuilImmobilisationJours: num(v.seuilImmobilisationJours) || 7,
         seuilMissionImpayeeJours: num(v.seuilMissionImpayeeJours) || 30,
-        seuilVidangeKm: num(v.seuilVidangeKm) || 5000
+        seuilVidangeKm: num(v.seuilVidangeKm) || 5000,
+        seuilAlerteVidangeKm: num(v.seuilAlerteVidangeKm) || 500
       });
-      toast('Réglages enregistrés et partagés.', 'ok');
+      toast('Réglages enregistrés.', 'ok');
       rerender();
       return null;
     }
@@ -377,10 +243,10 @@ function renderBackupSection(page) {
   dataLocation().then((loc) => {
     info.querySelector('p').textContent =
       `Plateforme : ${platformName}\n` +
-      `Copie locale : ${loc}\n` +
-      `Base de référence : ${getServerUrl() || window.location.origin}\n` +
-      `Version du format local : ${DB.version}\n` +
-      `Dernière modification locale : ${new Date(DB.meta.updatedAt).toLocaleString('fr-FR')}\n` +
+      `Emplacement des données : ${loc}\n` +
+      `Version du format : ${DB.version}\n` +
+      `Créée le : ${new Date(DB.meta.createdAt).toLocaleString('fr-FR')}\n` +
+      `Dernière modification : ${new Date(DB.meta.updatedAt).toLocaleString('fr-FR')}\n` +
       `Contenu : ${countRecords()} enregistrement(s)`;
   });
 }
@@ -388,7 +254,7 @@ function renderBackupSection(page) {
 function countRecords() {
   return (
     DB.vehicles.pool.length + DB.vehicles.mission.length + DB.vehicles.service.length +
-    DB.users.length + DB.dotationPool.length + DB.dotationMission.length +
+    DB.users.length + DB.dotationPool.length +
     DB.missions.length + DB.maintenance.length
   );
 }
@@ -396,10 +262,7 @@ function countRecords() {
 async function doBackup() {
   try {
     await persistNow();
-    const copy = Object.assign({}, DB);
-    delete copy.sync;         // jeton d'acces : ne doit pas voyager dans une sauvegarde
-    delete copy.credentials;  // empreinte du mot de passe : idem
-    const json = JSON.stringify(copy, null, 2);
+    const json = JSON.stringify(DB, null, 2);
     const res = await saveFile(`PDU_sauvegarde_${new Date().toISOString().slice(0, 10)}.json`, json, 'application/json');
     toast(res ? 'Sauvegarde enregistrée.' : 'Sauvegarde annulée.', res ? 'ok' : 'info');
   } catch (e) {
@@ -428,15 +291,13 @@ async function doRestore() {
     title: 'Restaurer la sauvegarde',
     message:
       `La sauvegarde contient ${nb} véhicule(s), ${(parsed.users || []).length} utilisateur(s) et ${(parsed.missions || []).length} mission(s).\n\n` +
-      'Elle remplacera les données de ce poste, puis sera envoyée au serveur — donc à tous les autres postes. ' +
-      'Cette action est irréversible.',
+      'Toutes les données actuelles seront remplacées. Cette action est irréversible.',
     okLabel: 'Restaurer',
     danger: true
   });
   if (!ok) return;
-  await replaceDB(parsed, { push: true });
-  const res = await syncNow();
-  toast(res.ok ? 'Sauvegarde restaurée et envoyée au serveur.' : 'Sauvegarde restaurée localement ; envoi en attente.', 'ok');
+  await replaceDB(parsed);
+  toast('Sauvegarde restaurée.', 'ok');
   rerender();
 }
 
@@ -444,34 +305,24 @@ async function doWipe() {
   const ok = await confirmDialog({
     title: 'Vider toutes les données',
     message:
-      'Tous les véhicules, utilisateurs, dotations, missions et fiches d’entretien seront effacés — ' +
-      'sur ce poste puis, à la synchronisation, sur le serveur et donc sur tous les autres postes.\n\n' +
-      'Les comptes d’accès sont conservés. Exportez une sauvegarde avant de continuer.',
+      'Tous les véhicules, utilisateurs, dotations, missions et fiches d’entretien seront définitivement effacés.\n\n' +
+      'Les comptes d’accès sont conservés. Pensez à exporter une sauvegarde avant de continuer.',
     okLabel: 'Tout effacer',
     danger: true
   });
   if (!ok) return;
   const second = await confirmDialog({
     title: 'Confirmation finale',
-    message: 'Confirmez-vous la suppression définitive de toutes les données du parc, pour tout le monde ?',
+    message: 'Confirmez-vous la suppression définitive de toutes les données du parc ?',
     okLabel: 'Oui, tout effacer',
     danger: true
   });
   if (!second) return;
 
-  // On passe par des suppressions unitaires : le serveur doit apprendre que
-  // chaque fiche a disparu, sans quoi la prochaine descente les ramenerait.
-  ['pool', 'mission', 'service'].forEach((cat) => {
-    DB.vehicles[cat].slice().forEach((v) => remove(`vehicles.${cat}`, v.id));
-  });
-  ['users', 'dotationPool', 'dotationMission', 'missions', 'maintenance'].forEach((name) => {
-    DB[name].slice().forEach((r) => remove(name, r.id));
-  });
-
-  await persistNow();
-  const res = await syncNow();
-  toast(res.ok ? 'Toutes les données ont été effacées.' : 'Données effacées localement ; suppression en attente d’envoi.', 'ok');
+  const fresh = emptyDB();
+  fresh.accounts = DB.accounts;
+  fresh.settings = DB.settings;
+  await replaceDB(fresh);
+  toast('Toutes les données ont été effacées.', 'ok');
   rerender();
 }
-
-export { emptyDB };

@@ -1,12 +1,18 @@
 /* ===================================================================
    UTILISATEURS — agents du PDU et historique des incidents.
+
+   La liste s'affiche en tableau des l'ouverture, avec les informations
+   du formulaire. Les sections sont celles de la liste commune, et les
+   agents enregistres ici alimentent le champ « Utilisateur » des fiches
+   vehicule de pool et de service.
    =================================================================== */
 
-import { DB, STATUTS_USER, insert, update, remove, touch, knownImmats } from '../../core/db.js';
+import { DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
-  card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, subEmpty, COLORS
+  card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
+  dataTable, openModal, subEmpty, COLORS
 } from '../components.js';
 import { state, rerender } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
@@ -14,13 +20,28 @@ import { exportPdf } from '../../export/pdf.js';
 import { dsUsers, dsIncidents } from '../../export/datasets.js';
 
 function userFields(u = {}) {
-  const sections = [...new Set(DB.users.map((x) => x.section).filter(Boolean))];
   return [
     { key: 'nom', label: 'Nom', required: true, value: u.nom },
     { key: 'prenoms', label: 'Prénoms', value: u.prenoms },
     { key: 'fonction', label: 'Fonction au PDU', value: u.fonction },
-    { key: 'section', label: 'Section', value: u.section, list: sections },
+    {
+      key: 'section',
+      label: 'Section',
+      type: 'select',
+      options: SECTIONS,
+      allowEmpty: true,
+      emptyLabel: '— aucune —',
+      value: u.section
+    },
     { key: 'statut', label: 'Statut', type: 'select', options: STATUTS_USER, value: u.statut || 'Actif' },
+    {
+      key: 'poolConducteur',
+      label: 'Conducteur du pool',
+      type: 'select',
+      options: [{ value: 'Non', label: 'Non' }, { value: 'Oui', label: 'Oui' }],
+      value: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
+      hint: 'Entre dans le tour de rôle des missions'
+    },
     { key: 'telephone', label: 'Téléphone', value: u.telephone },
     { key: 'permis', label: 'N° de permis', value: u.permis },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: u.observations }
@@ -43,7 +64,7 @@ export function renderUsers(page) {
   const f = state.filters.users;
 
   page.appendChild(
-    card('UTILISATEURS', 'Nom · Prénoms · Fonction au PDU · Section · Statut · Historique des incidents et observations.', COLORS.blue)
+    card('UTILISATEURS', 'Agents du PDU. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions.', COLORS.blue)
   );
 
   page.appendChild(
@@ -54,13 +75,18 @@ export function renderUsers(page) {
         options: [{ value: '', label: 'Tous les statuts' }, ...STATUTS_USER],
         onChange: (v) => { f.statut = v; rerender(); }
       },
-      { type: 'text', placeholder: 'Filtrer par section', value: f.section, onChange: (v) => { f.section = v; rerender(); } }
+      {
+        type: 'select',
+        value: f.section,
+        options: [{ value: '', label: 'Toutes les sections' }, ...SECTIONS],
+        onChange: (v) => { f.section = v; rerender(); }
+      }
     ])
   );
 
   let list = DB.users.slice().reverse();
   if (f.statut) list = list.filter((u) => u.statut === f.statut);
-  if (f.section) list = list.filter((u) => norm(u.section || '').includes(norm(f.section)));
+  if (f.section) list = list.filter((u) => u.section === f.section);
 
   page.appendChild(
     toolbar([
@@ -81,87 +107,113 @@ export function renderUsers(page) {
     return;
   }
 
-  list.forEach((u) => page.appendChild(userEntry(u)));
+  const headers = [
+    'Nom', 'Prénoms', 'Fonction au PDU', 'Section', 'Statut',
+    'Conducteur<br>du pool', 'Téléphone', 'N° de permis', 'Incidents', 'Observations', ''
+  ];
+
+  const rows = list.map((u) => {
+    const hist = u.historique || [];
+    return [
+      `<b>${esc(u.nom || '')}</b>`,
+      esc(u.prenoms || ''),
+      esc(u.fonction || ''),
+      esc(u.section || ''),
+      `<span class="badge" style="background:${u.statut === 'Actif' ? COLORS.green : COLORS.red}">${esc(u.statut || '')}</span>`,
+      `<span style="display:block;text-align:center">${u.poolConducteur === 'Oui' ? '🔁 Oui' : '—'}</span>`,
+      esc(u.telephone || ''),
+      esc(u.permis || ''),
+      `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist>${hist.length} incident(s)</button>`,
+      esc(u.observations || ''),
+      canWrite()
+        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+        : ''
+    ];
+  });
+
+  page.appendChild(
+    dataTable(headers, rows, (tr, i) => {
+      const u = list[i];
+      tr.dataset.search = norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''}`);
+
+      tr.querySelector('[data-hist]').onclick = () => openHistorique(u);
+
+      const ed = tr.querySelector('[data-edit]');
+      if (ed) ed.onclick = () => openUserForm(u);
+
+      const del = tr.querySelector('[data-del]');
+      if (del) {
+        del.onclick = async () => {
+          const ok = await confirmDialog({
+            title: 'Supprimer l’utilisateur',
+            message: `Supprimer définitivement ${u.nom} ${u.prenoms} et son historique d’incidents ?`,
+            okLabel: 'Supprimer',
+            danger: true
+          });
+          if (!ok) return;
+          remove('users', u.id);
+          toast('Utilisateur supprimé.', 'ok');
+          rerender();
+        };
+      }
+    })
+  );
 }
 
-function userEntry(u) {
-  const hist = (u.historique || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  const e = el('<div class="entry"></div>');
-  e.style.borderLeftColor = u.statut === 'Actif' ? COLORS.blue : COLORS.red;
-  e.dataset.search = norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''}`);
+/** Historique des incidents d'un agent, en fenetre dediee. */
+function openHistorique(u) {
+  const corps = el('<div></div>');
 
-  const histHtml = hist.length
-    ? hist
-        .map(
-          (h, i) =>
-            `<div class="subEntryRow"><span><b>${esc(h.nature || 'Incident')}</b> — ${esc(dateFR(h.date))}` +
-            `${h.vehicule ? ` · ${esc(h.vehicule)}` : ''}${h.circonstances ? `<br><small>${esc(h.circonstances)}</small>` : ''}` +
-            `${h.responsabilite ? `<br><small>Responsabilité : ${esc(h.responsabilite)}</small>` : ''}</span>` +
-            (canWrite()
-              ? `<span data-write><button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-hedit="${i}">✎</button> ` +
-                `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-hdel="${i}">✕</button></span>`
-              : '') +
-            '</div>'
-        )
-        .join('')
-    : subEmpty('Aucun incident enregistré');
+  const dessiner = () => {
+    const hist = (u.historique || []).slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    corps.innerHTML =
+      `<div class="subBlock"><h5>Incidents et observations (${hist.length})</h5>` +
+      (hist.length
+        ? hist
+            .map(
+              (h, i) =>
+                `<div class="subEntryRow"><span><b>${esc(h.nature || 'Incident')}</b> — ${esc(dateFR(h.date))}` +
+                `${h.vehicule ? ` · ${esc(h.vehicule)}` : ''}` +
+                `${h.circonstances ? `<br><small>${esc(h.circonstances)}</small>` : ''}` +
+                `${h.responsabilite ? `<br><small>Responsabilité : ${esc(h.responsabilite)}</small>` : ''}` +
+                `${h.suite ? `<br><small>Suite : ${esc(h.suite)}</small>` : ''}</span>` +
+                (canWrite()
+                  ? `<span style="white-space:nowrap"><button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-hedit="${i}">✎</button> ` +
+                    `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-hdel="${i}">✕</button></span>`
+                  : '')
+            )
+            .join('')
+        : subEmpty('Aucun incident enregistré')) +
+      '</div>';
 
-  e.innerHTML =
-    `<div class="row1"><h4>${esc(u.nom)} ${esc(u.prenoms)}</h4>` +
-    `<span class="badge" style="background:${u.statut === 'Actif' ? COLORS.green : COLORS.red}">${esc(u.statut)}</span></div>` +
-    `<div class="meta">${esc(u.fonction || '—')}${u.section ? ` · ${esc(u.section)}` : ''}${u.telephone ? ` · ${esc(u.telephone)}` : ''}</div>` +
-    (u.permis || u.observations
-      ? `<div class="fields">${u.permis ? `<b>Permis :</b> ${esc(u.permis)}<br>` : ''}${u.observations ? `<b>Observations :</b> ${esc(u.observations)}` : ''}</div>`
-      : '') +
-    `<div class="subBlock"><h5>Historique incidents / observations (${hist.length})</h5>${histHtml}` +
-    (canWrite() ? '<button class="smallBtn" data-addhist>+ Ajouter un incident</button>' : '') +
-    '</div>' +
-    '<div class="actions">' +
-    (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier</button>` : '') +
-    (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
-    '</div>';
+    corps.querySelectorAll('[data-hedit]').forEach((b) => {
+      b.onclick = () => openIncidentForm(u, hist[Number(b.dataset.hedit)], dessiner);
+    });
+    corps.querySelectorAll('[data-hdel]').forEach((b) => {
+      b.onclick = async () => {
+        const h = hist[Number(b.dataset.hdel)];
+        if (!(await confirmDialog({ title: 'Supprimer l’incident', message: `Supprimer « ${h.nature || 'incident'} » du ${dateFR(h.date)} ?`, okLabel: 'Supprimer', danger: true }))) return;
+        u.historique = u.historique.filter((x) => x !== h);
+        touch('users', u);
+        toast('Incident supprimé.', 'ok');
+        dessiner();
+        rerender();
+      };
+    });
+  };
+  dessiner();
 
-  const addHist = e.querySelector('[data-addhist]');
-  if (addHist) addHist.onclick = () => openIncidentForm(u, null);
-
-  e.querySelectorAll('[data-hedit]').forEach((btn) => {
-    btn.onclick = () => openIncidentForm(u, hist[Number(btn.dataset.hedit)]);
+  openModal({
+    title: `${u.nom} ${u.prenoms} — incidents`,
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
+      ...(canWrite()
+        ? [{ label: '+ Ajouter un incident', cls: 'ok', onClick: () => openIncidentForm(u, null, dessiner) }]
+        : [])
+    ]
   });
-  e.querySelectorAll('[data-hdel]').forEach((btn) => {
-    btn.onclick = async () => {
-      const h = hist[Number(btn.dataset.hdel)];
-      const ok = await confirmDialog({
-        title: 'Supprimer l’incident',
-        message: `Supprimer « ${h.nature || 'incident'} » du ${dateFR(h.date)} ?`,
-        okLabel: 'Supprimer',
-        danger: true
-      });
-      if (!ok) return;
-      u.historique = u.historique.filter((x) => x !== h);
-      touch('users', u);
-      toast('Incident supprimé.', 'ok');
-      rerender();
-    };
-  });
-
-  const editBtn = e.querySelector('[data-edit]');
-  if (editBtn) editBtn.onclick = () => openUserForm(u);
-  const delBtn = e.querySelector('[data-del]');
-  if (delBtn) {
-    delBtn.onclick = async () => {
-      const ok = await confirmDialog({
-        title: 'Supprimer l’utilisateur',
-        message: `Supprimer définitivement ${u.nom} ${u.prenoms} et son historique d’incidents ?`,
-        okLabel: 'Supprimer',
-        danger: true
-      });
-      if (!ok) return;
-      remove('users', u.id);
-      toast('Utilisateur supprimé.', 'ok');
-      rerender();
-    };
-  }
-  return e;
 }
 
 export function openUserForm(u) {
@@ -184,7 +236,7 @@ export function openUserForm(u) {
   });
 }
 
-function openIncidentForm(u, incident) {
+function openIncidentForm(u, incident, onDone) {
   const isEdit = !!incident;
   openForm({
     title: isEdit ? 'Modifier l’incident' : `Nouvel incident — ${u.nom} ${u.prenoms}`,
@@ -198,6 +250,7 @@ function openIncidentForm(u, incident) {
       }
       touch('users', u);
       toast(isEdit ? 'Incident mis à jour.' : 'Incident ajouté.', 'ok');
+      if (onDone) onDone();
       rerender();
       return null;
     }

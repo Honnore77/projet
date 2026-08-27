@@ -4,10 +4,8 @@
 
 import { el, debounce, norm } from '../core/utils.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
-import { onSyncChange, syncState, syncNow } from '../core/sync.js';
-import { toast } from './components.js';
 // le logo vit dans public/ : Vite le copie tel quel a la racine du build
-const logoUrl = './logo-pdu.jpg';
+const logoUrl = './logo-pdu.png';
 
 import { renderDashboard } from './views/dashboard.js';
 import { renderVehicles } from './views/vehicles.js';
@@ -47,7 +45,7 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi' },
   vehicleSheetImmat: null,
   query: '',
   filters: {
@@ -67,39 +65,6 @@ let tabsEl = null;
 let searchInput = null;
 let globalBtn = null;
 let onLogoutCb = null;
-let syncChip = null;
-let unsubscribeSync = null;
-
-/**
- * Pastille de synchronisation : etat de la liaison avec le serveur et nombre
- * de modifications encore en attente d'envoi.
- */
-function paintSyncChip(s) {
-  if (!syncChip) return;
-  let icon = '🟢';
-  let label = '';
-  let title = 'Données à jour avec le serveur';
-
-  if (s.busy) {
-    icon = '🔄';
-    title = 'Synchronisation en cours…';
-  } else if (!s.online) {
-    icon = '🔴';
-    title = 'Hors ligne — les modifications sont mises en attente';
-  } else if (s.lastError) {
-    icon = '🟠';
-    title = s.lastError;
-  }
-  if (s.pending) {
-    label = String(s.pending);
-    if (s.online && !s.busy && !s.lastError) icon = '🟠';
-    title += ` — ${s.pending} modification(s) en attente d'envoi`;
-  }
-
-  syncChip.textContent = label ? `${icon} ${label}` : icon;
-  syncChip.title = title;
-}
-
 /** Construit la coquille et l affiche dans #app. */
 export function mountShell(appRoot, { onLogout }) {
   root = appRoot;
@@ -112,7 +77,6 @@ export function mountShell(appRoot, { onLogout }) {
       <header class="top">
         <img src="${logoUrl}" alt="PDU">
         <h2 id="pageTitle">TABLEAU DE BORD</h2>
-        <button id="syncChip" class="syncChip" type="button" title="Synchroniser maintenant"></button>
         <div class="userChip">
           <b>${u ? escapeText(u.nom) : ''}</b>
           <span class="role-${u ? u.role : 'visiteur'}">${u ? escapeText(roleLabel(u.role).toUpperCase()) : ''}</span>
@@ -144,15 +108,6 @@ export function mountShell(appRoot, { onLogout }) {
     logout();
     if (onLogoutCb) onLogoutCb();
   };
-
-  syncChip = dash.querySelector('#syncChip');
-  syncChip.onclick = async () => {
-    const res = await syncNow();
-    if (!res.ok) toast(res.error, 'err');
-  };
-  if (unsubscribeSync) unsubscribeSync();
-  unsubscribeSync = onSyncChange(paintSyncChip);
-  paintSyncChip(syncState());
 
   buildTabs();
 

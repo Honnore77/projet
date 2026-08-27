@@ -9,11 +9,12 @@
    l application ne connaisse jamais la plateforme.
    =================================================================== */
 
-const WEB_KEY = 'pdu_parc_db_v3';
+const WEB_KEY = 'pdu_parc_db_v4';
 
 // Cles des versions precedentes, de la plus recente a la plus ancienne :
-// v2 = application autonome (bureau + PWA), v1 = fichier HTML unique.
-const LEGACY_KEYS = ['pdu_parc_db_v2', 'pdu_parc_data_v1'];
+// v3 = version connectee a un serveur, v2 = version autonome,
+// v1 = fichier HTML unique d'origine.
+const LEGACY_KEYS = ['pdu_parc_db_v3', 'pdu_parc_db_v2', 'pdu_parc_data_v1'];
 
 export const isDesktop = typeof window !== 'undefined' && !!window.pduDesktop;
 

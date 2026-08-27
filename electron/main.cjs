@@ -36,7 +36,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
-      sandbox: false
+      sandbox: false,
+      // Le lecteur PDF integre de Chromium sert les apercus avant export.
+      plugins: true
     }
   });
 

@@ -2,22 +2,22 @@
    RAPPORTS ET EXPORTS — synthèses et production de documents.
    =================================================================== */
 
-import { DB, allVehicles, openMaintenance, unpaidMissions } from '../../core/db.js';
+import { DB, allVehicles, openMaintenance, unpaidMissions, carburantMissions } from '../../core/db.js';
 import { el, fmt, esc, sum } from '../../core/utils.js';
 import { card, statTile, dataTable, emptyState, toast, COLORS, sectionLabel } from '../components.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import {
-  dsAll, dsVehicles, dsUsers, dsIncidents, dsDotationPool, dsDotationMission,
-  dsRavitaillements, dsMissions, dsMissionsParConducteur, dsMaintenance,
+  dsAll, dsVehicles, dsUsers, dsIncidents, dsDotationPool, dsCarburantMissions,
+  dsRavitaillementsMissions, dsMissions, dsMissionsParConducteur, dsSuiviMissions, dsMaintenance,
   dsInterventions, dsCoutParVehicule
 } from '../../export/datasets.js';
 
 const RAPPORTS = [
   { key: 'parc', label: 'État du parc', desc: 'Tous les véhicules avec coûts carburant et entretien', build: () => [dsVehicles()], file: 'PDU_etat_du_parc' },
   { key: 'couts', label: 'Coûts par véhicule', desc: 'Classement des véhicules par coût total de possession', build: () => [dsCoutParVehicule()], file: 'PDU_couts_par_vehicule' },
-  { key: 'carburant', label: 'Carburant', desc: 'Dotations pool, dotations mission et ravitaillements', build: () => [dsDotationPool(), dsDotationMission(), dsRavitaillements()], file: 'PDU_carburant' },
-  { key: 'missions', label: 'Missions', desc: 'Missions détaillées et récapitulatif par conducteur', build: () => [dsMissions(), dsMissionsParConducteur()], file: 'PDU_missions' },
+  { key: 'carburant', label: 'Carburant', desc: 'Dotations du pool, carburant des missions et points de ravitaillement', build: () => [dsDotationPool(), dsCarburantMissions(), dsRavitaillementsMissions()], file: 'PDU_carburant' },
+  { key: 'missions', label: 'Missions', desc: 'Missions détaillées et récapitulatif par conducteur', build: () => [dsSuiviMissions(), dsMissions(), dsMissionsParConducteur()], file: 'PDU_missions' },
   { key: 'entretien', label: 'Entretien', desc: 'Passages au garage et interventions détaillées', build: () => [dsMaintenance(), dsInterventions()], file: 'PDU_entretien' },
   { key: 'personnel', label: 'Personnel', desc: 'Utilisateurs et historique des incidents', build: () => [dsUsers(), dsIncidents()], file: 'PDU_personnel' },
   { key: 'complet', label: 'Rapport complet', desc: 'Toutes les rubriques dans un seul document', build: () => dsAll(), file: 'PDU_rapport_complet' }
@@ -29,7 +29,7 @@ export function renderReports(page) {
   );
 
   const vehicles = allVehicles();
-  const totalCarburant = sum(DB.dotationPool, (d) => d.montant) + sum(DB.dotationMission, (d) => d.totalMontant);
+  const totalCarburant = sum(DB.dotationPool, (d) => d.montant) + carburantMissions().montant;
   const totalEntretien = DB.maintenance.reduce((s, m) => s + sum(m.interventions || [], (iv) => iv.cout), 0);
 
   const grid = el('<div class="statGrid"></div>');

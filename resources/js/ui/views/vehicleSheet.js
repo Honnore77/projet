@@ -4,7 +4,7 @@
 
 import { DB, vehicleByImmat, maintenanceCost, fuelCost } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { el, fmt, dateFR, sum, daysBetween } from '../../core/utils.js';
+import { el, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { card, toolbar, statTile, sectionLabel, emptyState, toast, COLORS } from '../components.js';
 import { state, navigate } from '../shell.js';
 import { statutColor, openVehicleForm } from './vehicles.js';
@@ -19,7 +19,8 @@ export function renderVehicleSheet(page) {
   const cat = vehicle ? vehicle._cat : null;
 
   const dots = DB.dotationPool.filter((d) => same(d.immat, immat));
-  const dotsMission = DB.dotationMission.filter((d) => same(d.vehicule, immat));
+  // Le carburant des missions est porte par la mission elle-meme (rapport).
+  const missionsCarburant = DB.missions.filter((m) => same(m.vehicule, immat) && (m.ravitaillements || []).length);
   const missions = DB.missions.filter((m) => same(m.vehicule, immat));
   const maint = DB.maintenance.filter((m) => same(m.immat, immat));
 
@@ -56,10 +57,11 @@ export function renderVehicleSheet(page) {
     );
   }
 
-  const carb = fuelCost(immat) + sum(dotsMission, (d) => d.totalMontant);
+  const carb = fuelCost(immat);
+  const litresMission = sum(missionsCarburant, (m) => sum(m.ravitaillements || [], (r) => r.quantite));
   const ent = maintenanceCost(immat);
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Carburant', `${fmt(carb)} F`, `${fmt(sum(dots, (d) => d.quantite) + sum(dotsMission, (d) => d.totalLitres))} litres`, COLORS.orange));
+  grid.appendChild(statTile('Carburant', `${fmt(carb)} F`, `${fmt(sum(dots, (d) => d.quantite) + litresMission)} litres`, COLORS.orange));
   grid.appendChild(statTile('Entretien', `${fmt(ent)} F`, `${maint.length} passage(s) au garage`, COLORS.red));
   grid.appendChild(statTile('Coût total', `${fmt(carb + ent)} F`, 'carburant + entretien', COLORS.green));
   grid.appendChild(statTile('Missions', fmt(missions.length), `${fmt(sum(missions, (m) => m.jours))} jour(s) cumulés`, COLORS.purple));
@@ -82,14 +84,18 @@ export function renderVehicleSheet(page) {
       });
   }
 
-  if (dotsMission.length) {
-    page.appendChild(sectionLabel(`DOTATIONS MISSION (${dotsMission.length})`, COLORS.orange));
-    dotsMission.forEach((d) => {
+  if (missionsCarburant.length) {
+    page.appendChild(sectionLabel(`CARBURANT DES MISSIONS (${missionsCarburant.length})`, COLORS.orange));
+    missionsCarburant.forEach((m) => {
+      const rav = m.ravitaillements || [];
+      const litres = sum(rav, (r) => r.quantite);
+      const montant = sum(rav, (r) => num(r.quantite) * num(r.prixL));
       page.appendChild(
         card(
-          `${d.conducteur} — ${fmt(d.totalMontant)} F`,
-          `${d.destination || '—'} · ${dateFR(d.dateDepart)} → ${dateFR(d.dateRetour) || '…'}\n` +
-            `${fmt(d.totalLitres)} L · ${(d.ravitaillements || []).length} ravitaillement(s)`,
+          `${m.ref ? `${m.ref} — ` : ''}${m.conducteur} — ${fmt(montant)} F`,
+          `${m.destination || '—'} · ${dateFR(m.dateDepart)} → ${dateFR(m.dateRetour) || '…'}\n` +
+            `${fmt(litres)} L · ${rav.length} ravitaillement(s) · ` +
+            `${rav.map((r) => r.station).filter(Boolean).join(', ') || 'stations non précisées'}`,
           COLORS.orange
         )
       );
@@ -127,7 +133,7 @@ export function renderVehicleSheet(page) {
     renderMaintenanceEntries(page, maint);
   }
 
-  if (!vehicle && !dots.length && !dotsMission.length && !missions.length && !maint.length) {
+  if (!vehicle && !dots.length && !missionsCarburant.length && !missions.length && !maint.length) {
     page.appendChild(emptyState('Aucune donnée trouvée pour cette immatriculation.'));
   }
 }

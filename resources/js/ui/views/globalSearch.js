@@ -56,18 +56,6 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.dotationMission.forEach((d) => {
-    if (norm(`${d.conducteur} ${d.destination} ${d.vehicule || ''}`).includes(q)) {
-      results.push({
-        type: 'DOTATION MISSION',
-        color: COLORS.orange,
-        title: `${d.conducteur} — ${fmt(d.totalMontant)} F`,
-        sub: `${d.destination || '—'} · ${dateFR(d.dateDepart)}`,
-        action: () => { state.sub.DOTATION = 'mission'; navigate('DOTATION'); }
-      });
-    }
-  });
-
   DB.missions.forEach((m) => {
     if (norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule} ${m.objet || ''}`).includes(q)) {
       results.push({

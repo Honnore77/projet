@@ -18,7 +18,6 @@ export function renderDashboard(page) {
   const nbVeh = vehicles.length;
   const auGarage = openMaintenance().length;
   const impayees = unpaidMissions();
-  const totalCarburant = sum(DB.dotationPool, (d) => d.montant) + sum(DB.dotationMission, (d) => d.totalMontant);
   const totalEntretien = DB.maintenance.reduce(
     (s, m) => s + sum(m.interventions || [], (iv) => iv.cout), 0
   );
@@ -37,7 +36,6 @@ export function renderDashboard(page) {
   grid.appendChild(statTile('Au garage', fmt(auGarage), auGarage ? 'immobilisations en cours' : 'aucune immobilisation', auGarage ? COLORS.orange : COLORS.green));
   grid.appendChild(statTile('Utilisateurs', fmt(DB.users.length), `${DB.users.filter((u) => u.statut === 'Actif').length} actif(s)`, COLORS.blue));
   grid.appendChild(statTile('Missions', fmt(DB.missions.length), `${impayees.length} en attente de paiement`, COLORS.purple));
-  grid.appendChild(statTile('Carburant', fmtF(totalCarburant), `${fmt(sum(DB.dotationPool, (d) => d.quantite) + sum(DB.dotationMission, (d) => d.totalLitres))} litres au total`, COLORS.orange));
   grid.appendChild(statTile('Entretien', fmtF(totalEntretien), `${DB.maintenance.length} passage(s) au garage`, COLORS.red));
   page.appendChild(grid);
 
@@ -90,7 +88,7 @@ export function renderDashboard(page) {
     parMois[k].litres += num(d.quantite);
     parMois[k].montant += num(d.montant);
   });
-  DB.dotationMission.forEach((d) => {
+  DB.missions.forEach((d) => {
     const k = monthKey(d.dateDepart);
     if (!k) return;
     parMois[k] = parMois[k] || { litres: 0, montant: 0 };

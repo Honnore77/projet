@@ -3,20 +3,51 @@
    =================================================================== */
 
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import { saveFile } from '../core/storage.js';
+import autoTableModule from 'jspdf-autotable';
+import { previewAndSave } from './preview.js';
 import { todayISO, dateFR } from '../core/utils.js';
 import { DB } from '../core/db.js';
+import { toWinAnsi as clean } from './winansi.js';
 
 const GREEN = [0, 138, 59];
 
 /**
- * @param {{title:string, columns:{key:string,label:string,width?:number}[], rows:object[], note?:string}[]} datasets
- * @param {string} baseName
- * @param {{orientation?:'p'|'l', title?:string}} [opts]
+ * Dessine un tableau dans le document.
+ *
+ * jspdf-autotable se presente de deux facons selon la maniere dont le module
+ * est resolu : une fonction exportee par defaut, ou une methode greffee sur
+ * l'instance jsPDF. Les deux ont existe au fil des versions de l'outil de
+ * construction, et une seule des deux suffit a produire un PDF vide sans
+ * lever d'erreur visible. On accepte donc les deux formes.
  */
-export async function exportPdf(datasets, baseName, opts = {}) {
+function drawTable(doc, options) {
+  const fn =
+    typeof autoTableModule === 'function'
+      ? autoTableModule
+      : autoTableModule && typeof autoTableModule.default === 'function'
+        ? autoTableModule.default
+        : null;
+
+  if (fn) return fn(doc, options);
+  if (typeof doc.autoTable === 'function') return doc.autoTable(options);
+  throw new Error("jspdf-autotable n'a pas pu être chargé : impossible de produire le PDF.");
+}
+
+/**
+ * Construit le document sans l'ecrire.
+ * @param {{title:string, columns:{key:string,label:string,width?:number}[], rows:object[], note?:string}[]} datasets
+ * @param {{orientation?:'p'|'l', title?:string}} [opts]
+ * @returns {Uint8Array}
+ */
+export function buildPdf(datasets, opts = {}) {
   const doc = new jsPDF({ orientation: opts.orientation || 'l', unit: 'mm', format: 'a4' });
+
+  // Tout texte ecrit dans ce document passe par l'assainisseur WinAnsi —
+  // y compris celui que jspdf-autotable dessine lui-meme dans les cellules.
+  const ecrireBrut = doc.text.bind(doc);
+  doc.text = (txt, x, y, o) =>
+    ecrireBrut(Array.isArray(txt) ? txt.map(clean) : clean(txt), x, y, o);
+
   const pageW = doc.internal.pageSize.getWidth();
   const org = (DB.settings && DB.settings.organisation) || 'PDU';
 
@@ -36,7 +67,7 @@ export async function exportPdf(datasets, baseName, opts = {}) {
     doc.text(clean(ds.title), 10, 14);
     doc.text(clean(`Édité le ${dateFR(todayISO())}`), pageW - 10, 14, { align: 'right' });
 
-    autoTable(doc, {
+    drawTable(doc, {
       startY: 24,
       head: [ds.columns.map((c) => clean(c.label))],
       body: ds.rows.map((r) => ds.columns.map((c) => text(r[c.key]))),
@@ -70,26 +101,22 @@ export async function exportPdf(datasets, baseName, opts = {}) {
     }
   });
 
-  const blob = doc.output('arraybuffer');
-  return saveFile(`${baseName}_${todayISO()}.pdf`, new Uint8Array(blob), 'application/pdf');
+  return new Uint8Array(doc.output('arraybuffer'));
 }
 
 /**
- * Les polices standard du PDF sont encodees en WinAnsi : les caracteres
- * typographiques (tirets longs, apostrophes courbes, puces) n y figurent
- * pas et disparaitraient silencieusement. On les remplace par leur
- * equivalent ASCII ; les accents francais, eux, sont bien pris en charge.
+ * Montre le document dans une fenêtre d'aperçu, puis l'écrit si
+ * l'utilisateur confirme.
+ * @returns {Promise<string|null>} chemin écrit, ou null si annulé
  */
-function clean(s) {
-  return String(s)
-    .replace(/[–—]/g, '-')
-    .replace(/[‘’]/g, "'")
-    .replace(/[“”]/g, '"')
-    .replace(/…/g, '...')
-    .replace(/[•·]/g, '-')
-    .replace(/ /g, ' ')
-    .replace(/[«»]/g, '"')
-    .replace(/[→←]/g, '->');
+export async function exportPdf(datasets, baseName, opts = {}) {
+  return previewAndSave({
+    kind: 'pdf',
+    bytes: buildPdf(datasets, opts),
+    filename: `${baseName}_${todayISO()}.pdf`,
+    mime: 'application/pdf',
+    title: 'Aperçu avant export PDF'
+  });
 }
 
 function text(v) {
