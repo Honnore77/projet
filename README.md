@@ -35,7 +35,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
 ## 3. Ce que fait l'application
 
 - **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, saisie guidée (voir ci-dessous), suivi de la vidange. Aucun montant carburant ou entretien n’apparaît dans cette rubrique — ni dans les tableaux, ni sur la fiche véhicule, ni dans ses exports. La fiche compte les **litres**, les **passages au garage** et les **missions** ; les montants font l’objet du rapport **Coûts par véhicule**, dans RAPPORTS, qui les détaille au lieu de les résumer en bout de ligne.
-- **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
+- **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire et les véhicules qui leur sont attribués. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service — dans les deux sens, voir ci-dessous — et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
 - **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place, avec le suivi de la carte carburant décrit ci-dessous) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
@@ -56,6 +56,17 @@ Le formulaire enchaîne les prises sans qu'on retape quoi que ce soit :
 
 Tous ces champs sont pré-remplis, jamais imposés : une valeur déjà saisie n'est pas écrasée. Les trois colonnes figurent dans le tableau et dans les exports Excel et PDF de la dotation pool.
 
+### Synchronisation UTILISATEURS ↔ véhicules
+
+Une fiche véhicule retient un **nom**, pas un identifiant : c'est ce qui s'imprime et ce qu'on lit dans un tableau. Le nom doit donc suivre l'agent, dans les deux sens, sans quoi les deux rubriques divergent au premier changement et plus personne ne sait laquelle dit vrai.
+
+- **Un nom saisi sur une fiche véhicule** (pool ou service, via « + Autre nom ») **crée l'agent dans UTILISATEURS.** Le premier mot devient le nom, le reste les prénoms ; la fiche agent reste modifiable pour corriger un découpage malheureux, et porte la mention « Créé depuis une fiche véhicule ».
+- **Un agent renommé dans UTILISATEURS** est renommé sur toutes les fiches véhicule qui le portaient. Le message de confirmation indique combien de fiches ont suivi.
+- **Un agent supprimé** : la fenêtre de confirmation liste les véhicules concernés et annonce que leur champ « Utilisateur » sera vidé. Les véhicules eux-mêmes sont conservés.
+- La colonne **Véhicule(s) attribué(s)** du tableau UTILISATEURS montre le lien en permanence — badge vert pour un véhicule de pool, violet pour un véhicule de service.
+
+Les véhicules de **mission** ne sont pas concernés : ils n'ont pas d'utilisateur attitré, ils partent au tour de rôle.
+
 ### Saisie guidée d'un véhicule
 
 Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie libre à chaque fois :
@@ -64,7 +75,7 @@ Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie 
 | --- | --- |
 | Modèle | Liste déroulante : TERRA, NAVARA, KICKS, QASHQAI, XTRAIL, TERRITORY, CROSS, PRADO, LAND CRUISER. La dernière entrée, **« + Autre modèle »**, bascule le champ en saisie libre ; « ↩ » revient à la liste. |
 | Couleur | Même principe : BLANCHE, NOIRE, GRISE, ROUGE, BLEU, puis **« + Autre couleur »**. |
-| Utilisateur | Liste des agents enregistrés dans UTILISATEURS. Un véhicule attribué à un agent depuis supprimé garde son nom. |
+| Utilisateur | Liste des agents enregistrés dans UTILISATEURS, plus **« + Autre nom »** pour saisir quelqu’un qui n’y figure pas encore. Le nom saisi est aussitôt ajouté à UTILISATEURS. |
 | Nouvelle immatriculation | Pré-remplie avec **D45 50 ** ; il ne reste que la fin de la plaque à saisir. Le préfixe seul est refusé à l'enregistrement. |
 | Ancienne immatriculation | Pré-remplie avec **D45 ** ; laissée telle quelle, elle est enregistrée comme vide. |
 | Statut | Disponible, En entretien, Immobilisé. « En mission » a été retiré : la mission en cours se lit dans la rubrique MISSION, et deux endroits pour un même fait finissaient par se contredire. Un véhicule encore marqué ainsi garde son statut tant qu'on ne le change pas. |

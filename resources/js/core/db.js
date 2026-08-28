@@ -433,6 +433,88 @@ export function knownImmats() {
   return [...set].sort();
 }
 
+/* =================================================================
+   Lien UTILISATEURS <-> vehicules de pool et de service.
+
+   Une fiche vehicule ne retient qu'un nom, pas un identifiant : c'est ce
+   qui s'imprime et ce qu'on lit dans un tableau. Le nom doit donc suivre
+   l'agent — renomme ici, il se met a jour la-bas, et un nom saisi la-bas
+   cree l'agent ici. Sans quoi les deux rubriques divergent au premier
+   changement, et plus personne ne sait laquelle dit vrai.
+   ================================================================= */
+
+/** Nom tel qu'il apparait dans une fiche vehicule. */
+export function nomComplet(u) {
+  return `${(u && u.nom) || ''} ${(u && u.prenoms) || ''}`.trim();
+}
+
+/** Noms des agents enregistres, dans l'ordre de la liste. */
+export function nomsUtilisateurs() {
+  return DB.users.map(nomComplet).filter(Boolean);
+}
+
+/** Categories de vehicules qui portent un utilisateur. */
+const CATS_UTILISATEUR = ['pool', 'service'];
+
+/** Vehicules attribues a un agent, toutes categories concernees. */
+export function vehiculesDeLAgent(nom) {
+  const cle = norm(nom || '');
+  if (!cle) return [];
+  const out = [];
+  CATS_UTILISATEUR.forEach((cat) => {
+    DB.vehicles[cat].forEach((v) => {
+      if (norm(v.utilisateur || '') === cle) out.push(Object.assign({ _cat: cat }, v));
+    });
+  });
+  return out;
+}
+
+/** Applique un nouveau nom aux vehicules qui portaient l'ancien. */
+export function renommerAgentSurVehicules(ancien, nouveau) {
+  const cle = norm(ancien || '');
+  if (!cle || norm(nouveau || '') === cle) return 0;
+  let n = 0;
+  CATS_UTILISATEUR.forEach((cat) => {
+    DB.vehicles[cat].forEach((v) => {
+      if (norm(v.utilisateur || '') === cle) { v.utilisateur = nouveau; n += 1; }
+    });
+  });
+  if (n) persist();
+  return n;
+}
+
+/** Retire un agent des vehicules qui lui etaient attribues. */
+export function detacherAgentDesVehicules(nom) {
+  return renommerAgentSurVehicules(nom, '');
+}
+
+/**
+ * Garantit qu'un nom saisi dans une fiche vehicule existe aussi dans
+ * UTILISATEURS. Le premier mot fait le nom, le reste les prenoms — la fiche
+ * agent reste modifiable pour corriger un decoupage malheureux.
+ */
+export function assurerAgent(nom) {
+  const propre = String(nom || '').trim();
+  if (!propre) return null;
+  const existant = DB.users.find((u) => norm(nomComplet(u)) === norm(propre));
+  if (existant) return existant;
+
+  const mots = propre.split(/\s+/);
+  return insert('users', {
+    nom: mots[0],
+    prenoms: mots.slice(1).join(' '),
+    fonction: '',
+    section: '',
+    statut: 'Actif',
+    poolConducteur: 'Non',
+    telephone: '',
+    permis: '',
+    observations: 'Créé depuis une fiche véhicule',
+    historique: [],
+    createdAt: new Date().toISOString()
+  });
+}
+
 export function knownDrivers() {
   const set = new Set();
   DB.users.forEach((u) => set.add(`${u.nom} ${u.prenoms}`.trim()));

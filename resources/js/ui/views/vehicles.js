@@ -8,7 +8,8 @@
 import {
   DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
-  insert, update, remove, moveVehicle, immatOf, etatVidange
+  insert, update, remove, moveVehicle, immatOf, etatVidange,
+  nomsUtilisateurs, assurerAgent
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm } from '../../core/utils.js';
@@ -60,7 +61,7 @@ function listeConnue(champ, base) {
 /** Champs du formulaire vehicule (partages creation / modification). */
 function vehicleFields(v = {}, cat = 'pool') {
   const withSection = cat !== 'mission';
-  const agents = DB.users.map((u) => `${u.nom} ${u.prenoms}`.trim()).filter(Boolean);
+  const agents = nomsUtilisateurs();
   const marques = listeConnue('marque', []);
 
   // Un vehicule enregistre avant le retrait d'un statut garde le sien : on le
@@ -95,15 +96,15 @@ function vehicleFields(v = {}, cat = 'pool') {
           {
             key: 'utilisateur',
             label: 'Utilisateur',
-            type: 'select',
+            type: 'selectAdd',
             // Un vehicule attribue a un agent depuis supprime garde son nom :
             // il vaut mieux une valeur devenue orpheline qu'une attribution
             // effacee sans que personne ne l'ait demande.
             options: agents.includes(v.utilisateur) || !v.utilisateur ? agents : agents.concat([v.utilisateur]),
-            allowEmpty: true,
             emptyLabel: '— aucun —',
+            addLabel: 'Autre nom',
             value: v.utilisateur,
-            hint: agents.length ? 'Agents enregistrés dans UTILISATEURS' : 'Enregistrez d’abord les agents dans UTILISATEURS'
+            hint: 'Un nom saisi ici est ajouté à la rubrique UTILISATEURS'
           }
         ]
       : []),
@@ -238,6 +239,11 @@ export function renderVehicles(page) {
   );
 }
 
+/** Les vehicules de mission ne portent pas d'utilisateur attitre. */
+function withSectionCat(cat) {
+  return cat !== 'mission';
+}
+
 /** Formulaire de creation / modification. */
 export function openVehicleForm(vehicle, cat) {
   const isEdit = !!vehicle;
@@ -285,6 +291,10 @@ export function openVehicleForm(vehicle, cat) {
       if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
 
       const ancienne = String(values.immatAncienne || '').trim();
+      // Un nom saisi a la main rejoint UTILISATEURS : les deux rubriques ne
+      // doivent pas connaitre des agents differents.
+      if (withSectionCat(targetCat) && values.utilisateur) assurerAgent(values.utilisateur);
+
       const payload = {
         marque: values.marque,
         modele: values.modele,

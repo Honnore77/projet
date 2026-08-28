@@ -7,7 +7,10 @@
    vehicule de pool et de service.
    =================================================================== */
 
-import { DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats } from '../../core/db.js';
+import {
+  DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats,
+  nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules
+} from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
@@ -64,7 +67,7 @@ export function renderUsers(page) {
   const f = state.filters.users;
 
   page.appendChild(
-    card('UTILISATEURS', 'Agents du PDU. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions.', COLORS.blue)
+    card('UTILISATEURS', 'Agents du PDU. Le champ « Utilisateur » des fiches véhicule de pool et de service est synchronisé avec cette liste : un nom saisi là-bas apparaît ici, un nom modifié ici suit sur les fiches. Ils alimentent aussi le tour de rôle des missions.', COLORS.blue)
   );
 
   page.appendChild(
@@ -109,7 +112,8 @@ export function renderUsers(page) {
 
   const headers = [
     'Nom', 'Prénoms', 'Fonction au PDU', 'Section', 'Statut',
-    'Conducteur<br>du pool', 'Téléphone', 'N° de permis', 'Incidents', 'Observations', ''
+    'Conducteur<br>du pool', 'Véhicule(s)<br>attribué(s)', 'Téléphone', 'N° de permis',
+    'Incidents', 'Observations', ''
   ];
 
   const rows = list.map((u) => {
@@ -121,6 +125,9 @@ export function renderUsers(page) {
       esc(u.section || ''),
       `<span class="badge" style="background:${u.statut === 'Actif' ? COLORS.green : COLORS.red}">${esc(u.statut || '')}</span>`,
       `<span style="display:block;text-align:center">${u.poolConducteur === 'Oui' ? '🔁 Oui' : '—'}</span>`,
+      vehiculesDeLAgent(nomComplet(u))
+        .map((v) => `<span class="badge" style="background:${v._cat === 'pool' ? COLORS.green : COLORS.purple}">${esc(v.immatNouvelle || v.immatAncienne || '?')}</span>`)
+        .join(' ') || '<span style="color:#8aa0a6">—</span>',
       esc(u.telephone || ''),
       esc(u.permis || ''),
       `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist>${hist.length} incident(s)</button>`,
@@ -145,13 +152,19 @@ export function renderUsers(page) {
       const del = tr.querySelector('[data-del]');
       if (del) {
         del.onclick = async () => {
+          const attribues = vehiculesDeLAgent(nomComplet(u));
           const ok = await confirmDialog({
             title: 'Supprimer l’utilisateur',
-            message: `Supprimer définitivement ${u.nom} ${u.prenoms} et son historique d’incidents ?`,
+            message:
+              `Supprimer définitivement ${u.nom} ${u.prenoms} et son historique d’incidents ?` +
+              (attribues.length
+                ? `\n\n${attribues.length} véhicule(s) lui sont attribué(s) (${attribues.map((v) => v.immatNouvelle || v.immatAncienne || '?').join(', ')}). Le champ « Utilisateur » de ces fiches sera vidé ; les véhicules eux-mêmes sont conservés.`
+                : ''),
             okLabel: 'Supprimer',
             danger: true
           });
           if (!ok) return;
+          detacherAgentDesVehicules(nomComplet(u));
           remove('users', u.id);
           toast('Utilisateur supprimé.', 'ok');
           rerender();
@@ -224,8 +237,17 @@ export function openUserForm(u) {
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer cet utilisateur',
     onSubmit: (values) => {
       if (isEdit) {
+        // Le nom change ici doit changer sur les fiches vehicule : elles ne
+        // retiennent qu'un nom, pas un identifiant.
+        const ancien = nomComplet(u);
         update('users', u.id, values);
-        toast('Utilisateur mis à jour.', 'ok');
+        const suivis = renommerAgentSurVehicules(ancien, nomComplet(u));
+        toast(
+          suivis
+            ? `Utilisateur mis à jour — ${suivis} fiche(s) véhicule suivies.`
+            : 'Utilisateur mis à jour.',
+          'ok'
+        );
       } else {
         insert('users', Object.assign({ historique: [] }, values));
         toast('Utilisateur enregistré.', 'ok');

@@ -231,6 +231,8 @@ export function readFields(scope, fields) {
     const node = scope.querySelector(`[data-key="${CSS.escape(f.key)}"]`);
     if (!node) return;
     let v = node.value;
+    // Une liste selectAdd laissee sur « + Ajouter… » ne designe aucune valeur.
+    if (v === '__ajout__') v = '';
     if (f.type === 'number') v = v === '' ? '' : Number(v);
     else if (typeof v === 'string') v = v.trim();
     out[f.key] = v;
