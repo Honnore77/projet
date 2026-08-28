@@ -39,7 +39,7 @@ export function dsVehicles(list = allVehicles()) {
       C('utilisateur', 'Utilisateur', 20),
       C('statut', 'Statut', 13),
       C('km', 'Kilométrage', 13),
-      C('kmVidange', 'Vidange due à (km)', 15),
+      C('kmVidange', 'Prochaine vidange (km)', 18),
       C('vidangeRestant', 'Km avant vidange', 15),
       C('vidangeEtat', 'Suivi vidange', 14)
     ],

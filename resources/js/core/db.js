@@ -490,26 +490,44 @@ export function detacherAgentDesVehicules(nom) {
 
 /**
  * Garantit qu'un nom saisi dans une fiche vehicule existe aussi dans
- * UTILISATEURS. Le premier mot fait le nom, le reste les prenoms — la fiche
- * agent reste modifiable pour corriger un decoupage malheureux.
+ * UTILISATEURS, avec ce que la fiche sait deja de lui : sa section et le
+ * vehicule qui lui est attribue. Le premier mot fait le nom, le reste les
+ * prenoms — la fiche agent reste modifiable pour corriger un decoupage
+ * malheureux.
+ *
+ * Sur un agent qui existe deja, on ne complete que les cases vides : une
+ * fiche vehicule n'a pas a ecraser ce qui a ete saisi dans UTILISATEURS.
  */
-export function assurerAgent(nom) {
+export function assurerAgent(nom, infos = {}) {
   const propre = String(nom || '').trim();
   if (!propre) return null;
+
+  const section = String(infos.section || '').trim();
+  const immat = String(infos.immat || '').trim();
+  const origine = immat
+    ? `Créé depuis la fiche véhicule ${immat}`
+    : 'Créé depuis une fiche véhicule';
+
   const existant = DB.users.find((u) => norm(nomComplet(u)) === norm(propre));
-  if (existant) return existant;
+  if (existant) {
+    if (section && !String(existant.section || '').trim()) {
+      existant.section = section;
+      persist();
+    }
+    return existant;
+  }
 
   const mots = propre.split(/\s+/);
   return insert('users', {
     nom: mots[0],
     prenoms: mots.slice(1).join(' '),
     fonction: '',
-    section: '',
+    section,
     statut: 'Actif',
     poolConducteur: 'Non',
     telephone: '',
     permis: '',
-    observations: 'Créé depuis une fiche véhicule',
+    observations: origine,
     historique: [],
     createdAt: new Date().toISOString()
   });

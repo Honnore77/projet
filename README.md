@@ -60,7 +60,19 @@ Tous ces champs sont pré-remplis, jamais imposés : une valeur déjà saisie n'
 
 Une fiche véhicule retient un **nom**, pas un identifiant : c'est ce qui s'imprime et ce qu'on lit dans un tableau. Le nom doit donc suivre l'agent, dans les deux sens, sans quoi les deux rubriques divergent au premier changement et plus personne ne sait laquelle dit vrai.
 
-- **Un nom saisi sur une fiche véhicule** (pool ou service, via « + Autre nom ») **crée l'agent dans UTILISATEURS.** Le premier mot devient le nom, le reste les prénoms ; la fiche agent reste modifiable pour corriger un découpage malheureux, et porte la mention « Créé depuis une fiche véhicule ».
+- **Un nom saisi sur une fiche véhicule** (pool ou service, via « + Autre nom ») **crée sa ligne dans UTILISATEURS**, remplie avec ce que la fiche sait de lui :
+
+  | Champ de l'agent | Valeur reprise |
+  | --- | --- |
+  | Nom | premier mot du nom saisi |
+  | Prénoms | le reste |
+  | Section | celle du véhicule |
+  | Statut | Actif |
+  | Conducteur du pool | Non |
+  | Observations | « Créé depuis la fiche véhicule *immatriculation* » |
+  | Véhicule(s) attribué(s) | le véhicule, aussitôt visible dans la colonne |
+
+  Le reste (fonction, téléphone, permis) se complète dans UTILISATEURS, et le découpage nom/prénoms s'y corrige si besoin. Si l'agent existe déjà, sa fiche n'est pas écrasée : seule une **section** encore vide est complétée.
 - **Un agent renommé dans UTILISATEURS** est renommé sur toutes les fiches véhicule qui le portaient. Le message de confirmation indique combien de fiches ont suivi.
 - **Un agent supprimé** : la fenêtre de confirmation liste les véhicules concernés et annonce que leur champ « Utilisateur » sera vidé. Les véhicules eux-mêmes sont conservés.
 - La colonne **Véhicule(s) attribué(s)** du tableau UTILISATEURS montre le lien en permanence — badge vert pour un véhicule de pool, violet pour un véhicule de service.
@@ -87,7 +99,7 @@ Toute valeur ajoutée à la main rejoint la liste : elle est reproposée dès la
 Dans les fiches de véhicule, **« Kilométrage de vidange »** est le kilométrage **auquel la vidange doit être faite**, pas celui de la dernière. L'application le compare en permanence au kilométrage courant du véhicule et affiche le résultat à trois endroits :
 
 - dans le formulaire, un champ **« Suivi de la vidange »** se met à jour pendant la saisie ;
-- dans le tableau des véhicules, une colonne **« Suivi vidange »** — verte tant qu'il reste de la marge, orange à l'approche, rouge une fois dépassée ;
+- dans le tableau des véhicules, une colonne **« Prochaine vidange »** donne le kilométrage visé et une colonne **« Suivi vidange »** l'état — verte tant qu'il reste de la marge, orange à l'approche, rouge une fois dépassée ;
 - sur le tableau de bord, deux alertes cliquables : les véhicules **à vidanger sans délai** et ceux qui **approchent de la vidange**, avec pour chacun le nombre de kilomètres concernés.
 
 Deux réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
@@ -99,7 +111,7 @@ Deux réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
 
 Après une vidange, il suffit de reporter le nouveau kilométrage cible dans la fiche : les pastilles et les alertes repassent au vert.
 
-Un véhicule sans kilométrage de vidange n'est simplement pas suivi (« non suivie ») ; il ne déclenche aucune alerte. Les exports Excel et PDF du parc reprennent les colonnes *Vidange due à (km)*, *Km avant vidange* et *Suivi vidange*.
+Un véhicule sans kilométrage de vidange n'est simplement pas suivi (« non suivie ») ; il ne déclenche aucune alerte. Les exports Excel et PDF du parc reprennent les colonnes *Prochaine vidange (km)*, *Km avant vidange* et *Suivi vidange*.
 
 ### Aperçu avant export
 

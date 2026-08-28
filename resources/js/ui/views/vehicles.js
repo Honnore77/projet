@@ -184,7 +184,7 @@ export function renderVehicles(page) {
   const headers = [
     'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'Couleur', 'Énergie', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
-    'Km', 'Vidange<br>à', 'Suivi vidange', 'Observations', ''
+    'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'Observations', ''
   ];
 
   const rows = list.map((v) => {
@@ -293,7 +293,9 @@ export function openVehicleForm(vehicle, cat) {
       const ancienne = String(values.immatAncienne || '').trim();
       // Un nom saisi a la main rejoint UTILISATEURS : les deux rubriques ne
       // doivent pas connaitre des agents differents.
-      if (withSectionCat(targetCat) && values.utilisateur) assurerAgent(values.utilisateur);
+      if (withSectionCat(targetCat) && values.utilisateur) {
+        assurerAgent(values.utilisateur, { section: values.section, immat });
+      }
 
       const payload = {
         marque: values.marque,
