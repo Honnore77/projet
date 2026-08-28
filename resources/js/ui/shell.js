@@ -18,16 +18,27 @@ import { renderSettings } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
 
+/**
+ * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
+ * quand elle est ouverte. Huit teintes bien distinctes, pour qu'on repere la
+ * rubrique a la couleur avant meme d'avoir lu le libelle.
+ */
 export const MODULES = [
-  { key: 'TABLEAU DE BORD', label: 'TABLEAU DE BORD' },
-  { key: 'VEHICULES', label: 'VÉHICULES' },
-  { key: 'UTILISATEURS', label: 'UTILISATEURS' },
-  { key: 'DOTATION', label: 'DOTATION' },
-  { key: 'MISSION', label: 'MISSION' },
-  { key: 'ENTRETIEN', label: 'ENTRETIEN' },
-  { key: 'RAPPORTS', label: 'RAPPORTS' },
-  { key: 'REGLAGES', label: 'RÉGLAGES', adminOnly: true }
+  { key: 'TABLEAU DE BORD', label: 'TABLEAU DE BORD', color: '#008A3B' },
+  { key: 'VEHICULES', label: 'VÉHICULES', color: '#1976D2' },
+  { key: 'UTILISATEURS', label: 'UTILISATEURS', color: '#6A3CB4' },
+  { key: 'DOTATION', label: 'DOTATION', color: '#F47B20' },
+  { key: 'MISSION', label: 'MISSION', color: '#C2185B' },
+  { key: 'ENTRETIEN', label: 'ENTRETIEN', color: '#D32F2F' },
+  { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
+  { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
 ];
+
+/** Couleur d'une rubrique, pour les vues qui veulent s'y accorder. */
+export function moduleColor(key) {
+  const m = MODULES.find((x) => x.key === key);
+  return m ? m.color : '#5b7178';
+}
 
 const TITLES = {
   'TABLEAU DE BORD': 'TABLEAU DE BORD',
@@ -130,6 +141,7 @@ function buildTabs() {
   MODULES.filter((m) => !m.adminOnly || canAdmin()).forEach((m) => {
     const b = el(`<button type="button" class="tab">${m.label}</button>`);
     b.dataset.mod = m.key;
+    b.style.setProperty('--tabColor', m.color);
     b.onclick = () => navigate(m.key);
     tabsEl.appendChild(b);
   });

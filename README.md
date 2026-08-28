@@ -34,8 +34,8 @@ Les données des versions précédentes de l'application (y compris le fichier H
 
 ## 3. Ce que fait l'application
 
-- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, suivi de la vidange (voir ci-dessous), coûts carburant et entretien calculés par véhicule.
-- **Utilisateurs** — agents du PDU en tableau dès l’ouverture, avec les informations du formulaire. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
+- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, saisie guidée (voir ci-dessous), suivi de la vidange. Les coûts carburant et entretien ne figurent plus dans ce tableau : ils se lisent sur la **fiche véhicule** et dans les rapports, là où ils sont détaillés.
+- **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
 - **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
@@ -43,6 +43,21 @@ Les données des versions précédentes de l'application (y compris le fichier H
 - **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Dates et kilométrages incohérents refusés.
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, dotations, missions, historique garage, coût total.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
+
+### Saisie guidée d'un véhicule
+
+Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie libre à chaque fois :
+
+| Champ | Comportement |
+| --- | --- |
+| Modèle | Liste déroulante : TERRA, NAVARA, KICKS, QASHQAI, XTRAIL, TERRITORY, CROSS, PRADO, LAND CRUISER. La dernière entrée, **« + Autre modèle »**, bascule le champ en saisie libre ; « ↩ » revient à la liste. |
+| Couleur | Même principe : BLANCHE, NOIRE, GRISE, ROUGE, BLEU, puis **« + Autre couleur »**. |
+| Utilisateur | Liste des agents enregistrés dans UTILISATEURS. Un véhicule attribué à un agent depuis supprimé garde son nom. |
+| Nouvelle immatriculation | Pré-remplie avec **D45 50 ** ; il ne reste que la fin de la plaque à saisir. Le préfixe seul est refusé à l'enregistrement. |
+| Ancienne immatriculation | Pré-remplie avec **D45 ** ; laissée telle quelle, elle est enregistrée comme vide. |
+| Statut | Disponible, En entretien, Immobilisé. « En mission » a été retiré : la mission en cours se lit dans la rubrique MISSION, et deux endroits pour un même fait finissaient par se contredire. Un véhicule encore marqué ainsi garde son statut tant qu'on ne le change pas. |
+
+Toute valeur ajoutée à la main rejoint la liste : elle est reproposée dès la fiche suivante, sans réglage à faire.
 
 ### Suivi de la vidange
 
@@ -69,6 +84,8 @@ Tout export — Excel comme PDF, depuis n’importe quelle rubrique — ouvre d�
 
 Le PDF s’affiche tel quel dans le lecteur intégré. Un classeur Excel ne se rend pas dans une fenêtre : l’aperçu montre donc son contenu feuille par feuille, avec les mêmes colonnes, limité aux 150 premières lignes de chaque feuille pour rester fluide (le fichier, lui, les contient toutes).
 - **Tableau de bord** — indicateurs (véhicules, garage, utilisateurs, missions, entretien), alertes cliquables et quatre graphiques.
+
+Chaque rubrique porte sa couleur dans la barre de gauche — teinte légère au repos, aplat plein une fois ouverte — pour se repérer à la couleur avant même d'avoir lu le libellé.
 
 ### Écran de connexion
 

@@ -6,8 +6,9 @@
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS,
-  insert, update, remove, moveVehicle, immatOf, maintenanceCost, fuelCost, etatVidange
+  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MODELES, COULEURS,
+  PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
+  insert, update, remove, moveVehicle, immatOf, etatVidange
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm } from '../../core/utils.js';
@@ -43,22 +44,43 @@ export function badgeVidange(e) {
   return `<span class="badge" style="background:${COLORS.green}">Dans ${fmt(e.restant)} km</span>`;
 }
 
+/**
+ * Valeurs deja saisies dans le parc pour un champ donne, fusionnees avec la
+ * liste de reference. Une valeur ajoutee a la main une fois est ainsi
+ * reproposee ensuite : la liste s'enrichit d'elle-meme.
+ */
+function listeConnue(champ, base) {
+  const vues = DB.vehicles.pool
+    .concat(DB.vehicles.mission, DB.vehicles.service)
+    .map((x) => String(x[champ] || '').trim())
+    .filter(Boolean);
+  return [...new Set(base.concat(vues))];
+}
+
 /** Champs du formulaire vehicule (partages creation / modification). */
 function vehicleFields(v = {}, cat = 'pool') {
   const withSection = cat !== 'mission';
   const agents = DB.users.map((u) => `${u.nom} ${u.prenoms}`.trim()).filter(Boolean);
-  const marques = [...new Set(
-    DB.vehicles.pool.concat(DB.vehicles.mission, DB.vehicles.service).map((x) => x.marque).filter(Boolean)
-  )];
+  const marques = listeConnue('marque', []);
+
+  // Un vehicule enregistre avant le retrait d'un statut garde le sien : on le
+  // rajoute a la liste plutot que de le remplacer en douce a la modification.
+  const statuts = STATUTS_VEHICULE.includes(v.statut) || !v.statut
+    ? STATUTS_VEHICULE
+    : STATUTS_VEHICULE.concat([v.statut]);
 
   return [
     { key: 'marque', label: 'Marque', required: true, value: v.marque, list: marques },
-    { key: 'modele', label: 'Modèle', value: v.modele },
-    { key: 'immatNouvelle', label: 'Nouvelle immatriculation', required: true, value: v.immatNouvelle },
-    { key: 'immatAncienne', label: 'Ancienne immatriculation', value: v.immatAncienne },
-    { key: 'couleur', label: 'Couleur', value: v.couleur },
+    { key: 'modele', label: 'Modèle', type: 'selectAdd', value: v.modele,
+      options: listeConnue('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
+    { key: 'immatNouvelle', label: 'Nouvelle immatriculation', required: true,
+      value: v.immatNouvelle === undefined ? PREFIXE_IMMAT_NOUVELLE : v.immatNouvelle },
+    { key: 'immatAncienne', label: 'Ancienne immatriculation',
+      value: v.immatAncienne === undefined ? PREFIXE_IMMAT_ANCIENNE : v.immatAncienne },
+    { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
+      options: listeConnue('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
-    { key: 'statut', label: 'Statut', type: 'select', options: STATUTS_VEHICULE, value: v.statut || 'Disponible' },
+    { key: 'statut', label: 'Statut', type: 'select', options: statuts, value: v.statut || 'Disponible' },
     ...(withSection
       ? [
           {
@@ -70,8 +92,19 @@ function vehicleFields(v = {}, cat = 'pool') {
             emptyLabel: '— aucune —',
             value: v.section
           },
-          { key: 'utilisateur', label: 'Utilisateur', value: v.utilisateur, list: agents,
-            hint: agents.length ? 'Agents enregistrés dans UTILISATEURS' : 'Enregistrez d’abord les agents dans UTILISATEURS' }
+          {
+            key: 'utilisateur',
+            label: 'Utilisateur',
+            type: 'select',
+            // Un vehicule attribue a un agent depuis supprime garde son nom :
+            // il vaut mieux une valeur devenue orpheline qu'une attribution
+            // effacee sans que personne ne l'ait demande.
+            options: agents.includes(v.utilisateur) || !v.utilisateur ? agents : agents.concat([v.utilisateur]),
+            allowEmpty: true,
+            emptyLabel: '— aucun —',
+            value: v.utilisateur,
+            hint: agents.length ? 'Agents enregistrés dans UTILISATEURS' : 'Enregistrez d’abord les agents dans UTILISATEURS'
+          }
         ]
       : []),
     { key: 'km', label: 'Kilométrage', type: 'number', value: v.km },
@@ -150,11 +183,10 @@ export function renderVehicles(page) {
   const headers = [
     'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'Couleur', 'Énergie', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
-    'Km', 'Vidange<br>à', 'Suivi vidange', 'Carburant', 'Entretien', 'Observations', ''
+    'Km', 'Vidange<br>à', 'Suivi vidange', 'Observations', ''
   ];
 
   const rows = list.map((v) => {
-    const im = immatOf(v);
     return [
       `<b>${esc(v.marque || '')}</b>`,
       esc(v.modele || ''),
@@ -167,8 +199,6 @@ export function renderVehicles(page) {
       `<span style="display:block;text-align:right">${fmt(v.km)}</span>`,
       `<span style="display:block;text-align:right">${v.kmVidange === '' || v.kmVidange === undefined ? '—' : fmt(v.kmVidange)}</span>`,
       badgeVidange(etatVidange(v)),
-      `<span style="display:block;text-align:right">${fmt(fuelCost(im))} F</span>`,
-      `<span style="display:block;text-align:right">${fmt(maintenanceCost(im))} F</span>`,
       esc(v.observations || ''),
       `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
         (canWrite()
@@ -234,7 +264,7 @@ export function openVehicleForm(vehicle, cat) {
       if (suivi) {
         const e = etatVidange({ km: values.km, kmVidange: cible ? cible.value : '' });
         suivi.value =
-          e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange pour activer le suivi'
+          e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange'
             : e.statut === 'depassee' ? `⚠ Vidange dépassée de ${fmt(-e.restant)} km`
               : e.statut === 'proche' ? `⚠ Vidange dans ${fmt(e.restant)} km`
                 : `Vidange dans ${fmt(e.restant)} km`;
@@ -243,16 +273,23 @@ export function openVehicleForm(vehicle, cat) {
     onSubmit: (values) => {
       const targetCat = values.categorie || cat;
       const immat = String(values.immatNouvelle || '').trim().toUpperCase();
+
+      // Le prefixe est pre-inscrit dans le champ : seul, il ne designe aucun
+      // vehicule et passerait pourtant le controle « champ obligatoire ».
+      if (immat === PREFIXE_IMMAT_NOUVELLE.trim().toUpperCase()) {
+        return 'Complétez la nouvelle immatriculation après « ' + PREFIXE_IMMAT_NOUVELLE.trim() + ' ».';
+      }
       const doublon = DB.vehicles.pool
         .concat(DB.vehicles.mission, DB.vehicles.service)
         .find((x) => x.id !== (vehicle && vehicle.id) && String(x.immatNouvelle || '').trim().toUpperCase() === immat);
       if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
 
+      const ancienne = String(values.immatAncienne || '').trim();
       const payload = {
         marque: values.marque,
         modele: values.modele,
         immatNouvelle: values.immatNouvelle,
-        immatAncienne: values.immatAncienne,
+        immatAncienne: ancienne.toUpperCase() === PREFIXE_IMMAT_ANCIENNE.trim().toUpperCase() ? '' : ancienne,
         couleur: values.couleur,
         energie: values.energie,
         section: values.section || '',

@@ -13,7 +13,41 @@ import { hashPassword } from './crypto.js';
 
 export const SCHEMA_VERSION = 4;
 
-export const STATUTS_VEHICULE = ['Disponible', 'En mission', 'En entretien', 'Immobilisé'];
+/**
+ * Statuts proposes a la saisie. « En mission » a ete retire : le passage en
+ * mission se lit dans la rubrique MISSION, le dupliquer ici faisait deux
+ * verites pour un meme fait. Les vehicules encore marques ainsi gardent leur
+ * valeur (voir vehicleFields), ils ne sont simplement plus proposes.
+ */
+export const STATUTS_VEHICULE = ['Disponible', 'En entretien', 'Immobilisé'];
+
+/**
+ * Prefixes d'immatriculation du PDU. Ils sont pre-inscrits dans le formulaire
+ * pour n'avoir a saisir que la fin de la plaque.
+ */
+export const PREFIXE_IMMAT_NOUVELLE = 'D45 50 ';
+export const PREFIXE_IMMAT_ANCIENNE = 'D45 ';
+
+/**
+ * Listes de reference proposees a la saisie. Elles ne sont pas fermees : le
+ * formulaire y ajoute ce qui est deja enregistre dans le parc, et toute valeur
+ * saisie a la main est acceptee puis reproposee ensuite.
+ */
+export const MODELES = [
+  'TERRA', 'NAVARA', 'KICKS', 'QASHQAI', 'XTRAIL',
+  'TERRITORY', 'CROSS', 'PRADO', 'LAND CRUISER'
+];
+
+export const COULEURS = ['BLANCHE', 'NOIRE', 'GRISE', 'ROUGE', 'BLEU'];
+
+/** Agents du pool pre-enregistres au premier lancement. */
+export const AGENTS_PDU = [
+  { nom: 'DELON', prenoms: 'CALIXE' },
+  { nom: 'DIARRASSOUBA', prenoms: 'BRAHIMA' },
+  { nom: 'DOSSO', prenoms: 'YAYA' },
+  { nom: 'CHEICKNA', prenoms: 'KEBE' },
+  { nom: 'KARABOUE', prenoms: 'FALIKOU' }
+];
 export const ENERGIES = ['Essence', 'Diesel', 'Hybride', 'Électrique'];
 export const STATUTS_USER = ['Actif', 'Suspendu', 'Inactif'];
 export const ETATS_VIDANGE = ['À jour', 'À prévoir', 'En retard'];
@@ -122,6 +156,28 @@ export async function initDB() {
   }
 
   DB = normalize(loaded);
+
+  // Les agents du pool sont pre-enregistres sur une base vierge : ils
+  // alimentent le champ « Utilisateur » des fiches vehicule et le tour de role
+  // des missions, qui n'ont donc rien a proposer tant que UTILISATEURS est vide.
+  if (firstRun && DB.users.length === 0) {
+    AGENTS_PDU.forEach((a) => {
+      DB.users.push({
+        id: uid(),
+        nom: a.nom,
+        prenoms: a.prenoms,
+        fonction: 'Conducteur',
+        section: '',
+        statut: 'Actif',
+        poolConducteur: true,
+        telephone: '',
+        permis: '',
+        observations: '',
+        historique: [],
+        createdAt: new Date().toISOString()
+      });
+    });
+  }
 
   if (DB.accounts.length === 0) {
     firstRun = true;

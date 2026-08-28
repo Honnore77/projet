@@ -162,9 +162,13 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--white);
 .tabsScroll{display:flex;gap:6px;overflow-x:auto;padding:0 8px;scrollbar-width:none;
   max-width:var(--maxw);margin:0 auto;}
 .tabsScroll::-webkit-scrollbar{display:none;}
-.tab{flex:0 0 auto;border:none;background:#eef2f2;color:var(--text);padding:10px 14px;border-radius:12px;
-  font-size:12.5px;font-weight:600;white-space:nowrap;}
-.tab.active{background:var(--green);color:#fff;}
+.tab{flex:0 0 auto;border:none;border-left:4px solid var(--tabColor,transparent);
+  background:color-mix(in srgb, var(--tabColor, #eef2f2) 10%, #fff);
+  color:var(--tabColor,var(--text));padding:10px 14px 10px 12px;border-radius:12px;
+  font-size:12.5px;font-weight:600;white-space:nowrap;transition:background .12s,color .12s;}
+.tab:hover{background:color-mix(in srgb, var(--tabColor, #eef2f2) 22%, #fff);}
+.tab.active{background:var(--tabColor,var(--green));border-left-color:var(--tabColor,var(--green));color:#fff;}
+.tab.active:hover{background:var(--tabColor,var(--green));}
 
 /* ---------------- BLOCS ---------------- */
 .card{background:var(--white);border-radius:var(--radius);padding:14px 16px;margin:8px 2px;box-shadow:var(--shadow);}
@@ -328,3 +332,8 @@ body.readonly .addBtn,body.readonly .smallBtn,body.readonly [data-write]{display
   #content{overflow:visible;padding:0;}
   body{background:#fff;}
 }
+
+/* Champ « liste ou nouvelle valeur » (type selectAdd) */
+.addField{display:flex;gap:6px;align-items:stretch;}
+.addField input{flex:1;min-width:0;}
+.addField .addBack{flex:0 0 auto;background:#5b7178;padding:0 12px;font-size:15px;line-height:1;}

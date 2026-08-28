@@ -125,6 +125,22 @@ function fieldHtml(f) {
           .join('') +
         '</select>';
       break;
+    // Liste deroulante dont la derniere entree bascule le champ en saisie
+    // libre : on choisit dans la liste, ou on ajoute ce qui manque, sans
+    // avoir a deviner qu'un champ texte cachait des suggestions.
+    case 'selectAdd': {
+      const options = (f.options || []).map((o) => String(o));
+      const inconnu = val && !options.includes(val);
+      input =
+        `<select id="${id}" data-key="${esc(f.key)}" data-add-label="${esc(f.addLabel || 'Ajouter…')}"${req}>` +
+        `<option value="">${esc(f.emptyLabel || '—')}</option>` +
+        options.concat(inconnu ? [val] : [])
+          .map((o) => `<option value="${esc(o)}"${o === val ? ' selected' : ''}>${esc(o)}</option>`)
+          .join('') +
+        `<option value="__ajout__">+ ${esc(f.addLabel || 'Ajouter…')}</option>` +
+        '</select>';
+      break;
+    }
     case 'textarea':
       input = `<textarea id="${id}" data-key="${esc(f.key)}"${req}${ro}${ph}>${esc(val)}</textarea>`;
       break;
@@ -162,7 +178,50 @@ function fieldHtml(f) {
 export function buildFieldsNode(fields) {
   const grid = el('<div class="fGrid"></div>');
   grid.innerHTML = fields.map(fieldHtml).join('');
+  grid.querySelectorAll('select[data-add-label]').forEach(cablerAjout);
   return grid;
+}
+
+/**
+ * Remplace la liste par un champ libre quand on choisit « + Ajouter… ».
+ * Le champ garde le meme data-key, donc readFields le lit sans rien savoir de
+ * la bascule. Le bouton « ↩ » revient a la liste, pour ne pas coincer
+ * quelqu'un qui s'est trompe d'entree.
+ */
+function cablerAjout(select) {
+  select.addEventListener('change', () => {
+    if (select.value !== '__ajout__') return;
+    const libelle = select.dataset.addLabel;
+    const options = [...select.options]
+      .map((o) => o.value)
+      .filter((v) => v && v !== '__ajout__');
+
+    const zone = el('<div class="addField"></div>');
+    const saisie = el(`<input type="text" data-key="${select.dataset.key}" placeholder="${esc(libelle)}">`);
+    const retour = el('<button type="button" class="miniBtn addBack" title="Revenir à la liste">↩</button>');
+    zone.appendChild(saisie);
+    zone.appendChild(retour);
+
+    select.replaceWith(zone);
+    saisie.focus();
+
+    retour.onclick = () => {
+      select.value = '';
+      zone.replaceWith(select);
+      cablerAjout(select);
+      select.focus();
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+
+    // La valeur saisie rejoint la liste des le champ quitte : on la retrouve
+    // dans la liste deroulante si l'on repasse par « ↩ ».
+    saisie.addEventListener('change', () => {
+      const v = saisie.value.trim();
+      if (v && !options.includes(v)) {
+        select.appendChild(el(`<option value="${esc(v)}">${esc(v)}</option>`));
+      }
+    });
+  });
 }
 
 /** Lit les valeurs d une grille de champs. */
