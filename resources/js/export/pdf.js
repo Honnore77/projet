@@ -72,6 +72,19 @@ export function buildPdf(datasets, opts = {}) {
       head: [ds.columns.map((c) => clean(c.label))],
       body: ds.rows.map((r) => ds.columns.map((c) => text(r[c.key]))),
       styles: { fontSize: 7.5, cellPadding: 1.8, overflow: 'linebreak', textColor: [23, 49, 59] },
+      // Meme signalement que dans le classeur : une cellule vide d'une
+      // colonne surveillee part en rouge clair.
+      didParseCell: (data) => {
+        if (data.section !== 'body') return;
+        const col = ds.columns[data.column.index];
+        if (!col || !col.alerteSiVide) return;
+        const valeur = data.cell.raw;
+        if (valeur !== '' && valeur !== null && valeur !== undefined) return;
+        data.cell.styles.fillColor = [248, 215, 218];
+        data.cell.styles.textColor = [155, 44, 44];
+        data.cell.styles.fontStyle = 'italic';
+        data.cell.text = ['non renseignée'];
+      },
       headStyles: { fillColor: GREEN, textColor: 255, fontStyle: 'bold', fontSize: 7.5 },
       alternateRowStyles: { fillColor: [247, 250, 250] },
       margin: { left: 8, right: 8, bottom: 14 },

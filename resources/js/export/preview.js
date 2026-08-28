@@ -115,6 +115,11 @@ function tablesNode(datasets) {
                 ds.columns
                   .map((c) => {
                     const v = r[c.key];
+                    // L'apercu doit montrer le fichier tel qu'il sera : une
+                    // cellule surveillee et vide y part en rouge clair.
+                    if (c.alerteSiVide && (v === '' || v === undefined || v === null)) {
+                      return '<td class="celluleManquante">non renseignée</td>';
+                    }
                     const nombre = typeof v === 'number';
                     return `<td${nombre ? ' style="text-align:right"' : ''}>${esc(nombre ? fmt(v) : v === undefined || v === null ? '' : v)}</td>`;
                   })

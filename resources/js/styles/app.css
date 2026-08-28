@@ -337,3 +337,8 @@ body.readonly .addBtn,body.readonly .smallBtn,body.readonly [data-write]{display
 .addField{display:flex;gap:6px;align-items:stretch;}
 .addField input{flex:1;min-width:0;}
 .addField .addBack{flex:0 0 auto;background:#5b7178;padding:0 12px;font-size:15px;line-height:1;}
+
+/* Information attendue mais absente : meme rouge clair qu'a l'export */
+.celluleManquante{display:block;background:#f8d7da;color:#9b2c2c;font-style:italic;
+  padding:2px 6px;border-radius:6px;text-align:center;}
+td.celluleManquante{display:table-cell;border-radius:0;}

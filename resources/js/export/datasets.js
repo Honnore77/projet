@@ -7,7 +7,12 @@ import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, m
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
-const C = (key, label, width) => ({ key, label, width });
+/**
+ * Colonne exportable. `alerteSiVide` demande aux trois rendus — apercu,
+ * classeur Excel et PDF — de peindre la cellule en rouge clair quand la
+ * valeur manque, pour qu'un trou se voie dans le fichier transmis.
+ */
+const C = (key, label, width, opts) => Object.assign({ key, label, width }, opts);
 
 /** Libelles du suivi de vidange, tels qu'ils paraissent dans les exports. */
 const LIBELLE_VIDANGE = {
@@ -31,7 +36,7 @@ export function dsVehicles(list = allVehicles()) {
       C('categorie', 'Catégorie', 12),
       C('marque', 'Marque', 14),
       C('modele', 'Modèle', 16),
-      C('immatNouvelle', 'Immat. nouvelle', 16),
+      C('immatNouvelle', 'Immat. nouvelle', 16, { alerteSiVide: true }),
       C('immatAncienne', 'Immat. ancienne', 16),
       C('couleur', 'Couleur', 12),
       C('energie', 'Énergie', 11),

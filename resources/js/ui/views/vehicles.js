@@ -74,8 +74,9 @@ function vehicleFields(v = {}, cat = 'pool') {
     { key: 'marque', label: 'Marque', required: true, value: v.marque, list: marques },
     { key: 'modele', label: 'Modèle', type: 'selectAdd', value: v.modele,
       options: listeConnue('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
-    { key: 'immatNouvelle', label: 'Nouvelle immatriculation', required: true,
-      value: v.immatNouvelle === undefined ? PREFIXE_IMMAT_NOUVELLE : v.immatNouvelle },
+    { key: 'immatNouvelle', label: 'Nouvelle immatriculation',
+      value: v.immatNouvelle === undefined ? PREFIXE_IMMAT_NOUVELLE : v.immatNouvelle,
+      hint: 'Facultative — signalée en rouge tant qu’elle manque' },
     { key: 'immatAncienne', label: 'Ancienne immatriculation',
       value: v.immatAncienne === undefined ? PREFIXE_IMMAT_ANCIENNE : v.immatAncienne },
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
@@ -191,7 +192,9 @@ export function renderVehicles(page) {
     return [
       `<b>${esc(v.marque || '')}</b>`,
       esc(v.modele || ''),
-      esc(v.immatNouvelle || ''),
+      v.immatNouvelle
+        ? esc(v.immatNouvelle)
+        : '<span class="celluleManquante">non renseignée</span>',
       esc(v.immatAncienne || ''),
       esc(v.couleur || ''),
       esc(v.energie || ''),
@@ -278,17 +281,23 @@ export function openVehicleForm(vehicle, cat) {
     },
     onSubmit: (values) => {
       const targetCat = values.categorie || cat;
-      const immat = String(values.immatNouvelle || '').trim().toUpperCase();
 
-      // Le prefixe est pre-inscrit dans le champ : seul, il ne designe aucun
-      // vehicule et passerait pourtant le controle « champ obligatoire ».
-      if (immat === PREFIXE_IMMAT_NOUVELLE.trim().toUpperCase()) {
-        return 'Complétez la nouvelle immatriculation après « ' + PREFIXE_IMMAT_NOUVELLE.trim() + ' ».';
+      // Le prefixe est pre-inscrit dans le champ. Laisse tel quel, il ne
+      // designe aucun vehicule : le champ etant facultatif, cela vaut une
+      // immatriculation absente, pas une erreur de saisie.
+      const saisie = String(values.immatNouvelle || '').trim();
+      const immat = saisie.toUpperCase() === PREFIXE_IMMAT_NOUVELLE.trim().toUpperCase()
+        ? ''
+        : saisie.toUpperCase();
+
+      // Deux vehicules sans immatriculation ne sont pas des doublons : le
+      // controle ne porte que sur une plaque effectivement saisie.
+      if (immat) {
+        const doublon = DB.vehicles.pool
+          .concat(DB.vehicles.mission, DB.vehicles.service)
+          .find((x) => x.id !== (vehicle && vehicle.id) && String(x.immatNouvelle || '').trim().toUpperCase() === immat);
+        if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
       }
-      const doublon = DB.vehicles.pool
-        .concat(DB.vehicles.mission, DB.vehicles.service)
-        .find((x) => x.id !== (vehicle && vehicle.id) && String(x.immatNouvelle || '').trim().toUpperCase() === immat);
-      if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
 
       const ancienne = String(values.immatAncienne || '').trim();
       // Un nom saisi a la main rejoint UTILISATEURS : les deux rubriques ne
@@ -300,7 +309,7 @@ export function openVehicleForm(vehicle, cat) {
       const payload = {
         marque: values.marque,
         modele: values.modele,
-        immatNouvelle: values.immatNouvelle,
+        immatNouvelle: immat,
         immatAncienne: ancienne.toUpperCase() === PREFIXE_IMMAT_ANCIENNE.trim().toUpperCase() ? '' : ancienne,
         couleur: values.couleur,
         energie: values.energie,

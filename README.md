@@ -34,7 +34,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
 
 ## 3. Ce que fait l'application
 
-- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, saisie guidée (voir ci-dessous), suivi de la vidange. Aucun montant carburant ou entretien n’apparaît dans cette rubrique — ni dans les tableaux, ni sur la fiche véhicule, ni dans ses exports. La fiche compte les **litres**, les **passages au garage** et les **missions** ; les montants font l’objet du rapport **Coûts par véhicule**, dans RAPPORTS, qui les détaille au lieu de les résumer en bout de ligne.
+- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon (deux véhicules sans plaque ne sont pas des doublons), saisie guidée (voir ci-dessous), suivi de la vidange. Aucun montant carburant ou entretien n’apparaît dans cette rubrique — ni dans les tableaux, ni sur la fiche véhicule, ni dans ses exports. La fiche compte les **litres**, les **passages au garage** et les **missions** ; les montants font l’objet du rapport **Coûts par véhicule**, dans RAPPORTS, qui les détaille au lieu de les résumer en bout de ligne.
 - **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire et les véhicules qui leur sont attribués. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service — dans les deux sens, voir ci-dessous — et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
 - **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place, avec le suivi de la carte carburant décrit ci-dessous) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
@@ -88,11 +88,26 @@ Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie 
 | Modèle | Liste déroulante : TERRA, NAVARA, KICKS, QASHQAI, XTRAIL, TERRITORY, CROSS, PRADO, LAND CRUISER. La dernière entrée, **« + Autre modèle »**, bascule le champ en saisie libre ; « ↩ » revient à la liste. |
 | Couleur | Même principe : BLANCHE, NOIRE, GRISE, ROUGE, BLEU, puis **« + Autre couleur »**. |
 | Utilisateur | Liste des agents enregistrés dans UTILISATEURS, plus **« + Autre nom »** pour saisir quelqu’un qui n’y figure pas encore. Le nom saisi est aussitôt ajouté à UTILISATEURS. |
-| Nouvelle immatriculation | Pré-remplie avec **D45 50 ** ; il ne reste que la fin de la plaque à saisir. Le préfixe seul est refusé à l'enregistrement. |
+| Nouvelle immatriculation | **Facultative.** Pré-remplie avec **D45 50 ** ; il ne reste que la fin de la plaque à saisir. Laissée au préfixe seul, elle est enregistrée comme absente et **signalée en rouge clair** (voir ci-dessous). |
 | Ancienne immatriculation | Pré-remplie avec **D45 ** ; laissée telle quelle, elle est enregistrée comme vide. |
 | Statut | Disponible, En entretien, Immobilisé. « En mission » a été retiré : la mission en cours se lit dans la rubrique MISSION, et deux endroits pour un même fait finissaient par se contredire. Un véhicule encore marqué ainsi garde son statut tant qu'on ne le change pas. |
 
 Toute valeur ajoutée à la main rejoint la liste : elle est reproposée dès la fiche suivante, sans réglage à faire.
+
+### Informations manquantes signalées
+
+Un véhicule peut être enregistré **sans nouvelle immatriculation** : elle arrive parfois après le véhicule. Pour qu'un trou ne passe pas inaperçu dans un document transmis, la cellule vide est peinte en **rouge clair** et porte la mention *« non renseignée »* — aux quatre endroits où la donnée circule :
+
+| Où | Rendu |
+| --- | --- |
+| Tableau des véhicules | pastille rouge clair, texte en italique |
+| Fenêtre d'aperçu avant export | identique, pour voir le fichier avant de l'écrire |
+| Classeur Excel | remplissage `#F8D7DA`, texte `#9B2C2C` en italique |
+| Document PDF | même fond et même texte dans la cellule |
+
+Le mécanisme est déclaratif : une colonne d'export marquée `alerteSiVide` est traitée ainsi par les trois rendus. Ajouter un autre champ à surveiller ne demande donc rien de plus que ce marqueur.
+
+> L'écriture des styles de cellule Excel demande `xlsx-js-style`, fork de SheetJS 0.18.5 : la version communautaire de `xlsx` sait les lire mais pas les écrire. L'API est la même, et `xlsx` a été retiré des dépendances pour ne pas embarquer deux fois la même bibliothèque.
 
 ### Suivi de la vidange
 
