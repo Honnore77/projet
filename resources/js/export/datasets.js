@@ -19,6 +19,11 @@ const LIBELLE_VIDANGE = {
 
 /* ------------------------------ VEHICULES -------------------------- */
 
+/**
+ * Etat du parc. Les couts carburant et entretien n'y figurent pas : ils font
+ * l'objet du rapport « Couts par vehicule », qui les detaille au lieu de les
+ * resumer en deux colonnes au bout d'une ligne deja longue.
+ */
 export function dsVehicles(list = allVehicles()) {
   return {
     title: 'Véhicules',
@@ -36,9 +41,7 @@ export function dsVehicles(list = allVehicles()) {
       C('km', 'Kilométrage', 13),
       C('kmVidange', 'Vidange due à (km)', 15),
       C('vidangeRestant', 'Km avant vidange', 15),
-      C('vidangeEtat', 'Suivi vidange', 14),
-      C('coutEntretien', 'Coût entretien', 15),
-      C('coutCarburant', 'Coût carburant', 15)
+      C('vidangeEtat', 'Suivi vidange', 14)
     ],
     rows: list.map((v) => ({
       categorie: (v._cat || '').toUpperCase(),
@@ -54,9 +57,7 @@ export function dsVehicles(list = allVehicles()) {
       km: num(v.km),
       kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
       vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
-      vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut],
-      coutEntretien: maintenanceCost(immatOf(v)),
-      coutCarburant: fuelCost(immatOf(v))
+      vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut]
     }))
   };
 }
@@ -140,11 +141,14 @@ export function dsDotationPool(list = DB.dotationPool) {
       C('date', 'Date', 12),
       C('immat', 'Immatriculation', 16),
       C('marqueModele', 'Marque / Modèle', 22),
+      C('carte', 'Carte carburant', 18),
       C('energie', 'Énergie', 11),
       C('km', 'Kilométrage', 13),
       C('quantite', 'Quantité (L)', 12),
       C('prixL', 'Prix / L', 11),
       C('montant', 'Montant', 13),
+      C('soldeAvant', 'Solde avant prise', 16),
+      C('soldeApres', 'Solde après prise', 16),
       C('station', 'Station-service', 22),
       C('vidange', 'État vidange', 13)
     ],
@@ -152,11 +156,14 @@ export function dsDotationPool(list = DB.dotationPool) {
       date: dateFR(d.date),
       immat: d.immat || '',
       marqueModele: d.marqueModele || '',
+      carte: d.carte || '',
       energie: d.energie || '',
       km: num(d.km),
       quantite: num(d.quantite),
       prixL: num(d.prixL),
       montant: num(d.montant),
+      soldeAvant: d.soldeAvant === '' || d.soldeAvant === undefined ? '' : num(d.soldeAvant),
+      soldeApres: d.soldeApres === '' || d.soldeApres === undefined ? '' : num(d.soldeApres),
       station: d.station || '',
       vidange: d.vidange || ''
     })),

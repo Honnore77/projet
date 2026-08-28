@@ -34,15 +34,27 @@ Les données des versions précédentes de l'application (y compris le fichier H
 
 ## 3. Ce que fait l'application
 
-- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, saisie guidée (voir ci-dessous), suivi de la vidange. Les coûts carburant et entretien ne figurent plus dans ce tableau : ils se lisent sur la **fiche véhicule** et dans les rapports, là où ils sont détaillés.
+- **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon, saisie guidée (voir ci-dessous), suivi de la vidange. Aucun montant carburant ou entretien n’apparaît dans cette rubrique — ni dans les tableaux, ni sur la fiche véhicule, ni dans ses exports. La fiche compte les **litres**, les **passages au garage** et les **missions** ; les montants font l’objet du rapport **Coûts par véhicule**, dans RAPPORTS, qui les détaille au lieu de les résumer en bout de ligne.
 - **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service, et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
-- **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
+- **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place, avec le suivi de la carte carburant décrit ci-dessous) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
 - **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Dates et kilométrages incohérents refusés.
-- **Fiche véhicule** — pour une immatriculation : caractéristiques, dotations, missions, historique garage, coût total.
+- **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
+
+### Carte carburant et soldes
+
+La dotation pool enregistre le **numéro de la carte carburant**, le **solde avant prise** et le **solde après prise**, à côté de la quantité et du montant.
+
+Le formulaire enchaîne les prises sans qu'on retape quoi que ce soit :
+
+- choisir l'immatriculation reprend la **carte** et le **solde après prise** de la dernière dotation du véhicule, ce dernier devenant le solde avant de la nouvelle prise ;
+- le **solde après prise** est proposé à `solde avant − montant`, et reste modifiable ;
+- un champ **Contrôle du solde** compare en direct la différence des deux soldes au montant de la prise, et signale l'écart le cas échéant.
+
+Tous ces champs sont pré-remplis, jamais imposés : une valeur déjà saisie n'est pas écrasée. Les trois colonnes figurent dans le tableau et dans les exports Excel et PDF de la dotation pool.
 
 ### Saisie guidée d'un véhicule
 

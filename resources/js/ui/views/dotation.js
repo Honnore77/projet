@@ -40,20 +40,50 @@ export function renderDotation(page) {
 
 /* ===================== DOTATION CARBURANT POOL ===================== */
 
+/** Numeros de carte deja utilises, pour ne pas les retaper. */
+function cartesConnues() {
+  return [...new Set(DB.dotationPool.map((x) => String(x.carte || '').trim()).filter(Boolean))];
+}
+
+/**
+ * Derniere dotation enregistree pour une immatriculation. Elle porte le
+ * numero de carte du vehicule et le solde laisse par la prise precedente :
+ * de quoi enchainer une nouvelle prise sans rien retaper.
+ */
+function dernierePrise(immat) {
+  const cle = String(immat || '').trim().toUpperCase();
+  if (!cle) return null;
+  return DB.dotationPool
+    .filter((x) => String(x.immat || '').trim().toUpperCase() === cle)
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)))
+    .pop() || null;
+}
+
 function poolFields(d = {}) {
   return [
     { key: 'date', label: 'Date', type: 'date', required: true, value: d.date || todayISO() },
     { key: 'immat', label: 'Immatriculation', required: true, value: d.immat, list: knownImmats() },
     { key: 'marqueModele', label: 'Marque / Modèle', value: d.marqueModele, hint: 'Rempli automatiquement si le véhicule est connu' },
+    { key: 'carte', label: 'Numéro de la carte carburant', value: d.carte, list: cartesConnues(),
+      hint: 'Repris de la dernière prise du véhicule' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ['Essence', 'Diesel'], value: d.energie || 'Essence' },
     { key: 'km', label: 'Kilométrage', type: 'number', value: d.km },
     { key: 'quantite', label: 'Quantité (L)', type: 'number', required: true, value: d.quantite },
     { key: 'prixL', label: 'Prix / L', type: 'number', required: true, value: d.prixL },
     { key: 'montant', label: 'Montant calculé', type: 'static', value: d.montant ? fmt(d.montant) : '0' },
+    { key: 'soldeAvant', label: 'Solde avant prise', type: 'number', value: d.soldeAvant,
+      hint: 'Repris du solde après prise de la dernière dotation' },
+    { key: 'soldeApres', label: 'Solde après prise', type: 'number', value: d.soldeApres },
+    { key: 'ecartSolde', label: 'Contrôle du solde', type: 'static', value: '' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations }
   ];
+}
+
+/** Un solde non renseigne se lit mieux « — » que « 0 ». */
+function soldeCell(v) {
+  return v === '' || v === undefined || v === null ? '—' : `${fmt(v)} F`;
 }
 
 function renderPool(page) {
@@ -62,7 +92,7 @@ function renderPool(page) {
   page.appendChild(
     card(
       'DOTATION EN CARBURANT — POOL',
-      'Date · Immatriculation · Marque/Modèle · Énergie · Kilométrage · Quantité · Prix/L · Montant · Station-service · État vidange.',
+      'Date · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · Solde avant et après prise · Station-service · État vidange.',
       COLORS.orange
     )
   );
@@ -101,19 +131,23 @@ function renderPool(page) {
   }
 
   const headers = [
-    'Date', 'Immatriculation', 'Marque / Modèle', 'Énergie', 'Kilométrage',
-    'Quantité<br>(L)', 'Prix / L', 'Montant', 'Station-service', 'État<br>vidange', 'Observations', ''
+    'Date', 'Immatriculation', 'Marque / Modèle', 'Carte<br>carburant', 'Énergie', 'Kilométrage',
+    'Quantité<br>(L)', 'Prix / L', 'Montant', 'Solde<br>avant', 'Solde<br>après',
+    'Station-service', 'État<br>vidange', 'Observations', ''
   ];
 
   const rows = list.map((d) => [
     esc(dateFR(d.date)),
     `<b>${esc(d.immat || '')}</b>`,
     esc(d.marqueModele || ''),
+    esc(d.carte || ''),
     esc(d.energie || ''),
     `<span style="display:block;text-align:right">${fmt(d.km)}</span>`,
     `<span style="display:block;text-align:right">${fmt(d.quantite)}</span>`,
     `<span style="display:block;text-align:right">${fmt(d.prixL)}</span>`,
     `<span style="display:block;text-align:right"><b>${fmt(d.montant)} F</b></span>`,
+    `<span style="display:block;text-align:right">${soldeCell(d.soldeAvant)}</span>`,
+    `<span style="display:block;text-align:right">${soldeCell(d.soldeApres)}</span>`,
     esc(d.station || ''),
     `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
     esc(d.observations || ''),
@@ -126,7 +160,7 @@ function renderPool(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const d = list[i];
-      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.station} ${d.date}`);
+      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.carte} ${d.station} ${d.date}`);
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openPoolForm(d);
@@ -154,10 +188,47 @@ function openPoolForm(d) {
       const montant = num(values.quantite) * num(values.prixL);
       const mNode = scope.querySelector('[data-key="montant"]');
       if (mNode) mNode.value = `${fmt(montant)} F`;
+
       const mm = scope.querySelector('[data-key="marqueModele"]');
       if (mm && !mm.value && values.immat) {
         const v = vehicleByImmat(values.immat);
         if (v) mm.value = `${v.marque || ''} ${v.modele || ''}`.trim();
+      }
+
+      // Le vehicule choisi apporte sa carte et le solde qu'y a laisse la
+      // prise precedente. Les deux restent modifiables : on complete des
+      // champs vides, on n'ecrase jamais une saisie.
+      const carte = scope.querySelector('[data-key="carte"]');
+      const avant = scope.querySelector('[data-key="soldeAvant"]');
+      if (values.immat && ((carte && !carte.value) || (avant && !avant.value))) {
+        const prec = dernierePrise(values.immat);
+        if (prec) {
+          if (carte && !carte.value && prec.carte) carte.value = prec.carte;
+          if (avant && !avant.value && prec.soldeApres !== '' && prec.soldeApres !== undefined) {
+            avant.value = num(prec.soldeApres);
+          }
+        }
+      }
+
+      // Le solde apres prise se deduit du montant, tant qu'on ne l'a pas
+      // saisi soi-meme.
+      const apres = scope.querySelector('[data-key="soldeApres"]');
+      if (apres && !apres.value && values.soldeAvant !== '' && montant > 0) {
+        apres.value = num(values.soldeAvant) - montant;
+      }
+
+      // Ecart entre le solde declare et la depense : c'est tout l'interet de
+      // noter les deux soldes, autant le dire a la saisie.
+      const ctrl = scope.querySelector('[data-key="ecartSolde"]');
+      if (ctrl) {
+        if (values.soldeAvant === '' || values.soldeApres === '') {
+          ctrl.value = 'Renseignez les deux soldes';
+        } else {
+          const ecart = num(values.soldeAvant) - num(values.soldeApres) - montant;
+          ctrl.value = Math.abs(ecart) < 0.5
+            ? `Cohérent — ${fmt(montant)} F débités`
+            : `⚠ Écart de ${fmt(Math.abs(ecart))} F avec le montant`;
+        }
       }
     },
     onSubmit: (values) => {
@@ -165,6 +236,9 @@ function openPoolForm(d) {
         date: values.date,
         immat: String(values.immat || '').trim().toUpperCase(),
         marqueModele: values.marqueModele,
+        carte: String(values.carte || '').trim(),
+        soldeAvant: values.soldeAvant,
+        soldeApres: values.soldeApres,
         energie: values.energie,
         km: values.km,
         quantite: num(values.quantite),

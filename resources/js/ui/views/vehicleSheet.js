@@ -2,7 +2,7 @@
    FICHE VÉHICULE — tout ce que l application sait d une immatriculation.
    =================================================================== */
 
-import { DB, vehicleByImmat, maintenanceCost, fuelCost } from '../../core/db.js';
+import { DB, vehicleByImmat } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { card, toolbar, statTile, sectionLabel, emptyState, toast, COLORS } from '../components.js';
@@ -57,13 +57,13 @@ export function renderVehicleSheet(page) {
     );
   }
 
-  const carb = fuelCost(immat);
+  // La fiche ne chiffre plus le carburant ni l'entretien : elle compte les
+  // litres, les passages au garage et les missions. Les montants se lisent
+  // dans le rapport « Coûts par véhicule », qui n'existe que pour cela.
   const litresMission = sum(missionsCarburant, (m) => sum(m.ravitaillements || [], (r) => r.quantite));
-  const ent = maintenanceCost(immat);
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Carburant', `${fmt(carb)} F`, `${fmt(sum(dots, (d) => d.quantite) + litresMission)} litres`, COLORS.orange));
-  grid.appendChild(statTile('Entretien', `${fmt(ent)} F`, `${maint.length} passage(s) au garage`, COLORS.red));
-  grid.appendChild(statTile('Coût total', `${fmt(carb + ent)} F`, 'carburant + entretien', COLORS.green));
+  grid.appendChild(statTile('Carburant', `${fmt(sum(dots, (d) => d.quantite) + litresMission)} L`, `${dots.length + missionsCarburant.length} prise(s)`, COLORS.orange));
+  grid.appendChild(statTile('Entretien', fmt(maint.length), 'passage(s) au garage', COLORS.red));
   grid.appendChild(statTile('Missions', fmt(missions.length), `${fmt(sum(missions, (m) => m.jours))} jour(s) cumulés`, COLORS.purple));
   page.appendChild(grid);
 
