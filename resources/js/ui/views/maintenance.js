@@ -2,7 +2,10 @@
    ENTRETIEN — passages au garage, interventions et retours.
    =================================================================== */
 
-import { DB, insert, update, remove, touch, knownImmats, knownDrivers, vehicleByImmat, openMaintenance } from '../../core/db.js';
+import {
+  DB, insert, update, remove, touch, knownImmats, knownDrivers, vehicleByImmat,
+  openMaintenance, valeursVehicules, MARQUES, MODELES
+} from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy } from '../../core/utils.js';
 import {
@@ -17,8 +20,11 @@ import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
 function ficheFields(m = {}) {
   return [
     { key: 'immat', label: 'Immatriculation', required: true, value: m.immat, list: knownImmats() },
-    { key: 'marque', label: 'Marque', value: m.marque },
-    { key: 'modele', label: 'Modèle', value: m.modele },
+    // Memes listes que la fiche vehicule : c'est le meme parc.
+    { key: 'marque', label: 'Marque', type: 'selectAdd', value: m.marque,
+      options: valeursVehicules('marque', MARQUES), emptyLabel: '— choisir —', addLabel: 'Autre marque' },
+    { key: 'modele', label: 'Modèle', type: 'selectAdd', value: m.modele,
+      options: valeursVehicules('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
     { key: 'dateEntree', label: 'Date entrée', type: 'date', required: true, value: m.dateEntree || todayISO() },
     { key: 'kmEntree', label: 'Km entrée', type: 'number', value: m.kmEntree },
     { key: 'conducteurEntree', label: 'Conducteur à l’entrée', value: m.conducteurEntree, list: knownDrivers() },
@@ -210,6 +216,25 @@ export function renderMaintenanceEntries(container, group) {
     });
 }
 
+/**
+ * Pose une valeur dans un champ qui peut etre une liste deroulante.
+ *
+ * Un <select> refuse en silence une valeur absente de ses options : le champ
+ * resterait vide sans qu'on sache pourquoi. On ajoute donc l'option au besoin
+ * — le cas se presente pour un vehicule retire du parc depuis.
+ */
+function poser(node, valeur) {
+  const v = String(valeur || '').trim();
+  if (!v) return;
+  if (node.tagName === 'SELECT' && ![...node.options].some((o) => o.value === v)) {
+    const opt = document.createElement('option');
+    opt.value = v;
+    opt.textContent = v;
+    node.insertBefore(opt, node.options[node.options.length - 1] || null);
+  }
+  node.value = v;
+}
+
 export function openFicheForm(m, prefillImmat) {
   const isEdit = !!m;
   const base = m || (prefillImmat ? { immat: prefillImmat } : {});
@@ -223,8 +248,8 @@ export function openFicheForm(m, prefillImmat) {
       if (mk && !mk.value && values.immat) {
         const v = vehicleByImmat(values.immat);
         if (v) {
-          mk.value = v.marque || '';
-          if (md && !md.value) md.value = v.modele || '';
+          poser(mk, v.marque);
+          if (md && !md.value) poser(md, v.modele);
         }
       }
     },

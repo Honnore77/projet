@@ -33,6 +33,13 @@ export const PREFIXE_IMMAT_ANCIENNE = 'D45 ';
  * formulaire y ajoute ce qui est deja enregistre dans le parc, et toute valeur
  * saisie a la main est acceptee puis reproposee ensuite.
  */
+/**
+ * Marques de base. La liste s'ouvre a l'usage : toute marque saisie par
+ * « + Autre marque » y figure ensuite. Ces trois-la sont celles des modeles
+ * de reference ci-dessous, pour que le menu ne soit pas vide au depart.
+ */
+export const MARQUES = ['NISSAN', 'TOYOTA', 'FORD'];
+
 export const MODELES = [
   'TERRA', 'NAVARA', 'KICKS', 'QASHQAI', 'XTRAIL',
   'TERRITORY', 'CROSS', 'PRADO', 'LAND CRUISER'
@@ -429,6 +436,22 @@ export function vehicleByImmat(immat) {
 
 export function immatOf(v) {
   return (v && (v.immatNouvelle || v.immatAncienne)) || '';
+}
+
+/**
+ * Valeurs deja portees par les vehicules pour un champ donne, fusionnees avec
+ * une liste de reference.
+ *
+ * Sert a proposer partout les memes marques et les memes modeles : la fiche
+ * vehicule et la fiche d'entretien parlent du meme parc, elles n'ont pas a en
+ * offrir deux inventaires differents. Une valeur ajoutee a la main une fois
+ * est reproposee ensuite, la liste s'enrichit d'elle-meme.
+ */
+export function valeursVehicules(champ, base = []) {
+  const vues = allVehicles()
+    .map((v) => String(v[champ] || '').trim())
+    .filter(Boolean);
+  return [...new Set(base.concat(vues))];
 }
 
 export function knownImmats() {

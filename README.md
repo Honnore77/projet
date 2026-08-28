@@ -40,7 +40,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
 - **Mission** — deux sous-rubriques :
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
-- **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Dates et kilométrages incohérents refusés.
+- **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés.
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 
@@ -85,6 +85,7 @@ Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie 
 
 | Champ | Comportement |
 | --- | --- |
+| Marque | Liste déroulante : NISSAN, TOYOTA, FORD, plus toutes celles déjà enregistrées. Dernière entrée **« + Autre marque »**. |
 | Modèle | Liste déroulante : TERRA, NAVARA, KICKS, QASHQAI, XTRAIL, TERRITORY, CROSS, PRADO, LAND CRUISER. La dernière entrée, **« + Autre modèle »**, bascule le champ en saisie libre ; « ↩ » revient à la liste. |
 | Couleur | Même principe : BLANCHE, NOIRE, GRISE, ROUGE, BLEU, puis **« + Autre couleur »**. |
 | Utilisateur | Liste des agents enregistrés dans UTILISATEURS, plus **« + Autre nom »** pour saisir quelqu’un qui n’y figure pas encore. Le nom saisi est aussitôt ajouté à UTILISATEURS. |
@@ -93,6 +94,8 @@ Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie 
 | Statut | Disponible, En entretien, Immobilisé. « En mission » a été retiré : la mission en cours se lit dans la rubrique MISSION, et deux endroits pour un même fait finissaient par se contredire. Un véhicule encore marqué ainsi garde son statut tant qu'on ne le change pas. |
 
 Toute valeur ajoutée à la main rejoint la liste : elle est reproposée dès la fiche suivante, sans réglage à faire.
+
+**Les fiches d'entretien puisent dans les mêmes listes.** Marque et Modèle y sont les mêmes menus déroulants que dans VÉHICULES : c'est le même parc, il n'a pas à s'y présenter sous deux inventaires différents. Choisir l'immatriculation les remplit d'ailleurs automatiquement, et un véhicule retiré du parc depuis garde sa marque sur ses anciennes fiches.
 
 > Les missions enregistrées avant ce changement sont recomptées à l'ouverture, à partir de leurs dates. L'opération se relance sans risque : elle recalcule au lieu d'ajouter.
 >

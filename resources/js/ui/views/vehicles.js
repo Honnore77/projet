@@ -6,10 +6,10 @@
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MODELES, COULEURS,
+  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange,
-  nomsUtilisateurs, assurerAgent
+  nomsUtilisateurs, assurerAgent, valeursVehicules
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm } from '../../core/utils.js';
@@ -45,24 +45,11 @@ export function badgeVidange(e) {
   return `<span class="badge" style="background:${COLORS.green}">Dans ${fmt(e.restant)} km</span>`;
 }
 
-/**
- * Valeurs deja saisies dans le parc pour un champ donne, fusionnees avec la
- * liste de reference. Une valeur ajoutee a la main une fois est ainsi
- * reproposee ensuite : la liste s'enrichit d'elle-meme.
- */
-function listeConnue(champ, base) {
-  const vues = DB.vehicles.pool
-    .concat(DB.vehicles.mission, DB.vehicles.service)
-    .map((x) => String(x[champ] || '').trim())
-    .filter(Boolean);
-  return [...new Set(base.concat(vues))];
-}
-
 /** Champs du formulaire vehicule (partages creation / modification). */
 function vehicleFields(v = {}, cat = 'pool') {
   const withSection = cat !== 'mission';
   const agents = nomsUtilisateurs();
-  const marques = listeConnue('marque', []);
+  const marques = valeursVehicules('marque', MARQUES);
 
   // Un vehicule enregistre avant le retrait d'un statut garde le sien : on le
   // rajoute a la liste plutot que de le remplacer en douce a la modification.
@@ -71,16 +58,17 @@ function vehicleFields(v = {}, cat = 'pool') {
     : STATUTS_VEHICULE.concat([v.statut]);
 
   return [
-    { key: 'marque', label: 'Marque', required: true, value: v.marque, list: marques },
+    { key: 'marque', label: 'Marque', type: 'selectAdd', required: true, value: v.marque,
+      options: marques, emptyLabel: '— choisir —', addLabel: 'Autre marque' },
     { key: 'modele', label: 'Modèle', type: 'selectAdd', value: v.modele,
-      options: listeConnue('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
+      options: valeursVehicules('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
     { key: 'immatNouvelle', label: 'Nouvelle immatriculation',
       value: v.immatNouvelle === undefined ? PREFIXE_IMMAT_NOUVELLE : v.immatNouvelle,
       hint: 'Facultative — signalée en rouge tant qu’elle manque' },
     { key: 'immatAncienne', label: 'Ancienne immatriculation',
       value: v.immatAncienne === undefined ? PREFIXE_IMMAT_ANCIENNE : v.immatAncienne },
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
-      options: listeConnue('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
+      options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
     { key: 'statut', label: 'Statut', type: 'select', options: statuts, value: v.statut || 'Disponible' },
     ...(withSection
