@@ -5,7 +5,7 @@
 import { jsPDF } from 'jspdf';
 import autoTableModule from 'jspdf-autotable';
 import { previewAndSave } from './preview.js';
-import { todayISO, dateFR } from '../core/utils.js';
+import { todayISO, mentionLieuDate } from '../core/utils.js';
 import { DB } from '../core/db.js';
 import { toWinAnsi as clean } from './winansi.js';
 
@@ -50,6 +50,7 @@ export function buildPdf(datasets, opts = {}) {
 
   const pageW = doc.internal.pageSize.getWidth();
   const org = (DB.settings && DB.settings.organisation) || 'PDU';
+  const mention = mentionLieuDate(DB.settings && DB.settings.ville);
 
   let first = true;
   datasets.forEach((ds) => {
@@ -65,7 +66,6 @@ export function buildPdf(datasets, opts = {}) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.text(clean(ds.title), 10, 14);
-    doc.text(clean(`Édité le ${dateFR(todayISO())}`), pageW - 10, 14, { align: 'right' });
 
     drawTable(doc, {
       startY: 24,
@@ -99,10 +99,11 @@ export function buildPdf(datasets, opts = {}) {
         );
         doc.text(
           `Page ${doc.internal.getNumberOfPages()}`,
-          pageW - 8,
+          pageW / 2,
           h - 6,
-          { align: 'right' }
+          { align: 'center' }
         );
+        doc.text(mention, pageW - 8, h - 6, { align: 'right' });
       }
     });
 

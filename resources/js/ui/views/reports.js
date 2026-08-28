@@ -3,7 +3,7 @@
    =================================================================== */
 
 import { DB, allVehicles, openMaintenance, unpaidMissions, carburantMissions } from '../../core/db.js';
-import { el, fmt, esc, sum } from '../../core/utils.js';
+import { el, fmt, esc, sum, mentionLieuDate } from '../../core/utils.js';
 import { card, statTile, dataTable, emptyState, toast, COLORS, sectionLabel } from '../components.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -133,6 +133,7 @@ function printReport(rapport) {
       th{background:#008A3B;color:#fff;text-align:left;padding:5px;}
       td{border-bottom:1px solid #e6eced;padding:4px 5px;vertical-align:top;}
       tr:nth-child(even) td{background:#f8fbfb;}
+      .mention{margin-top:18px;text-align:right;font-size:11px;font-style:italic;color:#17313B;}
       @page{size:A4 landscape;margin:10mm;}
     </style></head><body>` +
     `<h1>${esc(org)} — ${esc(rapport.label)}</h1>` +
@@ -147,6 +148,7 @@ function printReport(rapport) {
           (ds.note ? `<div class="sub">${esc(ds.note)}</div>` : '')
       )
       .join('') +
+    `<div class="mention">${esc(mentionLieuDate(DB.settings && DB.settings.ville))}</div>` +
     '</body></html>';
 
   const w = window.open('', '_blank');

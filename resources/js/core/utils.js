@@ -108,3 +108,17 @@ export function groupBy(arr, keyFn) {
   });
   return out;
 }
+
+/**
+ * Mention de lieu et de date portee en pied de tous les documents exportes.
+ *
+ * Un document sorti de l'application circule ensuite seul : la date a laquelle
+ * il a ete edite doit y figurer, sans quoi on ne sait plus a quel etat du parc
+ * il correspond. La ville vient des reglages, la date est celle du jour.
+ *
+ * @param {string} ville
+ * @returns {string} par exemple « Fait à Abidjan le 28/08/2026 »
+ */
+export function mentionLieuDate(ville) {
+  return `Fait à ${ville || 'Abidjan'} le ${dateFR(todayISO())}`;
+}

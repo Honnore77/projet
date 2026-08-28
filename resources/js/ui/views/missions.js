@@ -8,9 +8,9 @@
                           consultable par le bouton « Voir »
    =================================================================== */
 
-import { DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, ravMontant } from '../../core/db.js';
+import { DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, ravMontant, joursMission } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
   statTile, dataTable, groupHeader, subEmpty, COLORS
@@ -462,7 +462,8 @@ function missionFields(m = {}) {
     { key: 'objet', label: 'Objet de la mission', full: true, value: m.objet },
     { key: 'dateDepart', label: 'Date départ', type: 'date', value: m.dateDepart || todayISO() },
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
-    { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours },
+    { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
+      hint: 'Jour de départ inclus' },
     { key: 'montant', label: 'Montant des frais (F)', type: 'number', value: m.montant }
   ];
 }
@@ -492,13 +493,13 @@ export function openMissionForm(m) {
     fields: missionFields(m || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la mission',
     onInput: (values, scope) => {
-      const j = daysBetween(values.dateDepart, values.dateRetour);
+      const j = joursMission(values.dateDepart, values.dateRetour);
       const node = scope.querySelector('[data-key="jours"]');
-      if (node) node.value = j === null ? '—' : `${j} j`;
+      if (node) node.value = j === null || j < 1 ? '—' : `${j} j`;
     },
     onSubmit: (values) => {
-      const jours = daysBetween(values.dateDepart, values.dateRetour);
-      if (jours !== null && jours < 0) return 'La date de retour est antérieure à la date de départ.';
+      const jours = joursMission(values.dateDepart, values.dateRetour);
+      if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
       const doublon = DB.missions.find((x) => x.id !== (m && m.id) && norm(x.ref) === norm(values.ref));
       if (doublon) return `La référence ${values.ref} existe déjà.`;
 

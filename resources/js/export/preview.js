@@ -13,7 +13,8 @@
    =================================================================== */
 
 import { saveFile, isDesktop } from '../core/storage.js';
-import { esc, el, fmt } from '../core/utils.js';
+import { esc, el, fmt, mentionLieuDate } from '../core/utils.js';
+import { DB } from '../core/db.js';
 import { openModal, toast } from '../ui/components.js';
 
 /** Au-delà, l'aperçu se contente d'un extrait : afficher 5 000 lignes fige la fenêtre. */
@@ -130,6 +131,12 @@ function tablesNode(datasets) {
         : `<tr><td colspan="${ds.columns.length}" style="text-align:center;color:#8aa0a6">Feuille vide</td></tr>`) +
       '</tbody></table></div>';
     wrap.appendChild(el(table));
+
+    // Le classeur ferme chaque feuille par la mention de lieu et de date :
+    // l'apercu ne serait plus fidele s'il l'omettait.
+    wrap.appendChild(
+      el(`<p class="apercuMention">${esc(mentionLieuDate(DB.settings && DB.settings.ville))}</p>`)
+    );
 
     if (ds.rows.length > LIGNES_APERCU) {
       wrap.appendChild(

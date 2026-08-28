@@ -38,7 +38,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
 - **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire et les véhicules qui leur sont attribués. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service — dans les deux sens, voir ci-dessous — et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
 - **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place, avec le suivi de la carte carburant décrit ci-dessous) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
-  - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
+  - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
 - **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Dates et kilométrages incohérents refusés.
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
@@ -93,6 +93,26 @@ Le formulaire propose ce qui est déjà connu plutôt que d'attendre une saisie 
 | Statut | Disponible, En entretien, Immobilisé. « En mission » a été retiré : la mission en cours se lit dans la rubrique MISSION, et deux endroits pour un même fait finissaient par se contredire. Un véhicule encore marqué ainsi garde son statut tant qu'on ne le change pas. |
 
 Toute valeur ajoutée à la main rejoint la liste : elle est reproposée dès la fiche suivante, sans réglage à faire.
+
+> Les missions enregistrées avant ce changement sont recomptées à l'ouverture, à partir de leurs dates. L'opération se relance sans risque : elle recalcule au lieu d'ajouter.
+>
+> L'immobilisation au garage garde l'écart brut entre les dates : on y mesure un temps d'indisponibilité, pas des journées de mission à indemniser.
+
+### Mention de lieu et de date
+
+Tout document produit par l'application se termine par **« Fait à Abidjan le *date du jour* »**, en bas à droite. Un fichier exporté circule ensuite seul : sans cette mention, on ne sait plus à quel état du parc il correspond.
+
+| Sortie | Où la mention apparaît |
+| --- | --- |
+| Document PDF | pied de chaque page, à droite ; le numéro de page passe au centre |
+| Rapport de mission (PDF) | pied de page, à droite |
+| Classeur Excel | dernière ligne de chaque feuille, dernière colonne, en italique gris aligné à droite |
+| Impression directe | après le dernier tableau, aligné à droite |
+| Fenêtre d'aperçu | sous chaque feuille, comme dans le fichier |
+
+La ville se règle dans **Réglages → Modifier les réglages → Ville des documents** (Abidjan par défaut).
+
+> La date qui figurait en haut à droite des PDF (« Édité le … ») a été retirée : elle disait la même chose que la mention du pied, et deux dates pour un même fait ne valent rien.
 
 ### Informations manquantes signalées
 

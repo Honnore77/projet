@@ -342,3 +342,6 @@ body.readonly .addBtn,body.readonly .smallBtn,body.readonly [data-write]{display
 .celluleManquante{display:block;background:#f8d7da;color:#9b2c2c;font-style:italic;
   padding:2px 6px;border-radius:6px;text-align:center;}
 td.celluleManquante{display:table-cell;border-radius:0;}
+
+/* Mention de lieu et de date, telle qu'elle ferme le fichier */
+.apercuMention{margin:2px 2px 14px;text-align:right;font-size:12px;font-style:italic;color:#5b7178;}

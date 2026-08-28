@@ -181,6 +181,7 @@ function renderThresholdsSection(page) {
     el(
       '<div class="card"><h3 style="color:#F47B20">PARAMÈTRES ACTUELS</h3><p>' +
         `Organisation : ${esc(s.organisation)}\n` +
+        `Ville des documents : ${esc(s.ville)}\n` +
         `Devise : ${esc(s.devise)}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
@@ -201,6 +202,8 @@ function openSettingsForm() {
     title: 'Réglages de l’application',
     fields: [
       { key: 'organisation', label: 'Nom de l’organisation', value: s.organisation, full: true },
+      { key: 'ville', label: 'Ville des documents', value: s.ville,
+        hint: 'Portée par la mention « Fait à … le … » en pied des exports' },
       { key: 'devise', label: 'Symbole monétaire', value: s.devise },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
@@ -213,6 +216,7 @@ function openSettingsForm() {
     onSubmit: (v) => {
       saveSettings({
         organisation: v.organisation || 'PDU',
+        ville: v.ville || 'Abidjan',
         devise: v.devise || 'F',
         seuilImmobilisationJours: num(v.seuilImmobilisationJours) || 7,
         seuilMissionImpayeeJours: num(v.seuilMissionImpayeeJours) || 30,

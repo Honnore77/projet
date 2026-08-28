@@ -9,7 +9,7 @@
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
 import { DB } from '../core/db.js';
-import { dateFR, fmt, num, sum, esc } from '../core/utils.js';
+import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
 const GREEN = [0, 138, 59];
@@ -240,10 +240,17 @@ export function buildMissionReport(mission) {
   /* ---- pied de page ---- */
   doc.setFontSize(7.5);
   doc.setTextColor(120);
+  const basPage = doc.internal.pageSize.getHeight() - 8;
   doc.text(
     nettoyer(`${d.organisation} - Gestion du parc automobile${d.reference ? ` - mission ${d.reference}` : ''}`),
     M,
-    doc.internal.pageSize.getHeight() - 8
+    basPage
+  );
+  doc.text(
+    nettoyer(mentionLieuDate(DB.settings && DB.settings.ville)),
+    doc.internal.pageSize.getWidth() - M,
+    basPage,
+    { align: 'right' }
   );
 
   const nom = `Rapport_mission_${(d.reference || d.chauffeur || 'sans-reference').replace(/[^A-Za-z0-9_-]+/g, '_')}`;
@@ -355,6 +362,7 @@ export function printMissionReport(mission) {
 
       <div class="bandeau" style="margin-top:14px">OBSERVATIONS</div>
       <div class="obs">${esc(d.observations)}</div>
+      <div class="mention">${esc(mentionLieuDate(DB.settings && DB.settings.ville))}</div>
     </body></html>`;
 
   const w = window.open('', '_blank');

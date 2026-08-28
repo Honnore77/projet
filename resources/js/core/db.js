@@ -84,6 +84,8 @@ export function emptyDB() {
     maintenance: [],
     settings: {
       organisation: 'PDU',
+      // Ville portee par la mention « Fait à … le … » des documents exportes.
+      ville: 'Abidjan',
       devise: 'F',
       // Intervalle courant entre deux vidanges : sert a proposer le
       // kilometrage de la prochaine quand on saisit un vehicule.
@@ -219,6 +221,11 @@ export function normalize(raw) {
   db.missions.forEach((m) => {
     if (!Array.isArray(m.ravitaillements)) m.ravitaillements = [];
     if (!Array.isArray(m.participants)) m.participants = [];
+    // Le nombre de jours se deduit des dates : le recalculer au chargement
+    // remet d'aplomb les missions comptees avant que le jour de depart ne
+    // soit inclus, sans risque de compter deux fois.
+    const j = joursMission(m.dateDepart, m.dateRetour);
+    if (j !== null && j >= 0) m.jours = j;
   });
   allVehicles(db).forEach((v) => { if (!v.id) v.id = uid(); });
 
@@ -280,7 +287,7 @@ function migrerDotationsMission(db) {
       objet: 'Reprise d’une dotation carburant de mission',
       dateDepart: d.dateDepart || '',
       dateRetour: d.dateRetour || '',
-      jours: daysBetween(d.dateDepart, d.dateRetour) ?? '',
+      jours: joursMission(d.dateDepart, d.dateRetour) ?? '',
       montant: 0,
       paye: false,
       datePaiement: '',
@@ -531,6 +538,22 @@ export function assurerAgent(nom, infos = {}) {
     historique: [],
     createdAt: new Date().toISOString()
   });
+}
+
+/**
+ * Duree d'une mission, en jours.
+ *
+ * Le jour de depart compte : partir et revenir le meme jour fait une mission
+ * d'un jour, pas de zero. On ajoute donc un a l'ecart entre les deux dates.
+ * L'immobilisation au garage, elle, garde l'ecart brut : ce n'est pas la meme
+ * grandeur, on y mesure un temps d'indisponibilite, pas des journees de
+ * mission a indemniser.
+ *
+ * @returns {number|null} null tant que l'une des deux dates manque.
+ */
+export function joursMission(dateDepart, dateRetour) {
+  const ecart = daysBetween(dateDepart, dateRetour);
+  return ecart === null ? null : ecart + 1;
 }
 
 export function knownDrivers() {

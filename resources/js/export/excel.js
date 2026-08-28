@@ -14,7 +14,8 @@ import * as sheetjs from 'xlsx-js-style';
  */
 const XLSX = sheetjs && sheetjs.utils ? sheetjs : sheetjs.default;
 if (!XLSX || !XLSX.utils) throw new Error('SheetJS introuvable : export Excel indisponible.');
-import { todayISO } from '../core/utils.js';
+import { todayISO, mentionLieuDate } from '../core/utils.js';
+import { DB } from '../core/db.js';
 import { previewAndSave } from './preview.js';
 
 const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -26,6 +27,16 @@ const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
 /** Rouge clair des cellules vides a signaler, en hexadecimal Excel. */
 const ROUGE_CLAIR = 'FFF8D7DA';
 const ROUGE_TEXTE = 'FF9B2C2C';
+
+/** Met en forme la mention de lieu et de date qui ferme la feuille. */
+function styleMention(ws, ligne, colonne) {
+  const ref = XLSX.utils.encode_cell({ r: ligne, c: colonne });
+  if (!ws[ref]) return;
+  ws[ref].s = {
+    font: { italic: true, color: { rgb: 'FF5B7178' } },
+    alignment: { horizontal: 'right' }
+  };
+}
 
 /**
  * Peint en rouge clair les cellules vides des colonnes marquees
@@ -61,8 +72,13 @@ export function buildExcel(datasets) {
   datasets.forEach((ds) => {
     const header = ds.columns.map((c) => c.label);
     const body = ds.rows.map((r) => ds.columns.map((c) => cell(r[c.key])));
-    const ws = XLSX.utils.aoa_to_sheet([header, ...body]);
+    // La mention de lieu et de date ferme la feuille, dans la derniere
+    // colonne : c'est le bas a droite d'un tableur, la ou on la cherche.
+    const mention = new Array(ds.columns.length).fill('');
+    mention[ds.columns.length - 1] = mentionLieuDate(DB.settings && DB.settings.ville);
+    const ws = XLSX.utils.aoa_to_sheet([header, ...body, [], mention]);
     peindreManquants(ws, ds, body);
+    styleMention(ws, body.length + 2, ds.columns.length - 1);
     ws['!cols'] = ds.columns.map((c) => ({ wch: c.width || Math.max(12, c.label.length + 2) }));
     ws['!autofilter'] = {
       ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(body.length, 1), c: ds.columns.length - 1 } })
