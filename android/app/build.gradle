@@ -16,6 +16,18 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    // L'APK n'etait signe qu'en schema v2 ; il porte aussi le v3 desormais.
+    // Le v1 est demande ici mais Gradle l'ignore : il le juge inutile des que
+    // minSdk atteint 24, le v2 existant depuis Android 7.0. La demande reste
+    // ecrite pour dire l'intention si minSdk venait a baisser.
+    signingConfigs {
+        debug {
+            enableV1Signing true
+            enableV2Signing true
+            enableV3Signing true
+        }
+    }
+
     buildTypes {
         release {
             minifyEnabled false
