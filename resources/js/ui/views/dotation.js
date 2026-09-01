@@ -100,7 +100,9 @@ function poolFields(d = {}) {
       hint: 'Solde avant prise moins le montant calculé' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
-    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations }
+    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: d.images,
+      hint: 'Reçu de la station-service, ticket de la carte carburant' }
   ];
 }
 
@@ -280,7 +282,8 @@ function openPoolForm(d) {
         montant,
         station: values.station,
         vidange: values.vidange,
-        observations: values.observations
+        observations: values.observations,
+        images: values.images
       };
       if (isEdit) update('dotationPool', d.id, payload);
       else insert('dotationPool', payload);

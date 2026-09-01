@@ -88,6 +88,59 @@ export async function saveFile(filename, data, mime) {
   return filename;
 }
 
+/* ------------------- Sauvegardes datees (bureau) ------------------- */
+
+/**
+ * Etat de la derniere copie datee.
+ *
+ * Sur le web il n'y a pas de dossier ou copier : la fonction repond alors
+ * qu'aucune sauvegarde automatique n'existe, plutot que d'echouer, pour que
+ * la rubrique REGLAGES s'affiche pareil des deux cotes.
+ */
+export async function backupEtat() {
+  if (isDesktop && window.pduDesktop.backupEtat) return window.pduDesktop.backupEtat();
+  return { fait: null, dossier: '', fichier: '', erreur: '', conservees: 0, indisponible: true };
+}
+
+/** Choix du dossier de sauvegarde (bureau uniquement). */
+export async function backupChoisirDossier() {
+  if (isDesktop && window.pduDesktop.backupChoisirDossier) return window.pduDesktop.backupChoisirDossier();
+  return null;
+}
+
+/** Sauvegardes presentes dans le dossier, la plus recente en tete. */
+export async function backupListe(dossier) {
+  if (isDesktop && window.pduDesktop.backupListe) return window.pduDesktop.backupListe(dossier);
+  return [];
+}
+
+/**
+ * Ouvre un fichier et rend ses octets.
+ *
+ * La sauvegarde est devenue une archive, donc binaire : la lecture en texte
+ * ne suffit plus. Les anciennes sauvegardes .json restent acceptees, elles
+ * se decodent depuis ces memes octets.
+ *
+ * @returns {Promise<{nom:string, octets:Uint8Array}|null>}
+ */
+export async function openBinaryFile() {
+  if (isDesktop && window.pduDesktop.openBytes) {
+    const res = await window.pduDesktop.openBytes();
+    return res ? { nom: res.nom, octets: new Uint8Array(res.octets) } : null;
+  }
+  return new Promise((resolve) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.zip,.json,application/zip,application/json';
+    input.onchange = async () => {
+      const f = input.files && input.files[0];
+      if (!f) return resolve(null);
+      resolve({ nom: f.name, octets: new Uint8Array(await f.arrayBuffer()) });
+    };
+    input.click();
+  });
+}
+
 /** Ouvre un fichier texte (restauration de sauvegarde). */
 export async function openTextFile() {
   if (isDesktop) return window.pduDesktop.openFile();

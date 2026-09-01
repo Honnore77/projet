@@ -413,7 +413,9 @@ function openRapportForm(m) {
       { key: 'kmDepart', label: 'Km départ', type: 'number', value: m.kmDepart },
       { key: 'kmArrivee', label: 'Km arrivée', type: 'number', value: m.kmArrivee },
       { key: 'distance', label: 'Distance parcourue', type: 'static', value: '' },
-      { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: m.observations }
+      { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: m.observations },
+      { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
+        hint: 'Ordre de mission signé, justificatifs de frais' }
     ],
     okLabel: 'Enregistrer le rapport',
     onInput: (values, scope) => {
@@ -478,7 +480,8 @@ function openRapportForm(m) {
         kmDepart: v.kmDepart,
         kmArrivee: v.kmArrivee,
         ravitaillements: rav,
-        observations: v.observations
+        observations: v.observations,
+        images: v.images
       });
       toast('Rapport enregistré.', 'ok');
       rerender();

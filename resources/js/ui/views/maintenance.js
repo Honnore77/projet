@@ -33,7 +33,9 @@ function ficheFields(m = {}) {
     { key: 'motif', label: 'Motif / problème', type: 'textarea', full: true, required: true,
       lignesTiret: true, value: m.motif,
       hint: 'Une ligne par problème — Entrée ouvre la suivante avec un tiret' },
-    { key: 'signalePar', label: 'Signalé par', value: m.signalePar, list: knownDrivers() }
+    { key: 'signalePar', label: 'Signalé par', value: m.signalePar, list: knownDrivers() },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
+      hint: 'Photo de l’avarie, facture du garage, pièce remplacée' }
   ];
 }
 

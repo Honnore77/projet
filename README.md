@@ -334,7 +334,9 @@ Elle reste disponible sur GitHub : https://github.com/Honnore77/projet, commit `
 git checkout 33713ed
 ```
 
-Le dossier du projet contient encore le serveur Laravel de cette version (`app/`, `routes/`, `database/`, `config/`, `tests/`). **L'application ne s'en sert plus** et il n'entre pas dans l'exécutable ; il est là uniquement pour ne rien perdre. Vous pouvez le supprimer sans conséquence.
+Le serveur Laravel de cette version (`app/`, `routes/`, `database/`, `config/`, `storage/`, `bootstrap/`, `tests/`, `artisan`, `composer.json`) **a été retiré du dossier de travail**. L'application ne s'en servait plus et il n'entrait pas dans l'exécutable ; il ne restait que pour mémoire, et son dossier `tests/` faisait croire à des tests qui ne testaient rien d'ici.
+
+Rien n'est perdu : le commit `33713ed` le contient en entier, et la commande ci-dessus le fait réapparaître.
 
 ## 7. Limites connues
 

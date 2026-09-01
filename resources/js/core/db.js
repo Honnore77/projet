@@ -117,7 +117,15 @@ export function emptyDB() {
       // tout le monde a une date donnee, il n'a pas a se retaper a chaque
       // prise. Zero vaut « pas encore renseigne » : la liste ne le propose pas.
       prixLitreEssence: 0,
-      prixLitreDiesel: 0
+      prixLitreDiesel: 0,
+      // Dossier des copies datees, hors du poste de preference : cle USB,
+      // disque reseau, dossier synchronise. Vide, la sauvegarde automatique
+      // ne se fait pas — c'est un choix explicite, pas un defaut silencieux.
+      dossierSauvegarde: '',
+      // Nombre de copies gardees. Trente jours couvrent une erreur remarquee
+      // tard sans encombrer le support : le fichier pese quelques dizaines
+      // de kilo-octets.
+      sauvegardesConservees: 30
     },
     meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   };
@@ -261,6 +269,14 @@ export function normalize(raw) {
   });
   allVehicles(db).forEach((v) => { if (!v.id) v.id = uid(); });
 
+  // Toute fiche peut porter des images. Le tableau est cree ici une fois
+  // pour toutes : les formulaires et les vues n'ont alors jamais a se
+  // demander s'il existe, et une base d'avant les images se lit sans rien
+  // de particulier.
+  fichesAImages(db).forEach((f) => {
+    if (!Array.isArray(f.images)) f.images = [];
+  });
+
   migrerDotationsMission(db);
   migrerSectionsRenommees(db);
   renumeroterMissions(db);
@@ -335,6 +351,36 @@ function migrerDotationsMission(db) {
   });
 
   return anciennes.length;
+}
+
+/**
+ * Toutes les fiches susceptibles de porter des images, a plat.
+ *
+ * Une seule liste, pour que l'ajout d'images a une rubrique ne s'oublie ni
+ * au chargement, ni au menage des orphelines, ni a l'export en archive.
+ */
+export function fichesAImages(db = DB) {
+  return [
+    ...(db.vehicles.pool || []),
+    ...(db.vehicles.mission || []),
+    ...(db.vehicles.service || []),
+    ...db.users,
+    ...db.maintenance,
+    ...db.missions,
+    ...db.dotationPool
+  ];
+}
+
+/**
+ * Identifiants d'images citees par au moins une fiche.
+ *
+ * Sert au menage : une image ecrite puis abandonnee (formulaire annule,
+ * fiche supprimee) n'est plus citee par personne et peut partir.
+ */
+export function imagesCitees(db = DB) {
+  const vues = new Set();
+  fichesAImages(db).forEach((f) => (f.images || []).forEach((i) => i && i.id && vues.add(i.id)));
+  return vues;
 }
 
 /** Reporte les fiches qui portent encore l'ancien libelle d'une section. */

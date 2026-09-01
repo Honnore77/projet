@@ -9,6 +9,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { sauvegardeDatee, listerSauvegardes, miroirImages } = require('./sauvegarde.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -20,6 +21,57 @@ function dataFile() {
 }
 function backupFile() {
   return path.join(app.getPath('userData'), 'pdu-parc-auto.backup.json');
+}
+
+/**
+ * Dossier des images jointes aux fiches.
+ *
+ * Elles ne sont pas dans la base : celle-ci est reecrite en entier a chaque
+ * saisie, et sur le web elle tient dans localStorage. Les octets vivent donc
+ * a cote, nommes par leur identifiant, et la fiche ne retient que celui-ci.
+ */
+function imagesDir() {
+  return path.join(app.getPath('userData'), 'images');
+}
+
+/** Chemin d'une image. Rejette tout identifiant qui sortirait du dossier. */
+function imageFile(id) {
+  const nom = String(id || '');
+  if (!/^img_[A-Za-z0-9]+$/.test(nom)) return null;
+  return path.join(imagesDir(), `${nom}.jpg`);
+}
+
+/* ------------------------ Sauvegarde datee ------------------------- */
+
+/**
+ * Etat de la derniere tentative de copie datee, lu par la rubrique REGLAGES.
+ * On ne fait jamais echouer un enregistrement a cause d'une sauvegarde : la
+ * cle USB peut etre debranchee, le disque reseau injoignable. La saisie
+ * prime, et l'ecran dit ensuite ce qui n'a pas pu se faire.
+ */
+let etatSauvegarde = { fait: null, dossier: '', fichier: '', erreur: '', conservees: 0 };
+
+/** Lance la copie datee a partir des reglages contenus dans la base. */
+function copierSelonReglages(raw) {
+  let reglages = {};
+  try {
+    reglages = (JSON.parse(raw) || {}).settings || {};
+  } catch (e) {
+    return; // base illisible : rien a copier
+  }
+  etatSauvegarde = sauvegardeDatee(
+    raw,
+    reglages.dossierSauvegarde,
+    reglages.sauvegardesConservees
+  );
+
+  // Les photos vivent hors de la base : sans elles, la copie datee ne
+  // ramenerait que des fiches citant des images introuvables.
+  if (etatSauvegarde.dossier && !etatSauvegarde.erreur) {
+    const im = miroirImages(imagesDir(), etatSauvegarde.dossier);
+    etatSauvegarde.images = im.copiees;
+    if (im.erreur) etatSauvegarde.erreur = `images : ${im.erreur}`;
+  }
 }
 
 function createWindow() {
@@ -160,6 +212,9 @@ ipcMain.handle('db:save', (_evt, raw) => {
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, raw, 'utf8');
     fs.renameSync(tmp, file);
+    // La copie datee vient apres, et ne peut rien compromettre : l'ecriture
+    // qui compte est deja faite.
+    copierSelonReglages(raw);
     return true;
   } catch (e) {
     console.error('Ecriture impossible', e);
@@ -168,6 +223,87 @@ ipcMain.handle('db:save', (_evt, raw) => {
 });
 
 ipcMain.handle('db:path', () => dataFile());
+
+/** Etat de la derniere copie datee, pour l'affichage dans REGLAGES. */
+ipcMain.handle('backup:etat', () => etatSauvegarde);
+
+/** Choix du dossier de sauvegarde. @returns {Promise<string|null>} */
+ipcMain.handle('backup:dossier', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Dossier des sauvegardes automatiques',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Choisir ce dossier'
+  });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+
+/** Liste des sauvegardes presentes dans un dossier, la plus recente en tete. */
+ipcMain.handle('backup:liste', (_evt, dossier) =>
+  listerSauvegardes(dossier).slice().reverse());
+
+/* ---------------------------- Images ------------------------------- */
+
+ipcMain.handle('file:openBytes', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Ouvrir une sauvegarde',
+    properties: ['openFile'],
+    filters: [{ name: 'Sauvegarde PDU', extensions: ['zip', 'json'] }]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    return {
+      nom: path.basename(res.filePaths[0]),
+      octets: Array.from(fs.readFileSync(res.filePaths[0]))
+    };
+  } catch (e) {
+    console.error('Lecture impossible', e);
+    return null;
+  }
+});
+
+ipcMain.handle('image:write', (_evt, id, bytes) => {
+  const f = imageFile(id);
+  if (!f) return false;
+  try {
+    fs.mkdirSync(imagesDir(), { recursive: true });
+    fs.writeFileSync(f, Buffer.from(bytes));
+    return true;
+  } catch (e) {
+    console.error('Image non enregistree', e);
+    return false;
+  }
+});
+
+ipcMain.handle('image:read', (_evt, id) => {
+  const f = imageFile(id);
+  if (!f) return null;
+  try {
+    return fs.existsSync(f) ? Array.from(fs.readFileSync(f)) : null;
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('image:delete', (_evt, id) => {
+  const f = imageFile(id);
+  if (!f) return false;
+  try {
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+    return true;
+  } catch (e) {
+    return false;
+  }
+});
+
+ipcMain.handle('image:list', () => {
+  try {
+    return fs.readdirSync(imagesDir())
+      .filter((f) => f.endsWith('.jpg'))
+      .map((f) => f.slice(0, -4));
+  } catch (e) {
+    return [];
+  }
+});
 
 ipcMain.handle('file:save', async (_evt, filename, bytes) => {
   const res = await dialog.showSaveDialog(win, {

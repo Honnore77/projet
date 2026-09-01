@@ -104,7 +104,9 @@ function vehicleFields(v = {}, cat = 'pool') {
       hint: 'Kilométrage auquel la vidange devra être faite' },
     { key: 'etatVidange', label: 'Suivi de la vidange', type: 'static', value: '' },
     { key: 'categorie', label: 'Catégorie', type: 'select', options: CATEGORIES.map((c) => ({ value: c.key, label: c.label })), value: cat },
-    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: v.observations }
+    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: v.observations },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: v.images,
+      hint: 'Photo du vehicule, carte grise, assurance, visite technique' }
   ];
 }
 
@@ -343,7 +345,8 @@ export function openVehicleForm(vehicle, cat) {
         statut: values.statut,
         km: values.km,
         kmVidange: values.kmVidange,
-        observations: values.observations
+        observations: values.observations,
+        images: values.images
       };
 
       if (isEdit) {

@@ -3,7 +3,8 @@
    =================================================================== */
 
 import './styles/app.css';
-import { initDB, persistNow } from './core/db.js';
+import { initDB, persistNow, imagesCitees } from './core/db.js';
+import { menageImages } from './core/images.js';
 import { restoreSession, isLogged } from './core/auth.js';
 import { renderLogin } from './ui/login.js';
 import { mountShell } from './ui/shell.js';
@@ -23,6 +24,11 @@ async function boot() {
       'Impossible de charger les données de l’application.<br>Vérifiez que le stockage local est autorisé, puis relancez.</p></div>';
     return;
   }
+
+  // Les images abandonnees en cours de saisie s'effacent ici, une fois la
+  // base connue. Sans attendre : le menage ne bloque pas l'ouverture, et
+  // rater un tour ne coute que quelques kilo-octets jusqu'au prochain.
+  menageImages(imagesCitees()).catch((e) => console.error('Ménage des images', e));
 
   // Une session ouverte dans le meme onglet survit a un rafraichissement.
   if (restoreSession() && isLogged()) {
