@@ -13,7 +13,8 @@
     "build": "vite build",
     "dev:desktop": "concurrently -k \"vite\" \"wait-on tcp:5173 && electron .\"",
     "start:desktop": "npm run build && electron .",
-    "dist:win": "npm run build && electron-builder --win portable"
+    "dist:win": "npm run build && electron-builder --win portable",
+    "test": "node --test \"tests/*.test.mjs\""
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
