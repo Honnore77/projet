@@ -42,7 +42,7 @@
       "package.json"
     ],
     "win": {
-      "icon": "resources/static/icons/icon-512.png",
+      "icon": "resources/static/icons/icon.ico",
       "target": [
         {
           "target": "portable",
@@ -50,8 +50,7 @@
             "x64"
           ]
         }
-      ],
-      "signAndEditExecutable": false
+      ]
     },
     "portable": {
       "artifactName": "PDU-Parc-Auto-${version}.exe"
