@@ -41,3 +41,6 @@ Thumbs.db
 /android/.gradle
 /android/local.properties
 /android/capacitor-cordova-android-plugins
+
+# Dossier portable : livrables et bundle, regeneres a la demande
+/portable
