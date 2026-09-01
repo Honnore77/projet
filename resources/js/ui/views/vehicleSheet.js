@@ -2,7 +2,7 @@
    FICHE VÉHICULE — tout ce que l application sait d une immatriculation.
    =================================================================== */
 
-import { DB, vehicleByImmat } from '../../core/db.js';
+import { DB, vehicleByImmat, kmCourant, ravMontant } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { card, toolbar, statTile, sectionLabel, emptyState, toast, COLORS } from '../components.js';
@@ -39,7 +39,7 @@ export function renderVehicleSheet(page) {
       card(
         `${vehicle.marque || ''} ${vehicle.modele || ''}`.trim() || immat,
         `Immatriculation : ${vehicle.immatNouvelle || '—'}${vehicle.immatAncienne ? ` (anc. ${vehicle.immatAncienne})` : ''}\n` +
-          `Statut : ${vehicle.statut} · Catégorie : ${String(cat).toUpperCase()} · Km : ${fmt(vehicle.km)}\n` +
+          `Statut : ${vehicle.statut} · Catégorie : ${String(cat).toUpperCase()} · Km : ${fmt(kmCourant(vehicle))}\n` +
           `Énergie : ${vehicle.energie || '—'} · Couleur : ${vehicle.couleur || '—'}${vehicle.groupe ? ` · Groupe : ${vehicle.groupe}` : ''}` +
           (vehicle.section ? `\nSection : ${vehicle.section}` : '') +
           (vehicle.utilisateur ? ` · Utilisateur : ${vehicle.utilisateur}` : '') +
@@ -89,7 +89,7 @@ export function renderVehicleSheet(page) {
     missionsCarburant.forEach((m) => {
       const rav = m.ravitaillements || [];
       const litres = sum(rav, (r) => r.quantite);
-      const montant = sum(rav, (r) => num(r.quantite) * num(r.prixL));
+      const montant = sum(rav, ravMontant);
       page.appendChild(
         card(
           `${m.ref ? `${m.ref} — ` : ''}${m.conducteur} — ${fmt(montant)} F`,

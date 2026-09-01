@@ -3,7 +3,7 @@
    =================================================================== */
 
 import { DB, allVehicles, openMaintenance, unpaidMissions, carburantMissions } from '../../core/db.js';
-import { el, fmt, esc, sum, mentionLieuDate } from '../../core/utils.js';
+import { el, fmt, esc, escLignes, sum, mentionLieuDate } from '../../core/utils.js';
 import { card, statTile, dataTable, emptyState, toast, COLORS, sectionLabel } from '../components.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -92,7 +92,8 @@ export function renderReports(page) {
     page.appendChild(
       dataTable(
         ['Type', 'Référence', 'Concerne', 'Détail'],
-        attention.map((a) => a.map((c) => esc(c)))
+        // Le motif d'un vehicule immobilise tient sur plusieurs lignes.
+        attention.map((a) => a.map((c) => escLignes(c)))
       )
     );
   }

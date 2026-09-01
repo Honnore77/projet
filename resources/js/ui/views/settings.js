@@ -9,7 +9,7 @@ import {
   createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
 } from '../../core/auth.js';
 import { platformName, dataLocation, saveFile, openTextFile } from '../../core/storage.js';
-import { esc, el, num } from '../../core/utils.js';
+import { esc, el, num, francSup } from '../../core/utils.js';
 import {
   card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
@@ -183,6 +183,8 @@ function renderThresholdsSection(page) {
         `Organisation : ${esc(s.organisation)}\n` +
         `Ville des documents : ${esc(s.ville)}\n` +
         `Devise : ${esc(s.devise)}\n` +
+        `Prix du litre (Essence) : ${s.prixLitreEssence ? `${num(s.prixLitreEssence)} ${esc(s.devise)}` : 'non renseigné'}\n` +
+        `Prix du litre (Diesel) : ${s.prixLitreDiesel ? `${num(s.prixLitreDiesel)} ${esc(s.devise)}` : 'non renseigné'}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
         `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
@@ -205,6 +207,13 @@ function openSettingsForm() {
       { key: 'ville', label: 'Ville des documents', value: s.ville,
         hint: 'Portée par la mention « Fait à … le … » en pied des exports' },
       { key: 'devise', label: 'Symbole monétaire', value: s.devise },
+      // Le prix a la pompe est le meme pour tout le monde a une date donnee :
+      // il se fixe ici et se choisit ensuite dans une liste, au lieu de se
+      // retaper a chaque prise de carburant.
+      { key: 'prixLitreEssence', label: 'Prix du litre (Essence)', type: 'number', value: s.prixLitreEssence,
+        hint: 'Proposé dans le champ « Prix / L » des dotations et des rapports de mission' },
+      { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'number', value: s.prixLitreDiesel,
+        hint: 'Laisser à 0 tant que le prix n’est pas connu : il n’est alors pas proposé' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'number', value: s.seuilVidangeKm,
@@ -218,6 +227,8 @@ function openSettingsForm() {
         organisation: v.organisation || 'PDU',
         ville: v.ville || 'Abidjan',
         devise: v.devise || 'F',
+        prixLitreEssence: francSup(v.prixLitreEssence),
+        prixLitreDiesel: francSup(v.prixLitreDiesel),
         seuilImmobilisationJours: num(v.seuilImmobilisationJours) || 7,
         seuilMissionImpayeeJours: num(v.seuilMissionImpayeeJours) || 30,
         seuilVidangeKm: num(v.seuilVidangeKm) || 5000,

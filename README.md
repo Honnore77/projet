@@ -35,12 +35,12 @@ Les données des versions précédentes de l'application (y compris le fichier H
 ## 3. Ce que fait l'application
 
 - **Véhicules** — pool / mission / service. Chaque sous-rubrique affiche les véhicules en tableau, une ligne par véhicule. Changement de catégorie, refus des immatriculations en doublon (deux véhicules sans plaque ne sont pas des doublons), saisie guidée (voir ci-dessous), suivi de la vidange. Aucun montant carburant ou entretien n’apparaît dans cette rubrique — ni dans les tableaux, ni sur la fiche véhicule, ni dans ses exports. La fiche compte les **litres**, les **passages au garage** et les **missions** ; les montants font l’objet du rapport **Coûts par véhicule**, dans RAPPORTS, qui les détaille au lieu de les résumer en bout de ligne.
-- **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire et les véhicules qui leur sont attribués. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service — dans les deux sens, voir ci-dessous — et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
+- **Utilisateurs** — agents du PDU en tableau dès l’ouverture (cinq conducteurs du pool sont pré-enregistrés sur une base vierge), avec les informations du formulaire et les véhicules qui leur sont attribués. Le **téléphone** tient sur trois lignes pré-inscrites — `- FLOTTE PDU :`, `- Tel Perso 1 :`, `- Tel Perso 2 :` — et une **adresse email** figure à côté. Ils alimentent le champ « Utilisateur » des fiches véhicule de pool et de service — dans les deux sens, voir ci-dessous — et le tour de rôle des missions. L’historique des incidents s’ouvre par le bouton de la colonne « Incidents ».
 - **Dotation** — deux sous-rubriques, chacune en tableau : *Dotation en carburant pool* (saisie sur place, avec le suivi de la carte carburant décrit ci-dessous) et *Dotation en carburant mission* (lecture de ce qui a été saisi dans le rapport de mission). Le carburant de mission ne se saisit qu’à un seul endroit, le rapport, ce qui évite tout double comptage.
 - **Mission** — deux sous-rubriques :
-  - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). Un agent entre dans la rotation par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
+  - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. La **référence suit l'ordre des départs** (voir ci-dessous). Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). **Seuls les conducteurs du pool y figurent** : ils sont les seuls autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
-- **Entretien** — entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés.
+- **Entretien** — un **tableau récapitulatif** ouvre la rubrique, avec exactement les colonnes du fichier exporté ; le détail par véhicule suit, avec ses interventions et ses boutons. Entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés. **Motif / problème** et **Observation du conducteur** s'écrivent en lignes tiretées (voir ci-dessous).
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 
@@ -51,10 +51,64 @@ La dotation pool enregistre le **numéro de la carte carburant**, le **solde ava
 Le formulaire enchaîne les prises sans qu'on retape quoi que ce soit :
 
 - choisir l'immatriculation reprend la **carte** et le **solde après prise** de la dernière dotation du véhicule, ce dernier devenant le solde avant de la nouvelle prise ;
-- le **solde après prise** est proposé à `solde avant − montant`, et reste modifiable ;
-- un champ **Contrôle du solde** compare en direct la différence des deux soldes au montant de la prise, et signale l'écart le cas échéant.
+- le **solde après prise** vaut `solde avant prise − montant calculé`. Ce n'est pas une valeur à constater mais une soustraction : le champ est calculé et en lecture seule. Le saisir à la main ouvrait la porte à un solde qui ne correspond pas à la dépense.
 
-Tous ces champs sont pré-remplis, jamais imposés : une valeur déjà saisie n'est pas écrasée. Les trois colonnes figurent dans le tableau et dans les exports Excel et PDF de la dotation pool.
+Carte et solde avant prise sont pré-remplis, jamais imposés : une valeur déjà saisie n'est pas écrasée. Les trois colonnes figurent dans le tableau et dans les exports Excel et PDF de la dotation pool.
+
+### Prix du litre
+
+Le prix à la pompe est le même pour tout le monde à une date donnée : il se règle **une fois**, dans **Réglages → Modifier les réglages**, et se **choisit** ensuite dans une liste déroulante — au lieu de se retaper, et de se faire fautiver, à chaque prise.
+
+| Réglage | Défaut | Rôle |
+| --- | --- | --- |
+| Prix du litre (Essence) | 0 | Proposé dans le champ « Prix / L » quand l'énergie est l'essence. |
+| Prix du litre (Diesel) | 0 | Idem pour le diesel. |
+
+Un prix laissé à **0** vaut « pas encore renseigné » : il n'est pas proposé. La liste s'ouvre dans les deux formulaires qui portent un prix au litre — **Nouvelle dotation POOL** et le bloc *ravitaillements* du **rapport de mission**. Elle contient le prix de l'énergie concernée en tête, l'autre ensuite, puis **tous les prix déjà pratiqués** : une prise ancienne reste saisissable. La dernière entrée, **« + Autre prix »**, bascule le champ en saisie libre.
+
+Dans la dotation pool, changer d'énergie remet en tête le prix correspondant — mais **un prix choisi à la main n'est jamais écrasé**.
+
+### Arrondi au franc supérieur
+
+Le franc CFA n'a pas de subdivision : un montant à virgule ne se paie pas. **Tous les montants sont donc arrondis au franc supérieur, dans toutes les rubriques** — jamais au plus proche, car arrondir vers le bas ferait payer à la caisse un franc qu'elle n'a pas encaissé.
+
+L'arrondi est posé **là où le montant naît** — au calcul et à la saisie —, pas à l'affichage. Un total calculé sur des valeurs à virgule ne tomberait pas sur la somme des lignes affichées, et le tableau montrerait un franc d'écart que rien n'expliquerait.
+
+| Rubrique | Montants arrondis |
+| --- | --- |
+| Dotation pool | Prix / L, montant calculé, solde avant prise, solde après prise |
+| Mission | Montant des frais, montant versé, dotation en carburant, prix / L des ravitaillements |
+| Entretien | Coût de chaque intervention |
+| Réglages | Prix du litre (essence et diesel) |
+
+Ce qui n'est **pas** un montant garde ses décimales : les **litres** (33,33 L reste 33,33 L) et les **kilométrages**.
+
+Le montant d'une prise vaut donc `litres × prix du litre`, arrondi une seule fois, à la fin : 33,33 L à 715 F font 23 830,95 F, soit **23 831 F**. Le solde après prise reste exactement le solde avant moins ce montant.
+
+Les fiches enregistrées avant cette règle sont reprises au chargement : elles ne gardent pas leurs centimes, sinon un même tableau mélangerait des lignes rondes et des lignes à virgule.
+
+### Kilométrage relevé ailleurs
+
+Le kilométrage d'une fiche véhicule vieillit dès qu'on la ferme. Ce sont les autres rubriques qui relèvent le compteur au fil de l'usage :
+
+| Relevé | Où il est saisi |
+| --- | --- |
+| Kilométrage | Nouvelle dotation — POOL |
+| Km entrée | Nouvelle fiche d'entretien — entrée au garage |
+| Km sortie | Retour du garage |
+
+La fiche véhicule affiche **le plus récent des trois**, plutôt que d'attendre qu'on le reporte à la main d'une rubrique à l'autre. Le champ **Kilométrage** passe alors en lecture seule et un champ **Origine du kilométrage** nomme d'où vient le chiffre — par exemple *« retour du garage du 20/04/2026 »*. Sans aucun relevé, il se saisit normalement.
+
+Le tableau des véhicules, la fiche véhicule, les exports et le **suivi de la vidange** s'appuient tous sur ce même kilométrage : une seule valeur, une seule vérité.
+
+### Lignes tiretées
+
+Un passage au garage cumule souvent plusieurs problèmes, un retour plusieurs observations. Deux champs de la rubrique ENTRETIEN s'écrivent donc **une ligne par élément, ouverte par un tiret** :
+
+- **Motif / problème**, dans *Nouvelle fiche d'entretien — entrée au garage* ;
+- **Observation du conducteur**, dans *Retour du garage*.
+
+Le champ s'ouvre sur `- `, la touche **Entrée** passe à la ligne en posant le tiret suivant, et une ligne collée depuis ailleurs en reçoit un à la sortie du champ. La touche reste libre : une ligne effacée le reste. Les lignes sont conservées telles quelles à l'écran, dans l'aperçu, dans le PDF et dans le classeur Excel — où la cellule passe en renvoi à la ligne.
 
 ### Synchronisation UTILISATEURS ↔ véhicules
 
@@ -72,7 +126,7 @@ Une fiche véhicule retient un **nom**, pas un identifiant : c'est ce qui s'impr
   | Observations | « Créé depuis la fiche véhicule *immatriculation* » |
   | Véhicule(s) attribué(s) | le véhicule, aussitôt visible dans la colonne |
 
-  Le reste (fonction, téléphone, permis) se complète dans UTILISATEURS, et le découpage nom/prénoms s'y corrige si besoin. Si l'agent existe déjà, sa fiche n'est pas écrasée : seule une **section** encore vide est complétée.
+  Le reste (fonction, téléphone, adresse email, permis) se complète dans UTILISATEURS, et le découpage nom/prénoms s'y corrige si besoin. Si l'agent existe déjà, sa fiche n'est pas écrasée : seule une **section** encore vide est complétée.
 - **Un agent renommé dans UTILISATEURS** est renommé sur toutes les fiches véhicule qui le portaient. Le message de confirmation indique combien de fiches ont suivi.
 - **Un agent supprimé** : la fenêtre de confirmation liste les véhicules concernés et annonce que leur champ « Utilisateur » sera vidé. Les véhicules eux-mêmes sont conservés.
 - La colonne **Véhicule(s) attribué(s)** du tableau UTILISATEURS montre le lien en permanence — badge vert pour un véhicule de pool, violet pour un véhicule de service.
@@ -134,7 +188,7 @@ Le mécanisme est déclaratif : une colonne d'export marquée `alerteSiVide` est
 
 ### Suivi de la vidange
 
-Dans les fiches de véhicule, **« Kilométrage de vidange »** est le kilométrage **auquel la vidange doit être faite**, pas celui de la dernière. L'application le compare en permanence au kilométrage courant du véhicule et affiche le résultat à trois endroits :
+Dans les fiches de véhicule, **« Kilométrage de vidange »** est le kilométrage **auquel la vidange doit être faite**, pas celui de la dernière. L'application le compare en permanence au **kilométrage courant** du véhicule — le dernier relevé, d'où qu'il vienne (voir *Kilométrage relevé ailleurs*) — et affiche le résultat à trois endroits :
 
 - dans le formulaire, un champ **« Suivi de la vidange »** se met à jour pendant la saisie ;
 - dans le tableau des véhicules, une colonne **« Prochaine vidange »** donne le kilométrage visé et une colonne **« Suivi vidange »** l'état — verte tant qu'il reste de la marge, orange à l'approche, rouge une fois dépassée ;
@@ -144,7 +198,7 @@ Deux réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
 
 | Réglage | Défaut | Rôle |
 | --- | --- | --- |
-| Intervalle de vidange (km) | 5 000 | À la saisie d'un véhicule, propose une première fois `kilométrage actuel + intervalle`. La valeur proposée reste modifiable, et n'est plus reproposée ensuite. |
+| Intervalle de vidange (km) | 5 000 | À la saisie d'un véhicule, propose une première fois `kilométrage courant + intervalle`. La valeur proposée reste modifiable, et n'est plus reproposée ensuite. |
 | Alerte vidange (km restants) | 500 | Marge à partir de laquelle l'alerte « approche » se déclenche. |
 
 Après une vidange, il suffit de reporter le nouveau kilométrage cible dans la fiche : les pastilles et les alertes repassent au vert.
@@ -172,7 +226,17 @@ L'illustration du bas (`resources/js/styles/bandeau-connexion.png`) mesure 396 p
 
 ### Sections
 
-Les sections du PDU sont une liste fermée, partagée par la fiche véhicule et la fiche agent : COORDINATION, AFFAIRE ADMINISTRATIVE ET FINANCIERE, OPERATION, MARCHE ET AFFAIRES JURIDIQUES, AGENCE COMPTABLE, COMMUNICATION. Deux listes séparées finiraient par diverger, et les filtres par section ne retrouveraient plus leurs petits. Elle se modifie dans `resources/js/core/db.js`.
+Les sections du PDU sont une liste fermée, partagée par la fiche véhicule et la fiche agent : COORDINATION, AFFAIRE ADMINISTRATIVE ET FINANCIERE, OPERATION ET SUIVI-EVALUATION, MARCHE ET AFFAIRES JURIDIQUES, AGENCE COMPTABLE, COMMUNICATION. Deux listes séparées finiraient par diverger, et les filtres par section ne retrouveraient plus leurs petits. Elle se modifie dans `resources/js/core/db.js`.
+
+> **OPERATION** est devenue **OPERATION ET SUIVI-EVALUATION**. Les fiches qui portaient l'ancien libellé sont reportées au chargement : sans cela, elles seraient muettes dans la liste déroulante — un `<select>` ignore en silence une valeur absente de ses options — et invisibles au filtre par section. La table des renommages (`SECTIONS_RENOMMEES`, dans `db.js`) sert au prochain changement de nom.
+
+### Référence des missions
+
+La référence dit le **rang chronologique** de la mission : la date de départ la plus ancienne porte **M-001**, la suivante M-002, et ainsi de suite. Une mission sans date de départ passe en fin de liste.
+
+Elle est donc **calculée, pas saisie** : le champ du formulaire est en lecture seule et affiche, pendant la saisie, le rang qu'occupera la mission. Une mission ajoutée après coup pour un départ antérieur prend sa place dans la suite et décale celles d'après — c'est le prix à payer pour que la colonne se lise dans l'ordre. La renumérotation est relancée à chaque enregistrement, à chaque suppression et à chaque ouverture de la base ; elle recalcule au lieu d'ajouter, et se relance donc sans risque.
+
+> Le champ **Objet de la mission** a été retiré du formulaire : la destination et le rapport de mission disent ce que la mission allait faire, et une colonne de plus dans un tableau déjà large ne se lisait pas.
 
 ### Comptes et rôles
 

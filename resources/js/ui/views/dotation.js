@@ -11,10 +11,10 @@
 
 import {
   DB, ETATS_VIDANGE, insert, update, remove, knownImmats, vehicleByImmat,
-  carburantMissions, missionsAvecCarburant, ravMontant
+  carburantMissions, missionsAvecCarburant, ravMontant, prixLitreOptions
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, sum } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
@@ -46,15 +46,33 @@ function cartesConnues() {
 }
 
 /**
+ * Montant d'une prise : les litres au prix du litre, arrondi au franc
+ * superieur.
+ *
+ * L'apercu et l'enregistrement passent tous deux par ici, pour que le champ
+ * « Montant calcule » annonce le chiffre qui sera reellement inscrit.
+ */
+function montantPrise(values) {
+  return francSup(num(values.quantite) * francSup(values.prixL));
+}
+
+/**
  * Derniere dotation enregistree pour une immatriculation. Elle porte le
  * numero de carte du vehicule et le solde laisse par la prise precedente :
  * de quoi enchainer une nouvelle prise sans rien retaper.
+ *
+ * La dotation en cours de modification est ecartee : sans quoi elle se
+ * reprendrait a elle-meme, son propre solde apres prise devenant son solde
+ * avant prise. Une prise ne se precede pas.
+ *
+ * @param {string} immat
+ * @param {string} [exclureId] identifiant de la dotation en cours d'edition
  */
-function dernierePrise(immat) {
+function dernierePrise(immat, exclureId) {
   const cle = String(immat || '').trim().toUpperCase();
   if (!cle) return null;
   return DB.dotationPool
-    .filter((x) => String(x.immat || '').trim().toUpperCase() === cle)
+    .filter((x) => x.id !== exclureId && String(x.immat || '').trim().toUpperCase() === cle)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .pop() || null;
 }
@@ -69,12 +87,17 @@ function poolFields(d = {}) {
     { key: 'energie', label: 'Énergie', type: 'select', options: ['Essence', 'Diesel'], value: d.energie || 'Essence' },
     { key: 'km', label: 'Kilométrage', type: 'number', value: d.km },
     { key: 'quantite', label: 'Quantité (L)', type: 'number', required: true, value: d.quantite },
-    { key: 'prixL', label: 'Prix / L', type: 'number', required: true, value: d.prixL },
+    // Le prix a la pompe se regle une fois dans REGLAGES et se choisit ici :
+    // il est le meme pour tout le monde a une date donnee. « + Autre prix »
+    // reste ouvert pour une prise ancienne ou un prix qui vient de changer.
+    { key: 'prixL', label: 'Prix / L', type: 'selectAdd', required: true, value: d.prixL,
+      options: prixLitreOptions(d.energie), emptyLabel: '— choisir —', addLabel: 'Autre prix',
+      hint: 'Réglé dans RÉGLAGES → Modifier les réglages' },
     { key: 'montant', label: 'Montant calculé', type: 'static', value: d.montant ? fmt(d.montant) : '0' },
     { key: 'soldeAvant', label: 'Solde avant prise', type: 'number', value: d.soldeAvant,
       hint: 'Repris du solde après prise de la dernière dotation' },
-    { key: 'soldeApres', label: 'Solde après prise', type: 'number', value: d.soldeApres },
-    { key: 'ecartSolde', label: 'Contrôle du solde', type: 'static', value: '' },
+    { key: 'soldeApres', label: 'Solde après prise', type: 'number', readonly: true, value: d.soldeApres,
+      hint: 'Solde avant prise moins le montant calculé' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations }
@@ -180,14 +203,34 @@ function renderPool(page) {
 
 function openPoolForm(d) {
   const isEdit = !!d;
+  // Dernier prix que le formulaire a propose de lui-meme. Il sert a savoir
+  // ce qu'on a le droit de remplacer quand l'energie change : une valeur
+  // choisie a la main n'est jamais ecrasee, la notre l'est volontiers.
+  let prixPropose = null;
+
   openForm({
     title: isEdit ? `Modifier la dotation — ${d.immat}` : 'Nouvelle dotation — POOL',
     fields: poolFields(d || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la dotation',
     onInput: (values, scope) => {
-      const montant = num(values.quantite) * num(values.prixL);
+      // Le montant se lit ici exactement comme il sera enregistre : arrondi
+      // au franc superieur. Un apercu non arrondi annoncerait une depense que
+      // la ligne enregistree contredirait d'un franc.
+      const montant = montantPrise(values);
       const mNode = scope.querySelector('[data-key="montant"]');
       if (mNode) mNode.value = `${fmt(montant)} F`;
+
+      // Le prix suit l'energie : passer au diesel doit proposer le prix du
+      // diesel, pas laisser celui de l'essence. On ne remplace que le vide ou
+      // notre propre proposition — un prix choisi a la main tient.
+      const prix = scope.querySelector('select[data-key="prixL"]');
+      if (prix && (!prix.value || prix.value === prixPropose)) {
+        const propose = prixLitreOptions(values.energie)[0];
+        if (propose && [...prix.options].some((o) => o.value === propose)) {
+          prix.value = propose;
+          prixPropose = propose;
+        }
+      }
 
       const mm = scope.querySelector('[data-key="marqueModele"]');
       if (mm && !mm.value && values.immat) {
@@ -201,7 +244,7 @@ function openPoolForm(d) {
       const carte = scope.querySelector('[data-key="carte"]');
       const avant = scope.querySelector('[data-key="soldeAvant"]');
       if (values.immat && ((carte && !carte.value) || (avant && !avant.value))) {
-        const prec = dernierePrise(values.immat);
+        const prec = dernierePrise(values.immat, d && d.id);
         if (prec) {
           if (carte && !carte.value && prec.carte) carte.value = prec.carte;
           if (avant && !avant.value && prec.soldeApres !== '' && prec.soldeApres !== undefined) {
@@ -210,40 +253,31 @@ function openPoolForm(d) {
         }
       }
 
-      // Le solde apres prise se deduit du montant, tant qu'on ne l'a pas
-      // saisi soi-meme.
+      // Le solde apres prise est le solde avant prise moins le montant : ce
+      // n'est pas une valeur a constater mais une soustraction. La saisir a
+      // la main ouvrait la porte a un solde qui ne correspond pas a la
+      // depense — le champ est donc calcule et en lecture seule.
       const apres = scope.querySelector('[data-key="soldeApres"]');
-      if (apres && !apres.value && values.soldeAvant !== '' && montant > 0) {
-        apres.value = num(values.soldeAvant) - montant;
-      }
-
-      // Ecart entre le solde declare et la depense : c'est tout l'interet de
-      // noter les deux soldes, autant le dire a la saisie.
-      const ctrl = scope.querySelector('[data-key="ecartSolde"]');
-      if (ctrl) {
-        if (values.soldeAvant === '' || values.soldeApres === '') {
-          ctrl.value = 'Renseignez les deux soldes';
-        } else {
-          const ecart = num(values.soldeAvant) - num(values.soldeApres) - montant;
-          ctrl.value = Math.abs(ecart) < 0.5
-            ? `Cohérent — ${fmt(montant)} F débités`
-            : `⚠ Écart de ${fmt(Math.abs(ecart))} F avec le montant`;
-        }
+      if (apres) {
+        apres.value = values.soldeAvant === '' ? '' : francSup(values.soldeAvant) - montant;
       }
     },
     onSubmit: (values) => {
+      const montant = montantPrise(values);
       const payload = {
         date: values.date,
         immat: String(values.immat || '').trim().toUpperCase(),
         marqueModele: values.marqueModele,
         carte: String(values.carte || '').trim(),
-        soldeAvant: values.soldeAvant,
-        soldeApres: values.soldeApres,
+        soldeAvant: values.soldeAvant === '' ? '' : francSup(values.soldeAvant),
+        soldeApres: values.soldeAvant === ''
+          ? ''
+          : francSup(values.soldeAvant) - montant,
         energie: values.energie,
         km: values.km,
         quantite: num(values.quantite),
-        prixL: num(values.prixL),
-        montant: num(values.quantite) * num(values.prixL),
+        prixL: francSup(values.prixL),
+        montant,
         station: values.station,
         vidange: values.vidange,
         observations: values.observations

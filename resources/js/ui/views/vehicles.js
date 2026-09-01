@@ -9,10 +9,10 @@ import {
   DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange,
-  nomsUtilisateurs, assurerAgent, valeursVehicules
+  nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, fmt, num, norm } from '../../core/utils.js';
+import { esc, fmt, num, norm, dateFR } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   dataTable, COLORS
@@ -97,7 +97,9 @@ function vehicleFields(v = {}, cat = 'pool') {
           }
         ]
       : []),
-    { key: 'km', label: 'Kilométrage', type: 'number', value: v.km },
+    { key: 'km', label: 'Kilométrage', type: 'number', value: v.km,
+      hint: 'Repris du dernier relevé du compteur : dotation carburant, entrée ou retour de garage' },
+    { key: 'sourceKm', label: 'Origine du kilométrage', type: 'static', value: '' },
     { key: 'kmVidange', label: 'Kilométrage de vidange', type: 'number', value: v.kmVidange,
       hint: 'Kilométrage auquel la vidange devra être faite' },
     { key: 'etatVidange', label: 'Suivi de la vidange', type: 'static', value: '' },
@@ -188,7 +190,7 @@ export function renderVehicles(page) {
       esc(v.energie || ''),
       `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
       ...(withSection ? [esc(v.section || ''), esc(v.utilisateur || '')] : []),
-      `<span style="display:block;text-align:right">${fmt(v.km)}</span>`,
+      `<span style="display:block;text-align:right">${fmt(kmCourant(v))}</span>`,
       `<span style="display:block;text-align:right">${v.kmVidange === '' || v.kmVidange === undefined ? '—' : fmt(v.kmVidange)}</span>`,
       badgeVidange(etatVidange(v)),
       esc(v.observations || ''),
@@ -241,6 +243,10 @@ export function openVehicleForm(vehicle, cat) {
   const fields = vehicleFields(vehicle || {}, cat);
   // On ne propose le kilometrage de vidange qu une seule fois par ouverture.
   let propositionFaite = isEdit;
+  // Dernier kilometrage que le formulaire a pose de lui-meme. Il dit ce qu'on
+  // a le droit d'effacer si l'immatriculation change : le releve d'un autre
+  // vehicule ne doit pas rester en place, mais un chiffre saisi a la main si.
+  let kmPose = null;
 
   openForm({
     title: isEdit ? `Modifier — ${vehicle.marque} ${vehicle.modele}` : `Nouveau véhicule — ${CATEGORIES.find((c) => c.key === cat).label}`,
@@ -250,16 +256,47 @@ export function openVehicleForm(vehicle, cat) {
       const cible = scope.querySelector('[data-key="kmVidange"]');
       const suivi = scope.querySelector('[data-key="etatVidange"]');
 
+      // Le compteur se releve dans les autres rubriques — prise de carburant,
+      // entree et retour de garage. La fiche affiche donc le dernier releve
+      // plutot que d'attendre qu'on le reporte a la main : le champ passe en
+      // lecture seule et dit d'ou vient le chiffre. Sans releve, il se saisit
+      // normalement.
+      const km = scope.querySelector('[data-key="km"]');
+      const origine = scope.querySelector('[data-key="sourceKm"]');
+      const lecture = derniereLectureKm(values.immatNouvelle || values.immatAncienne);
+      if (km) {
+        if (lecture) {
+          km.value = lecture.km;
+          kmPose = String(lecture.km);
+          km.readOnly = true;
+        } else {
+          // Plus de releve — plaque effacee, corrigee, ou vehicule que les
+          // autres rubriques ne connaissent pas encore. Le chiffre du releve
+          // precedent n'a plus rien a faire la : il serait enregistre pour un
+          // vehicule qui n'a jamais affiche ce compteur.
+          if (km.value === kmPose) km.value = '';
+          kmPose = null;
+          km.readOnly = false;
+        }
+        km.closest('.fRow').classList.toggle('readonly', !!lecture);
+      }
+      if (origine) {
+        origine.value = lecture
+          ? `${lecture.source} du ${dateFR(lecture.date)}`
+          : 'Aucun relevé — saisissez le kilométrage';
+      }
+
       // Sur un vehicule neuf, on propose le kilometrage courant augmente de
       // l'intervalle de vidange. La proposition ne se fait qu'une fois : si
       // l'utilisateur efface ou corrige, on ne la lui réimpose pas.
-      if (cible && !cible.value && !propositionFaite && num(values.km) > 0) {
-        cible.value = num(values.km) + num(DB.settings.seuilVidangeKm);
+      const kmActuel = num(km ? km.value : values.km);
+      if (cible && !cible.value && !propositionFaite && kmActuel > 0) {
+        cible.value = kmActuel + num(DB.settings.seuilVidangeKm);
         propositionFaite = true;
       }
 
       if (suivi) {
-        const e = etatVidange({ km: values.km, kmVidange: cible ? cible.value : '' });
+        const e = etatVidange({ km: km ? km.value : values.km, kmVidange: cible ? cible.value : '' });
         suivi.value =
           e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange'
             : e.statut === 'depassee' ? `⚠ Vidange dépassée de ${fmt(-e.restant)} km`

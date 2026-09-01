@@ -3,7 +3,7 @@
    =================================================================== */
 
 import { DB, allVehicles, immatOf } from '../../core/db.js';
-import { esc, el, fmt, norm, dateFR } from '../../core/utils.js';
+import { esc, escLignes, el, fmt, norm, dateFR } from '../../core/utils.js';
 import { toolbar, emptyState, COLORS } from '../components.js';
 import { state, navigate, openVehicleSheet } from '../shell.js';
 
@@ -57,7 +57,7 @@ export function renderGlobalSearch(page) {
   });
 
   DB.missions.forEach((m) => {
-    if (norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule} ${m.objet || ''}`).includes(q)) {
+    if (norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule}`).includes(q)) {
       results.push({
         type: 'MISSION',
         color: COLORS.purple,
@@ -106,7 +106,8 @@ export function renderGlobalSearch(page) {
     e.style.borderLeftColor = r.color;
     e.innerHTML =
       `<div class="row1"><h4>${esc(r.title)}</h4><span class="badge" style="background:${r.color}">${esc(r.type)}</span></div>` +
-      (r.sub ? `<div class="meta">${esc(r.sub)}</div>` : '') +
+      // Un motif d'entretien tient sur plusieurs lignes : le resume les garde.
+      (r.sub ? `<div class="meta">${escLignes(r.sub)}</div>` : '') +
       `<div class="actions"><button class="miniBtn" style="background:${COLORS.blue}" data-open>Ouvrir →</button></div>`;
     e.querySelector('[data-open]').onclick = r.action;
     page.appendChild(e);

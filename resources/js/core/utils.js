@@ -21,6 +21,26 @@ export function num(v) {
   return isFinite(n) ? n : 0;
 }
 
+/**
+ * Montant arrondi au franc superieur.
+ *
+ * Le franc CFA n'a pas de subdivision : un montant a virgule ne se paie pas.
+ * L'arrondi se fait vers le haut, jamais au plus proche — c'est la regle du
+ * PDU, et arrondir vers le bas ferait payer a la caisse un franc qu'elle n'a
+ * pas encaisse.
+ *
+ * L'arrondi est pose la ou le montant naît (calcul ou saisie), et non a
+ * l'affichage : une somme calculee sur des valeurs a virgule ne tomberait pas
+ * sur la somme des lignes affichees, et le total afficherait un franc
+ * d'ecart que rien dans le tableau n'expliquerait.
+ *
+ * Ne s'applique qu'aux montants : un volume (litres) ou un kilometrage garde
+ * ses decimales.
+ */
+export function francSup(v) {
+  return Math.ceil(num(v));
+}
+
 /** Nombre de jours entre deux dates ISO (yyyy-mm-dd). null si incalculable. */
 export function daysBetween(d1, d2) {
   if (!d1 || !d2) return null;
@@ -58,6 +78,16 @@ export function monthLabel(key) {
 export function esc(s) {
   return (s === undefined || s === null ? '' : String(s))
     .replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+/**
+ * Echappement HTML d'un texte a plusieurs lignes, rendues telles quelles.
+ *
+ * Un telephone tient sur trois lignes, un motif d'entretien sur autant qu'il
+ * en faut : ecrases sur une seule dans un tableau, ils ne se lisent plus.
+ */
+export function escLignes(s) {
+  return esc(s).replace(/\r?\n/g, '<br>');
 }
 
 /** Normalisation pour recherche : minuscules, sans accents. */

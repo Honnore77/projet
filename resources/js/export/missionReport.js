@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB } from '../core/db.js';
+import { DB, ravMontant } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -30,7 +30,10 @@ export function reportData(m) {
     station: r.station || '',
     prixL: num(r.prixL),
     quantite: num(r.quantite),
-    montant: num(r.quantite) * num(r.prixL)
+    // Le meme calcul que partout ailleurs, arrondi au franc superieur : le
+    // rapport imprime ne doit pas annoncer un franc de moins que la rubrique
+    // DOTATION pour le meme ravitaillement.
+    montant: ravMontant(r)
   }));
 
   const periode = m.dateDepart || m.dateRetour

@@ -65,6 +65,25 @@ function peindreManquants(ws, ds, body) {
   });
 }
 
+/**
+ * Fait respirer les cellules qui portent plusieurs lignes — telephone d'un
+ * agent, motif d'entretien, observation du conducteur. Sans le renvoi a la
+ * ligne, Excel les affiche d'un bloc sur une seule ligne, et le classeur ne
+ * dit plus ce que la fiche disait.
+ */
+function habillerMultilignes(ws, ds, body) {
+  body.forEach((ligne, l) => {
+    ligne.forEach((valeur, c) => {
+      if (typeof valeur !== 'string' || !valeur.includes('\n')) return;
+      const ref = XLSX.utils.encode_cell({ r: l + 1, c });
+      if (!ws[ref]) return;
+      ws[ref].s = Object.assign({}, ws[ref].s, {
+        alignment: { wrapText: true, vertical: 'top' }
+      });
+    });
+  });
+}
+
 /** Construit le classeur sans l'ecrire. @returns {Uint8Array} */
 export function buildExcel(datasets) {
   const wb = XLSX.utils.book_new();
@@ -77,6 +96,7 @@ export function buildExcel(datasets) {
     const mention = new Array(ds.columns.length).fill('');
     mention[ds.columns.length - 1] = mentionLieuDate(DB.settings && DB.settings.ville);
     const ws = XLSX.utils.aoa_to_sheet([header, ...body, [], mention]);
+    habillerMultilignes(ws, ds, body);
     peindreManquants(ws, ds, body);
     styleMention(ws, body.length + 2, ds.columns.length - 1);
     ws['!cols'] = ds.columns.map((c) => ({ wch: c.width || Math.max(12, c.label.length + 2) }));

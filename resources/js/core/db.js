@@ -8,7 +8,7 @@
    =================================================================== */
 
 import { readDB, writeDB, readLegacy } from './storage.js';
-import { uid, num, norm, sum, daysBetween } from './utils.js';
+import { uid, num, norm, sum, daysBetween, francSup } from './utils.js';
 import { hashPassword } from './crypto.js';
 
 export const SCHEMA_VERSION = 4;
@@ -72,11 +72,21 @@ export const CATEGORIES = [
 export const SECTIONS = [
   'COORDINATION',
   'AFFAIRE ADMINISTRATIVE ET FINANCIERE',
-  'OPERATION',
+  'OPERATION ET SUIVI-EVALUATION',
   'MARCHE ET AFFAIRES JURIDIQUES',
   'AGENCE COMPTABLE',
   'COMMUNICATION'
 ];
+
+/**
+ * Sections renommees : ancien libelle -> libelle courant. Une fiche qui porte
+ * l'ancien nom serait muette dans la liste deroulante (un <select> ignore en
+ * silence une valeur absente de ses options) et invisible au filtre par
+ * section : on la reporte donc au chargement.
+ */
+const SECTIONS_RENOMMEES = {
+  OPERATION: 'OPERATION ET SUIVI-EVALUATION'
+};
 
 export function emptyDB() {
   return {
@@ -101,7 +111,13 @@ export function emptyDB() {
       // parcourir avant la vidange due.
       seuilAlerteVidangeKm: 500,
       seuilImmobilisationJours: 7,
-      seuilMissionImpayeeJours: 30
+      seuilMissionImpayeeJours: 30,
+      // Prix du litre a la pompe, par energie. Ils alimentent la liste
+      // deroulante « Prix / L » des formulaires : le prix est le meme pour
+      // tout le monde a une date donnee, il n'a pas a se retaper a chaque
+      // prise. Zero vaut « pas encore renseigne » : la liste ne le propose pas.
+      prixLitreEssence: 0,
+      prixLitreDiesel: 0
     },
     meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   };
@@ -178,8 +194,9 @@ export async function initDB() {
         fonction: 'Conducteur',
         section: '',
         statut: 'Actif',
-        poolConducteur: true,
-        telephone: '',
+        poolConducteur: 'Oui',
+        telephone: lignesTelephone(''),
+        email: '',
         permis: '',
         observations: '',
         historique: [],
@@ -223,7 +240,15 @@ export function normalize(raw) {
   db.settings = Object.assign(base.settings, raw && raw.settings);
   db.meta = Object.assign(base.meta, raw && raw.meta);
 
-  db.users.forEach((u) => { if (!Array.isArray(u.historique)) u.historique = []; });
+  db.users.forEach((u) => {
+    if (!Array.isArray(u.historique)) u.historique = [];
+    // « Conducteur du pool » a d'abord ete un booleen, il est compare a « Oui »
+    // partout ailleurs : sans cette reprise, les agents de la premiere version
+    // sortaient du tour de role sans que rien ne l'explique.
+    if (typeof u.poolConducteur === 'boolean') u.poolConducteur = u.poolConducteur ? 'Oui' : 'Non';
+    u.telephone = lignesTelephone(u.telephone);
+    if (u.email === undefined) u.email = '';
+  });
   db.maintenance.forEach((m) => { if (!Array.isArray(m.interventions)) m.interventions = []; });
   db.missions.forEach((m) => {
     if (!Array.isArray(m.ravitaillements)) m.ravitaillements = [];
@@ -237,6 +262,9 @@ export function normalize(raw) {
   allVehicles(db).forEach((v) => { if (!v.id) v.id = uid(); });
 
   migrerDotationsMission(db);
+  migrerSectionsRenommees(db);
+  renumeroterMissions(db);
+  arrondirMontants(db);
 
   // Traces d'une version connectee a un serveur : sans objet ici, et il
   // serait malvenu de laisser trainer un jeton d'acces sur le disque.
@@ -307,6 +335,83 @@ function migrerDotationsMission(db) {
   });
 
   return anciennes.length;
+}
+
+/** Reporte les fiches qui portent encore l'ancien libelle d'une section. */
+function migrerSectionsRenommees(db) {
+  const reporter = (o) => {
+    const cible = SECTIONS_RENOMMEES[String(o.section || '').trim().toUpperCase()];
+    if (cible) o.section = cible;
+  };
+  db.users.forEach(reporter);
+  ['pool', 'mission', 'service'].forEach((cat) => (db.vehicles[cat] || []).forEach(reporter));
+}
+
+/**
+ * Remonte au franc superieur tous les montants deja enregistres.
+ *
+ * Les formulaires arrondissent desormais a la saisie, mais les fiches d'avant
+ * portent encore leurs centimes : sans cette reprise, un meme tableau
+ * melangerait des lignes rondes et des lignes a virgule, et le total ne
+ * tomberait juste sur aucune des deux.
+ *
+ * Un champ laisse vide le reste : `francSup('')` vaudrait zero, et un solde
+ * jamais renseigne se lirait alors comme un solde nul.
+ *
+ * @returns {number} nombre de valeurs effectivement modifiees
+ */
+function arrondirMontants(db) {
+  let changees = 0;
+  const arrondir = (o, cle) => {
+    if (!o || o[cle] === '' || o[cle] === undefined || o[cle] === null) return;
+    const v = francSup(o[cle]);
+    if (v !== o[cle]) { o[cle] = v; changees += 1; }
+  };
+
+  db.dotationPool.forEach((d) => {
+    ['prixL', 'montant', 'soldeAvant', 'soldeApres'].forEach((k) => arrondir(d, k));
+  });
+  db.missions.forEach((m) => {
+    ['montant', 'dotationCarburant'].forEach((k) => arrondir(m, k));
+    (m.ravitaillements || []).forEach((r) => arrondir(r, 'prixL'));
+  });
+  db.maintenance.forEach((m) => {
+    (m.interventions || []).forEach((iv) => arrondir(iv, 'cout'));
+  });
+  ['prixLitreEssence', 'prixLitreDiesel'].forEach((k) => arrondir(db.settings, k));
+
+  return changees;
+}
+
+/**
+ * Renumerote les missions dans l'ordre des departs : la plus ancienne porte
+ * M-001, la suivante M-002, et ainsi de suite.
+ *
+ * La reference dit donc le rang chronologique de la mission, et non l'ordre
+ * dans lequel elle a ete saisie. Une mission ajoutee apres coup, pour un
+ * depart anterieur, prend sa place dans la suite et decale celles d'apres —
+ * c'est le prix a payer pour que la colonne se lise dans l'ordre.
+ *
+ * Les missions sans date de depart passent en fin, dans leur ordre de saisie.
+ *
+ * @returns {number} nombre de references effectivement changees
+ */
+export function renumeroterMissions(db = DB) {
+  let changees = 0;
+  db.missions
+    .map((m, i) => ({ m, i }))
+    .sort((a, b) => {
+      const da = a.m.dateDepart || '';
+      const dbb = b.m.dateDepart || '';
+      if (!da !== !dbb) return da ? -1 : 1;
+      if (da !== dbb) return String(da).localeCompare(String(dbb));
+      return a.i - b.i;
+    })
+    .forEach((x, rang) => {
+      const ref = `M-${String(rang + 1).padStart(3, '0')}`;
+      if (x.m.ref !== ref) { x.m.ref = ref; changees += 1; }
+    });
+  return changees;
 }
 
 /** Reprend les donnees des versions precedentes de l'application. */
@@ -439,6 +544,55 @@ export function immatOf(v) {
 }
 
 /**
+ * Derniere lecture du compteur d'un vehicule, toutes rubriques confondues.
+ *
+ * Le kilometrage d'une fiche vehicule vieillit des qu'on la ferme : ce sont
+ * les autres rubriques qui relevent le compteur au fil de l'usage — la prise
+ * de carburant, l'entree au garage, le retour du garage. On retient donc la
+ * plus recente de ces lectures, plutot que de demander qu'on reporte le
+ * chiffre a la main d'une rubrique a l'autre.
+ *
+ * @returns {{km:number, date:string, source:string}|null} null si aucune
+ *          lecture datee n'existe pour cette immatriculation.
+ */
+export function derniereLectureKm(immat) {
+  const cle = String(immat || '').trim().toUpperCase();
+  if (!cle) return null;
+  const memeImmat = (x) => String(x || '').trim().toUpperCase() === cle;
+  const lectures = [];
+  const ajouter = (date, km, source) => {
+    if (date && km !== '' && km !== undefined && km !== null) {
+      lectures.push({ date, km: num(km), source });
+    }
+  };
+
+  DB.dotationPool.forEach((d) => {
+    if (memeImmat(d.immat)) ajouter(d.date, d.km, 'dotation carburant');
+  });
+  DB.maintenance.forEach((m) => {
+    if (!memeImmat(m.immat)) return;
+    ajouter(m.dateEntree, m.kmEntree, 'entrée au garage');
+    ajouter(m.dateRetour, m.kmRetour, 'retour du garage');
+  });
+
+  // A date egale, la lecture la plus elevee : un compteur ne revient pas en
+  // arriere, et une sortie de garage se saisit le jour de l'entree.
+  return lectures.sort((a, b) => {
+    const c = String(a.date).localeCompare(String(b.date));
+    return c !== 0 ? c : a.km - b.km;
+  }).pop() || null;
+}
+
+/**
+ * Kilometrage a retenir pour un vehicule : la derniere lecture relevee
+ * ailleurs si elle existe, sinon celui saisi sur la fiche.
+ */
+export function kmCourant(v) {
+  const lecture = derniereLectureKm(immatOf(v));
+  return lecture ? lecture.km : num(v && v.km);
+}
+
+/**
  * Valeurs deja portees par les vehicules pour un champ donne, fusionnees avec
  * une liste de reference.
  *
@@ -472,6 +626,133 @@ export function knownImmats() {
    cree l'agent ici. Sans quoi les deux rubriques divergent au premier
    changement, et plus personne ne sait laquelle dit vrai.
    ================================================================= */
+
+/**
+ * Lignes du champ « Telephone » d'un agent. Le PDU en tient trois : le numero
+ * de la flotte, puis les deux personnels. Elles sont pre-inscrites pour que
+ * chacun sache lequel il renseigne, et qu'un tableau se lise pareil d'une
+ * fiche a l'autre.
+ */
+export const LIGNES_TELEPHONE = ['- FLOTTE PDU :', '- Tel Perso 1 :', '- Tel Perso 2 :'];
+
+/**
+ * Etiquettes renommees : ancien prefixe -> prefixe courant. Sans cette
+ * correspondance, une fiche ecrite avec l'ancienne etiquette ne serait plus
+ * reconnue : son numero se retrouverait relegue en quatrieme ligne, sous une
+ * ligne « Tel Perso 1 » restee vide.
+ */
+const PREFIXES_TELEPHONE_RENOMMES = { 'tel pers 1': 'tel perso 1' };
+
+/** Prefixe d'une ligne (« - FLOTTE PDU : » pour « - FLOTTE PDU : 07 ... »). */
+function prefixeLigne(l) {
+  // Le tiret d'ouverture et la casse ne font pas partie de l'etiquette : deux
+  // lignes qui designent le meme numero doivent se reconnaitre, qu'elles
+  // aient ete tapees ici ou collees d'ailleurs.
+  const p = String(l).split(':')[0].replace(/^-\s*/, '').trim().toLowerCase();
+  return PREFIXES_TELEPHONE_RENOMMES[p] || p;
+}
+
+/** Ce qui suit les deux-points d'une ligne : le numero lui-meme. */
+function valeurLigne(l) {
+  const i = String(l).indexOf(':');
+  return i < 0 ? '' : String(l).slice(i + 1).trim();
+}
+
+/**
+ * Detache une etiquette collee derriere le numero d'une autre.
+ *
+ * Un numero ne contient pas de deux-points : quand la valeur d'une ligne en
+ * porte, c'est qu'une seconde etiquette y a ete recollee. On rend chacune a
+ * sa ligne, en coupant au tiret qui les separe.
+ */
+function detacherEtiquettesCollees(lignes) {
+  for (let i = 0; i < lignes.length; i += 1) {
+    const v = valeurLigne(lignes[i]);
+    if (!v.includes(':')) continue;
+    const coupe = v.slice(0, v.indexOf(':')).lastIndexOf('-');
+    const debut = coupe < 0 ? 0 : coupe;
+    const etiquette = lignes[i].slice(0, lignes[i].indexOf(':') + 1);
+    lignes[i] = `${etiquette} ${v.slice(0, debut).trim()}`.trim();
+    // La suite est reexaminee au tour suivant : une ligne peut en cacher deux.
+    lignes.push(`- ${v.slice(debut).replace(/^-\s*/, '').trim()}`);
+  }
+  return lignes;
+}
+
+/**
+ * Met un champ telephone sous la forme des trois lignes attendues, sans rien
+ * perdre de ce qui y figurait.
+ *
+ * Un numero saisi d'un bloc dans l'ancienne version rejoint la ligne de la
+ * flotte ; une ligne deja etiquetee garde son numero et sa place ; ce qui ne
+ * correspond a aucune etiquette est conserve a la suite plutot qu'efface.
+ */
+export function lignesTelephone(valeur) {
+  const lignes = String(valeur === undefined || valeur === null ? '' : valeur)
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  detacherEtiquettesCollees(lignes);
+
+  const restes = [];
+  const trouvees = LIGNES_TELEPHONE.map((modele) => {
+    const vises = lignes
+      .map((l, i) => ({ l, i }))
+      .filter((x) => prefixeLigne(x.l) === prefixeLigne(modele));
+    if (!vises.length) return modele;
+
+    // Plusieurs lignes peuvent viser la meme etiquette : l'ancienne et la
+    // nouvelle, au lendemain d'un renommage. On retient celle qui porte un
+    // numero, l'autre n'etant qu'un modele reste vide. Toutes sont retirees,
+    // un doublon n'apprend rien.
+    const choisi = vises.find((x) => valeurLigne(x.l)) || vises[0];
+    const ligne = choisi.l;
+    vises.map((x) => x.i).sort((a, b) => b - a).forEach((k) => lignes.splice(k, 1));
+    // On reecrit l'etiquette : seule la valeur saisie apres « : » est reprise.
+    return `${modele} ${valeurLigne(ligne)}`.trim();
+  });
+
+  lignes.forEach((l) => restes.push(l.startsWith('-') ? l : `- ${l}`));
+  // Une ligne qui porte deja des deux-points est etiquetee, meme si son
+  // etiquette nous est inconnue : la coller derriere la flotte en ferait un
+  // numero qui n'en est pas un. On la laisse alors a la suite, telle quelle.
+  if (restes.length === 1 && !restes[0].includes(':') && trouvees[0] === LIGNES_TELEPHONE[0]) {
+    // Un numero seul, sans etiquette : c'est celui de la flotte.
+    trouvees[0] = `${LIGNES_TELEPHONE[0]} ${restes.shift().replace(/^-\s*/, '')}`.trim();
+  }
+  return trouvees.concat(restes).join('\n');
+}
+
+/**
+ * Prix du litre proposes dans les listes deroulantes « Prix / L ».
+ *
+ * Le prix a la pompe est le meme pour tout le monde a une date donnee : il se
+ * regle une fois dans REGLAGES et se choisit ensuite, plutot que de se
+ * retaper — et de se faire fautiver — a chaque prise. Le prix de l'energie
+ * concernee vient en tete ; les prix deja pratiques restent proposes, pour ne
+ * pas rendre impossible la saisie d'une prise ancienne.
+ *
+ * @param {string} [energie] 'Essence' ou 'Diesel'
+ * @returns {string[]} prix distincts, en tete celui de l'energie demandee
+ */
+export function prixLitreOptions(energie) {
+  const regle = {
+    essence: num(DB.settings.prixLitreEssence),
+    diesel: num(DB.settings.prixLitreDiesel)
+  };
+  const cle = norm(energie || '');
+  const ordre = [];
+  if (regle[cle]) ordre.push(regle[cle]);
+  [regle.essence, regle.diesel].forEach((p) => { if (p) ordre.push(p); });
+
+  DB.dotationPool.forEach((d) => { if (num(d.prixL)) ordre.push(num(d.prixL)); });
+  DB.missions.forEach((m) => {
+    (m.ravitaillements || []).forEach((r) => { if (num(r.prixL)) ordre.push(num(r.prixL)); });
+  });
+
+  return [...new Set(ordre.map((p) => String(p)))];
+}
 
 /** Nom tel qu'il apparait dans une fiche vehicule. */
 export function nomComplet(u) {
@@ -555,7 +836,8 @@ export function assurerAgent(nom, infos = {}) {
     section,
     statut: 'Actif',
     poolConducteur: 'Non',
-    telephone: '',
+    telephone: lignesTelephone(''),
+    email: '',
     permis: '',
     observations: origine,
     historique: [],
@@ -593,14 +875,13 @@ export function knownDrivers() {
  * parti, puis celui dont la derniere mission est la plus ancienne. A date
  * egale, celui qui a fait le moins de missions.
  *
- * Sont retenus les agents actifs marques « conducteur du pool » ; tant
- * qu'aucun ne l'est, on prend tous les agents actifs, pour que le tableau ne
- * soit pas vide avant que la liste ait ete renseignee.
+ * Seuls les agents actifs marques « conducteur du pool » y figurent : ce sont
+ * les seuls habilites a conduire les vehicules de mission. Tant qu'aucun ne
+ * l'est, la liste est vide et le dit — y verser tous les agents actifs
+ * reviendrait a proposer au depart des gens qui n'ont pas le droit de partir.
  */
 export function rotationConducteurs() {
-  const actifs = DB.users.filter((u) => u.statut === 'Actif');
-  const marques = actifs.filter((u) => u.poolConducteur === 'Oui');
-  const pool = marques.length ? marques : actifs;
+  const pool = DB.users.filter((u) => u.statut === 'Actif' && u.poolConducteur === 'Oui');
 
   return pool
     .map((u) => {
@@ -613,8 +894,7 @@ export function rotationConducteurs() {
         section: u.section || '',
         nbMissions: missions.length,
         totalJours: sum(missions, (m) => m.jours),
-        derniereMission: derniere,
-        marque: marques.length > 0
+        derniereMission: derniere
       };
     })
     .sort((a, b) => {
@@ -655,7 +935,7 @@ function fmtKm(n) {
  */
 export function etatVidange(v) {
   const cible = num(v && v.kmVidange);
-  const actuel = num(v && v.km);
+  const actuel = kmCourant(v);
   if (!cible) return { statut: 'inconnu', restant: null, cible: 0 };
 
   const restant = cible - actuel;
@@ -672,9 +952,9 @@ export function vidangesASurveiller() {
     .sort((a, b) => a.etat.restant - b.etat.restant);
 }
 
-/** Montant d'un ravitaillement de rapport de mission. */
+/** Montant d'un ravitaillement de rapport de mission, au franc superieur. */
 export function ravMontant(r) {
-  return num(r.quantite) * num(r.prixL);
+  return francSup(num(r.quantite) * num(r.prixL));
 }
 
 /** Missions dont le rapport porte au moins un ravitaillement. */

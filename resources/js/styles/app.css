@@ -257,7 +257,9 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 .fRow input:focus,.fRow select:focus,.fRow textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,138,59,.1);}
 .fRow textarea{min-height:70px;resize:vertical;}
 .fRow .hint{font-size:11px;color:var(--muted);}
-.fRow.readonly input{background:#f2f6f6;color:var(--muted);}
+.fRow.readonly input,.fRow.readonly textarea{background:#f2f6f6;color:var(--muted);}
+/* Champ calcule ou releve ailleurs : il se lit, il ne se saisit pas. */
+.fRow input[readonly],.fRow textarea[readonly]{background:#f2f6f6;color:var(--muted);}
 
 .modalBack{position:fixed;inset:0;background:rgba(12,32,40,.55);display:flex;align-items:flex-end;
   justify-content:center;z-index:100;padding:0;animation:fadeIn .16s ease;}
