@@ -18,7 +18,19 @@ const LEGACY_KEYS = ['pdu_parc_db_v3', 'pdu_parc_db_v2', 'pdu_parc_data_v1'];
 
 export const isDesktop = typeof window !== 'undefined' && !!window.pduDesktop;
 
-export const platformName = isDesktop ? 'Bureau (Windows)' : 'Web / PWA';
+/**
+ * Vrai dans l'application Android empaquetee par Capacitor.
+ *
+ * Le code y est celui du web — meme base, meme stockage navigateur — a une
+ * chose pres : une WebView Android n'a pas de gestionnaire de telechargement.
+ * Un lien « download » n'y fait rien du tout, en silence, et les exports
+ * Excel, PDF et la sauvegarde partiraient dans le vide.
+ */
+export const isAndroid =
+  typeof window !== 'undefined' &&
+  !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+
+export const platformName = isDesktop ? 'Bureau (Windows)' : isAndroid ? 'Android' : 'Web / PWA';
 
 /** Charge la base. Renvoie null si aucune donnee n existe encore. */
 export async function readDB() {
@@ -76,6 +88,8 @@ export async function saveFile(filename, data, mime) {
   if (isDesktop) {
     return window.pduDesktop.saveFile(filename, Array.from(bytes));
   }
+  if (isAndroid) return enregistrerAndroid(filename, bytes, mime);
+
   const blob = new Blob([bytes], { type: mime || 'application/octet-stream' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
@@ -86,6 +100,70 @@ export async function saveFile(filename, data, mime) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 4000);
   return filename;
+}
+
+/**
+ * Encode des octets en base64 par tranches.
+ *
+ * `String.fromCharCode(...octets)` d'un seul coup depasse la pile des
+ * arguments des quelques dizaines de milliers d'elements : un classeur Excel
+ * ou une archive d'images la ferait deborder, et l'export echouerait sur les
+ * gros fichiers — c'est-a-dire precisement ceux qui comptent.
+ */
+function enBase64(octets) {
+  const TRANCHE = 0x8000;
+  let s = '';
+  for (let i = 0; i < octets.length; i += TRANCHE) {
+    s += String.fromCharCode.apply(null, octets.subarray(i, i + TRANCHE));
+  }
+  return btoa(s);
+}
+
+/**
+ * Enregistre un fichier depuis l'application Android.
+ *
+ * Le fichier est ecrit dans l'espace de l'application, puis propose au
+ * partage : c'est le geste attendu sur telephone, ou l'on envoie un rapport
+ * par message plutot que de le ranger dans un dossier. La feuille de partage
+ * offre aussi « Enregistrer dans Fichiers » pour qui veut le garder.
+ *
+ * Les modules ne sont charges que sur Android : le bureau et le navigateur
+ * n'ont pas a embarquer du code qu'ils n'appelleront jamais.
+ *
+ * @returns {Promise<string|null>} nom du fichier, ou null si le partage est
+ *          abandonne — l'appelant l'annonce alors comme une annulation.
+ */
+async function enregistrerAndroid(filename, octets, mime) {
+  const [{ Filesystem, Directory }, { Share }] = await Promise.all([
+    import('@capacitor/filesystem'),
+    import('@capacitor/share')
+  ]);
+
+  // Le cache : le fichier n'a pas a survivre au partage, et Android y fait
+  // le menage tout seul si la place vient a manquer.
+  const ecrit = await Filesystem.writeFile({
+    path: filename,
+    data: enBase64(octets),
+    directory: Directory.Cache
+    // Pas d'`encoding` : sans lui, Capacitor lit la donnee comme du base64
+    // et ecrit les octets bruts. En preciser un la traiterait comme du texte
+    // et corromprait un PDF ou un classeur.
+  });
+
+  try {
+    await Share.share({
+      title: filename,
+      text: `PDU — ${filename}`,
+      url: ecrit.uri,
+      dialogTitle: 'Enregistrer ou envoyer'
+    });
+    return filename;
+  } catch (e) {
+    // Fermer la feuille de partage leve une erreur : ce n'est pas une panne,
+    // c'est un choix. On le distingue d'un vrai echec d'ecriture, qui aurait
+    // deja jete plus haut.
+    return null;
+  }
 }
 
 /* ------------------- Sauvegardes datees (bureau) ------------------- */
