@@ -2,8 +2,9 @@
    Coquille de l application : en-tete, recherche, onglets, routeur.
    =================================================================== */
 
-import { el, debounce, norm } from '../core/utils.js';
+import { el, debounce, norm, fmt } from '../core/utils.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
+import { onChange, voyantsVidange, vehiculesImmobilises } from '../core/db.js';
 // le logo vit dans public/ : Vite le copie tel quel a la racine du build
 const logoUrl = './logo-pdu.png';
 
@@ -75,6 +76,9 @@ let titleEl = null;
 let tabsEl = null;
 let searchInput = null;
 let globalBtn = null;
+let alertBarEl = null;
+let stopAlertWatch = null;
+let alertResizeBound = false;
 let onLogoutCb = null;
 /** Construit la coquille et l affiche dans #app. */
 export function mountShell(appRoot, { onLogout }) {
@@ -88,6 +92,7 @@ export function mountShell(appRoot, { onLogout }) {
       <header class="top">
         <img src="${logoUrl}" alt="PDU">
         <h2 id="pageTitle">TABLEAU DE BORD</h2>
+        <div class="alertBar" id="alertBar"></div>
         <div class="userChip">
           <b>${u ? escapeText(u.nom) : ''}</b>
           <span class="role-${u ? u.role : 'visiteur'}">${u ? escapeText(roleLabel(u.role).toUpperCase()) : ''}</span>
@@ -114,6 +119,22 @@ export function mountShell(appRoot, { onLogout }) {
   tabsEl = dash.querySelector('#tabsScroll');
   searchInput = dash.querySelector('#search');
   globalBtn = dash.querySelector('#globalSearchBtn');
+  alertBarEl = dash.querySelector('#alertBar');
+
+  // Le bandeau vit hors du contenu : il ne se redessine pas avec la rubrique.
+  // On le raccroche donc aux changements de la base. Se deconnecter puis se
+  // reconnecter remonte la coquille : sans ce desabonnement, un second
+  // abonnement ecrirait dans un bandeau qui n'est plus a l'ecran.
+  if (stopAlertWatch) stopAlertWatch();
+  stopAlertWatch = onChange(renderAlertBar);
+  // Le bandeau change de forme selon la largeur : detaille sur un ecran
+  // large, reduit a des comptes sur un telephone. Il doit donc se redessiner
+  // quand la fenetre change de taille, pas seulement quand la base bouge.
+  if (!alertResizeBound) {
+    window.addEventListener('resize', debounce(renderAlertBar, 150));
+    alertResizeBound = true;
+  }
+  renderAlertBar();
 
   dash.querySelector('#logoutBtn').onclick = () => {
     logout();
@@ -160,6 +181,115 @@ export function navigate(moduleKey, params = {}) {
   [...tabsEl.children].forEach((b) => b.classList.toggle('active', b.dataset.mod === moduleKey));
   rerender();
   contentEl.scrollTop = 0;
+}
+
+/**
+ * Nombre de voyants affiches avant de replier le reste derriere « +N ».
+ *
+ * Le bandeau partage sa ligne avec le logo, le titre et le compte connecte :
+ * au-dela, il chasse le titre au lieu de prevenir. Les plus urgents passent
+ * en premier, le compte final dit ce qui n'a pas tenu.
+ */
+const MAX_VOYANTS = 5;
+
+/** En dessous de cette largeur, le bandeau ne donne plus que des comptes. */
+const LARGEUR_COMPACTE = 560;
+
+/**
+ * Bandeau d'alerte de l'en-tete : vidanges qui approchent et vehicules
+ * immobilises, sur la meme ligne que le logo.
+ *
+ * Il est volontairement muet quand tout va bien : un bandeau qui affiche
+ * quelque chose en permanence finit par ne plus rien vouloir dire.
+ */
+function renderAlertBar() {
+  if (!alertBarEl) return;
+  alertBarEl.innerHTML = '';
+  const entete = alertBarEl.parentElement;
+
+  const vidanges = voyantsVidange();
+  const immobilises = vehiculesImmobilises();
+
+  // Les vidanges d'abord : elles se comptent en kilometres qui defilent, alors
+  // qu'un vehicule au garage y reste tant qu'on n'a rien fait.
+  const voyants = [
+    ...vidanges.map((x) => ({
+      classe: x.niveau,
+      clignote: true,
+      icone: '🛢️',
+      immat: x.immat || '(sans immat.)',
+      texte: x.etat.restant <= 0
+        ? `${fmt(-x.etat.restant)} km de retard`
+        : `${fmt(x.etat.restant)} km`,
+      titre: `Vidange due à ${fmt(x.etat.cible)} km`,
+      go: x.immat
+    })),
+    ...immobilises.map((x) => ({
+      classe: 'garage',
+      clignote: false,
+      icone: '🔧',
+      immat: x.immat,
+      texte: x.jours === null ? 'immobilisé' : `${x.jours} j`,
+      titre: x.motif ? `Immobilisé — ${x.motif.split('\n')[0]}` : 'Véhicule immobilisé',
+      go: x.immat
+    }))
+  ];
+
+  // Sur telephone, le titre cede la place aux voyants — mais seulement quand
+  // il y en a. La rubrique ouverte se lit de toute facon sur son onglet.
+  if (entete) entete.classList.toggle('hasAlerts', voyants.length > 0);
+  if (!voyants.length) return;
+
+  if (window.innerWidth <= LARGEUR_COMPACTE) rendreCompact(voyants);
+  else rendreDetaille(voyants, window.innerWidth <= 820 ? 3 : MAX_VOYANTS);
+}
+
+/** Un voyant par vehicule : immatriculation et kilometres restants. */
+function rendreDetaille(voyants, max) {
+  voyants.slice(0, max).forEach((v) => {
+    const b = el(
+      `<button type="button" class="voyant ${v.classe}${v.clignote ? ' clignote' : ''}" title="${escapeText(v.titre)}">` +
+        `<span aria-hidden="true">${v.icone}</span><b>${escapeText(v.immat)}</b><span>${escapeText(v.texte)}</span>` +
+        '</button>'
+    );
+    b.onclick = () => openVehicleSheet(v.go);
+    alertBarEl.appendChild(b);
+  });
+
+  const reste = voyants.length - max;
+  if (reste > 0) {
+    const plus = el(`<button type="button" class="voyant autres" title="Voir tous les véhicules concernés">+${reste}</button>`);
+    plus.onclick = () => navigate('VEHICULES');
+    alertBarEl.appendChild(plus);
+  }
+}
+
+/**
+ * Sur un ecran etroit, un voyant par vehicule ne tient pas : les
+ * immatriculations se retrouvaient coupees des deux cotes, et une alerte
+ * tronquee vaut moins que pas d'alerte du tout.
+ *
+ * On donne alors le nombre par couleur. La couleur previent, le compte dit
+ * l'ampleur, et le doigt fait le reste : on touche pour savoir lesquels.
+ */
+function rendreCompact(voyants) {
+  const libelles = {
+    rouge: 'à vidanger sans délai',
+    orange: 'vidange proche',
+    jaune: 'vidange à prévoir',
+    garage: 'au garage'
+  };
+  ['rouge', 'orange', 'jaune', 'garage'].forEach((classe) => {
+    const lot = voyants.filter((v) => v.classe === classe);
+    if (!lot.length) return;
+    const b = el(
+      `<button type="button" class="voyant ${classe}${lot[0].clignote ? ' clignote' : ''}" ` +
+        `title="${escapeText(`${lot.length} véhicule(s) ${libelles[classe]} : ${lot.map((v) => v.immat).join(', ')}`)}">` +
+        `<span aria-hidden="true">${lot[0].icone}</span><b>${lot.length}</b></button>`
+    );
+    b.onclick = () => (classe === 'garage' ? navigate('ENTRETIEN') : navigate('VEHICULES'));
+    alertBarEl.appendChild(b);
+  });
 }
 
 /** Ouvre la fiche unifiee d un vehicule. */

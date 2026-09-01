@@ -952,6 +952,85 @@ export function vidangesASurveiller() {
     .sort((a, b) => a.etat.restant - b.etat.restant);
 }
 
+/**
+ * Seuils du voyant de vidange, en kilometres restants avant l'echeance.
+ *
+ * Ils sont fixes et ne se reglent pas : c'est une regle d'atelier, pas une
+ * preference. Le seuil de REGLAGES (« Alerte vidange ») garde son role
+ * ailleurs — il decide de la pastille « approche » dans le tableau des
+ * vehicules ; le voyant, lui, previent toujours au meme kilometrage, pour
+ * qu'un conducteur sache ce que la couleur veut dire sans avoir a demander
+ * comment l'application est reglee.
+ */
+export const SEUILS_VOYANT_VIDANGE = { jaune: 1000, orange: 750, rouge: 500 };
+
+/**
+ * Couleur du voyant pour un nombre de kilometres restants.
+ *
+ * Une valeur pile sur un seuil prend la couleur la plus grave : a 750 km on
+ * est deja orange. Se tromper du cote prudent ne coute rien, l'inverse si.
+ * En dessous de zero la vidange est depassee : le voyant reste rouge tant
+ * qu'elle n'est pas faite, c'est-a-dire tant que le kilometrage cible de la
+ * fiche n'a pas ete reporte plus loin.
+ *
+ * @returns {'jaune'|'orange'|'rouge'|null} null si rien a signaler
+ */
+export function niveauVoyantVidange(restant) {
+  if (restant === null || restant === undefined) return null;
+  if (restant > SEUILS_VOYANT_VIDANGE.jaune) return null;
+  if (restant > SEUILS_VOYANT_VIDANGE.orange) return 'jaune';
+  if (restant > SEUILS_VOYANT_VIDANGE.rouge) return 'orange';
+  return 'rouge';
+}
+
+/**
+ * Vehicules dont la vidange approche assez pour meriter un voyant, du plus
+ * urgent au moins urgent. Ceux dont le kilometrage de vidange n'est pas
+ * renseigne sont ecartes : sans echeance, il n'y a rien a decompter.
+ */
+export function voyantsVidange() {
+  return allVehicles()
+    .map((v) => {
+      const etat = etatVidange(v);
+      return { vehicule: v, immat: immatOf(v), etat, niveau: niveauVoyantVidange(etat.restant) };
+    })
+    .filter((x) => x.etat.statut !== 'inconnu' && x.niveau)
+    .sort((a, b) => a.etat.restant - b.etat.restant);
+}
+
+/**
+ * Vehicules immobilises : ceux qui sont au garage, plus ceux qu'une fiche
+ * declare « Immobilisé » sans passage au garage ouvert.
+ *
+ * Les deux disent la meme chose de deux endroits differents ; les reunir ici
+ * evite qu'un vehicule paraisse deux fois dans le bandeau, ou qu'il y manque
+ * parce qu'on n'a regarde qu'une des deux sources.
+ */
+export function vehiculesImmobilises() {
+  const today = new Date().toISOString().slice(0, 10);
+  const parImmat = new Map();
+
+  openMaintenance().forEach((m) => {
+    const immat = String(m.immat || '').trim();
+    if (!immat) return;
+    parImmat.set(norm(immat), {
+      immat,
+      depuis: m.dateEntree || '',
+      jours: daysBetween(m.dateEntree, today),
+      motif: m.motif || '',
+      origine: 'garage'
+    });
+  });
+
+  allVehicles().forEach((v) => {
+    const immat = immatOf(v);
+    if (!immat || v.statut !== 'Immobilisé' || parImmat.has(norm(immat))) return;
+    parImmat.set(norm(immat), { immat, depuis: '', jours: null, motif: '', origine: 'statut' });
+  });
+
+  return [...parImmat.values()].sort((a, b) => (b.jours || 0) - (a.jours || 0));
+}
+
 /** Montant d'un ravitaillement de rapport de mission, au franc superieur. */
 export function ravMontant(r) {
   return francSup(num(r.quantite) * num(r.prixL));

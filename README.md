@@ -40,7 +40,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
 - **Mission** — deux sous-rubriques :
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. La **référence suit l'ordre des départs** (voir ci-dessous). Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). **Seuls les conducteurs du pool y figurent** : ils sont les seuls autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
-- **Entretien** — un **tableau récapitulatif** ouvre la rubrique, avec exactement les colonnes du fichier exporté ; le détail par véhicule suit, avec ses interventions et ses boutons. Entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés. **Motif / problème** et **Observation du conducteur** s'écrivent en lignes tiretées (voir ci-dessous).
+- **Entretien** — la rubrique tient dans un **tableau récapitulatif**, avec exactement les colonnes du fichier exporté, une ligne par passage au garage. Le détail — interventions, retour, boutons d'action — s'ouvre par le bouton **« Fiche »** en bout de ligne, qui mène à la fiche du véhicule, **comme dans VÉHICULES**. Entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés. **Motif / problème** et **Observation du conducteur** s'écrivent en lignes tiretées (voir ci-dessous).
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 
@@ -204,6 +204,28 @@ Deux réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
 Après une vidange, il suffit de reporter le nouveau kilométrage cible dans la fiche : les pastilles et les alertes repassent au vert.
 
 Un véhicule sans kilométrage de vidange n'est simplement pas suivi (« non suivie ») ; il ne déclenche aucune alerte. Les exports Excel et PDF du parc reprennent les colonnes *Prochaine vidange (km)*, *Km avant vidange* et *Suivi vidange*.
+
+### Bandeau d'alerte
+
+Les alertes du tableau de bord ne se voient que sur le tableau de bord. Un **bandeau** les porte donc en permanence, **au centre de la ligne du logo**, quelle que soit la rubrique ouverte. Il reste **vide quand tout va bien** : un bandeau qui affiche toujours quelque chose finit par ne plus rien vouloir dire.
+
+**Voyants de vidange** — dès qu'il reste moins de 1 000 km avant l'échéance, un voyant **clignotant** donne l'immatriculation et les kilomètres restants :
+
+| Kilomètres restants | Voyant |
+| --- | --- |
+| 1 000 à 750 | 🟡 jaune |
+| 750 à 500 | 🟠 orange |
+| moins de 500 | 🔴 rouge |
+
+Une valeur pile sur un seuil prend la couleur la plus grave : à 750 km on est déjà orange. Une fois l'échéance dépassée, le voyant reste rouge et compte le retard (« 300 km de retard ») **jusqu'à ce que la vidange soit faite** — c'est-à-dire jusqu'à ce que le kilométrage cible de la fiche soit reporté plus loin. Le voyant s'éteint alors immédiatement, sans qu'on ait à recharger.
+
+Ces seuils sont **fixes** et ne se règlent pas : c'est une règle d'atelier, pas une préférence. Le réglage *Alerte vidange* garde son rôle ailleurs — il décide de la pastille « approche » dans le tableau des véhicules.
+
+**Véhicules immobilisés** — un voyant **gris, fixe**, avec l'immatriculation et le nombre de jours d'immobilisation. Sont retenus les véhicules **au garage** (fiche d'entretien sans retour) et ceux qu'une fiche déclare *Immobilisé* — réunis, pour qu'aucun ne paraisse deux fois ni ne manque. Le gris est délibéré : il laisse le jaune, l'orange et le rouge ne vouloir dire qu'une seule chose, l'échéance de vidange.
+
+Chaque voyant est **cliquable** et ouvre la fiche du véhicule. Au-delà de cinq, un voyant **« +N »** mène à la liste des véhicules.
+
+Sur un **écran étroit**, une immatriculation par voyant ne tient pas : le bandeau donne alors le **nombre par couleur** (« 🛢️ 2 », « 🔧 1 »), et le titre de la rubrique s'efface le temps de l'alerte — l'onglet actif dit déjà où l'on est. Pour qui a demandé **moins d'animation** dans son système, le voyant ne clignote pas : il porte un liseré à la place.
 
 ### Aperçu avant export
 
