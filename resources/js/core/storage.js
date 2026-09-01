@@ -88,6 +88,32 @@ export async function saveFile(filename, data, mime) {
   return filename;
 }
 
+/* ------------------- Sauvegardes datees (bureau) ------------------- */
+
+/**
+ * Etat de la derniere copie datee.
+ *
+ * Sur le web il n'y a pas de dossier ou copier : la fonction repond alors
+ * qu'aucune sauvegarde automatique n'existe, plutot que d'echouer, pour que
+ * la rubrique REGLAGES s'affiche pareil des deux cotes.
+ */
+export async function backupEtat() {
+  if (isDesktop && window.pduDesktop.backupEtat) return window.pduDesktop.backupEtat();
+  return { fait: null, dossier: '', fichier: '', erreur: '', conservees: 0, indisponible: true };
+}
+
+/** Choix du dossier de sauvegarde (bureau uniquement). */
+export async function backupChoisirDossier() {
+  if (isDesktop && window.pduDesktop.backupChoisirDossier) return window.pduDesktop.backupChoisirDossier();
+  return null;
+}
+
+/** Sauvegardes presentes dans le dossier, la plus recente en tete. */
+export async function backupListe(dossier) {
+  if (isDesktop && window.pduDesktop.backupListe) return window.pduDesktop.backupListe(dossier);
+  return [];
+}
+
 /** Ouvre un fichier texte (restauration de sauvegarde). */
 export async function openTextFile() {
   if (isDesktop) return window.pduDesktop.openFile();

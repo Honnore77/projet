@@ -117,7 +117,15 @@ export function emptyDB() {
       // tout le monde a une date donnee, il n'a pas a se retaper a chaque
       // prise. Zero vaut « pas encore renseigne » : la liste ne le propose pas.
       prixLitreEssence: 0,
-      prixLitreDiesel: 0
+      prixLitreDiesel: 0,
+      // Dossier des copies datees, hors du poste de preference : cle USB,
+      // disque reseau, dossier synchronise. Vide, la sauvegarde automatique
+      // ne se fait pas — c'est un choix explicite, pas un defaut silencieux.
+      dossierSauvegarde: '',
+      // Nombre de copies gardees. Trente jours couvrent une erreur remarquee
+      // tard sans encombrer le support : le fichier pese quelques dizaines
+      // de kilo-octets.
+      sauvegardesConservees: 30
     },
     meta: { createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() }
   };

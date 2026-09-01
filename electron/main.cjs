@@ -9,6 +9,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
+const { sauvegardeDatee, listerSauvegardes } = require('./sauvegarde.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -20,6 +21,31 @@ function dataFile() {
 }
 function backupFile() {
   return path.join(app.getPath('userData'), 'pdu-parc-auto.backup.json');
+}
+
+/* ------------------------ Sauvegarde datee ------------------------- */
+
+/**
+ * Etat de la derniere tentative de copie datee, lu par la rubrique REGLAGES.
+ * On ne fait jamais echouer un enregistrement a cause d'une sauvegarde : la
+ * cle USB peut etre debranchee, le disque reseau injoignable. La saisie
+ * prime, et l'ecran dit ensuite ce qui n'a pas pu se faire.
+ */
+let etatSauvegarde = { fait: null, dossier: '', fichier: '', erreur: '', conservees: 0 };
+
+/** Lance la copie datee a partir des reglages contenus dans la base. */
+function copierSelonReglages(raw) {
+  let reglages = {};
+  try {
+    reglages = (JSON.parse(raw) || {}).settings || {};
+  } catch (e) {
+    return; // base illisible : rien a copier
+  }
+  etatSauvegarde = sauvegardeDatee(
+    raw,
+    reglages.dossierSauvegarde,
+    reglages.sauvegardesConservees
+  );
 }
 
 function createWindow() {
@@ -160,6 +186,9 @@ ipcMain.handle('db:save', (_evt, raw) => {
     const tmp = `${file}.tmp`;
     fs.writeFileSync(tmp, raw, 'utf8');
     fs.renameSync(tmp, file);
+    // La copie datee vient apres, et ne peut rien compromettre : l'ecriture
+    // qui compte est deja faite.
+    copierSelonReglages(raw);
     return true;
   } catch (e) {
     console.error('Ecriture impossible', e);
@@ -168,6 +197,23 @@ ipcMain.handle('db:save', (_evt, raw) => {
 });
 
 ipcMain.handle('db:path', () => dataFile());
+
+/** Etat de la derniere copie datee, pour l'affichage dans REGLAGES. */
+ipcMain.handle('backup:etat', () => etatSauvegarde);
+
+/** Choix du dossier de sauvegarde. @returns {Promise<string|null>} */
+ipcMain.handle('backup:dossier', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Dossier des sauvegardes automatiques',
+    properties: ['openDirectory', 'createDirectory'],
+    buttonLabel: 'Choisir ce dossier'
+  });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+
+/** Liste des sauvegardes presentes dans un dossier, la plus recente en tete. */
+ipcMain.handle('backup:liste', (_evt, dossier) =>
+  listerSauvegardes(dossier).slice().reverse());
 
 ipcMain.handle('file:save', async (_evt, filename, bytes) => {
   const res = await dialog.showSaveDialog(win, {

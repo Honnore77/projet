@@ -8,7 +8,10 @@ import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
   createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
 } from '../../core/auth.js';
-import { platformName, dataLocation, saveFile, openTextFile } from '../../core/storage.js';
+import {
+  platformName, dataLocation, saveFile, openTextFile,
+  backupEtat, backupChoisirDossier, backupListe
+} from '../../core/storage.js';
 import { esc, el, num, francSup } from '../../core/utils.js';
 import {
   card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
@@ -27,7 +30,110 @@ export function renderSettings(page) {
 
   renderAccountsSection(page);
   renderThresholdsSection(page);
+  renderAutoBackupSection(page);
   renderBackupSection(page);
+}
+
+/* ------------------- Sauvegarde automatique datee ------------------ */
+
+/**
+ * Copies datees dans un dossier choisi.
+ *
+ * La copie de securite du poste est ecrasee a chaque enregistrement : elle
+ * protege d'une ecriture interrompue, pas d'une erreur remarquee le
+ * lendemain, et elle est sur le meme disque que l'original. D'ou ce second
+ * filet, date et ailleurs.
+ */
+function renderAutoBackupSection(page) {
+  page.appendChild(sectionLabel('SAUVEGARDE AUTOMATIQUE', COLORS.blue));
+
+  const bloc = el('<div class="card"><h3 style="color:#1976D2">COPIES DATÉES</h3><p>Chargement…</p></div>');
+  page.appendChild(bloc);
+
+  const dessiner = async () => {
+    const etat = await backupEtat();
+    const dossier = DB.settings.dossierSauvegarde || '';
+    const p = bloc.querySelector('p');
+
+    if (etat.indisponible) {
+      p.textContent =
+        'La sauvegarde automatique n’existe que dans l’application de bureau : ' +
+        'le navigateur n’a pas accès à un dossier du disque.\n' +
+        'Depuis le navigateur, utilisez « Exporter une sauvegarde » ci-dessous.';
+      return;
+    }
+
+    if (!dossier) {
+      p.textContent =
+        'Aucun dossier choisi : aucune copie datée n’est faite.\n\n' +
+        'Une copie par jour serait écrite dans le dossier que vous désignez — clé USB, ' +
+        'disque réseau ou dossier synchronisé. Le fichier du jour est réécrit tant que ' +
+        'la journée dure ; celui de la veille reste intact, ce qui permet de rattraper ' +
+        'une erreur remarquée le lendemain.';
+      return;
+    }
+
+    const liste = await backupListe(dossier);
+    p.textContent =
+      `Dossier : ${dossier}\n` +
+      `Copies conservées : ${DB.settings.sauvegardesConservees} au plus — ${liste.length} présente(s)\n` +
+      (etat.erreur
+        ? `⚠ Dernière tentative en échec : ${etat.erreur}\n` +
+          '   Le dossier est-il accessible ? La saisie, elle, reste enregistrée sur ce poste.'
+        : etat.fait
+          ? `Dernière copie : ${etat.fichier} — ${new Date(etat.fait).toLocaleString('fr-FR')}`
+          : 'Aucune copie encore écrite : elle se fera au prochain enregistrement.') +
+      (liste.length ? `\nLa plus ancienne remonte au ${liste[liste.length - 1].date}.` : '');
+  };
+
+  page.appendChild(
+    toolbar([
+      { label: '📁 Choisir le dossier', cls: 'addBtn', color: COLORS.blue, onClick: async () => {
+        const choisi = await backupChoisirDossier();
+        if (!choisi) return;
+        saveSettings({ dossierSauvegarde: choisi });
+        // Une copie part tout de suite : on ne fait pas attendre la preuve
+        // que le dossier fonctionne jusqu'au prochain enregistrement.
+        await persistNow();
+        toast('Dossier enregistré, une première copie vient d’être écrite.', 'ok');
+        rerender();
+      } },
+      DB.settings.dossierSauvegarde && { label: '⚙ Nombre de copies', color: COLORS.grey, onClick: openRetentionForm },
+      DB.settings.dossierSauvegarde && { label: '✕ Ne plus sauvegarder', color: COLORS.red, onClick: async () => {
+        if (!(await confirmDialog({
+          title: 'Arrêter la sauvegarde automatique',
+          message: 'Plus aucune copie datée ne sera écrite. Les copies déjà présentes dans le dossier sont conservées.',
+          okLabel: 'Arrêter', danger: true
+        }))) return;
+        saveSettings({ dossierSauvegarde: '' });
+        toast('Sauvegarde automatique arrêtée.', 'ok');
+        rerender();
+      } }
+    ])
+  );
+
+  dessiner();
+}
+
+function openRetentionForm() {
+  openForm({
+    title: 'Nombre de copies conservées',
+    intro: 'Au-delà, la plus ancienne est effacée à chaque nouvelle copie.',
+    fields: [
+      { key: 'sauvegardesConservees', label: 'Copies conservées', type: 'number',
+        value: DB.settings.sauvegardesConservees,
+        hint: 'Une copie par jour. Trente couvrent un mois, pour quelques centaines de kilo-octets.' }
+    ],
+    okLabel: 'Enregistrer',
+    onSubmit: (v) => {
+      const n = num(v.sauvegardesConservees);
+      if (n < 1) return 'Il faut conserver au moins une copie.';
+      saveSettings({ sauvegardesConservees: n });
+      toast('Réglage enregistré.', 'ok');
+      rerender();
+      return null;
+    }
+  });
 }
 
 /* ------------------------------ Comptes ---------------------------- */
