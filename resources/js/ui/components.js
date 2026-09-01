@@ -4,6 +4,7 @@
    =================================================================== */
 
 import { esc, el } from '../core/utils.js';
+import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 
 export const COLORS = {
   green: '#008A3B',
@@ -158,6 +159,18 @@ function fieldHtml(f) {
     case 'static':
       input = `<input id="${id}" data-key="${esc(f.key)}" value="${esc(val)}" readonly>`;
       break;
+    // Les images ne sont pas une valeur de formulaire ordinaire : le champ
+    // tient sa propre liste, que `readFields` relit sur l'objet du champ.
+    case 'images':
+      input =
+        `<div class="imgChamp" data-images="${esc(f.key)}">` +
+        '<div class="imgGalerie" data-galerie></div>' +
+        '<div class="imgBarre">' +
+        `<label class="smallBtn" for="${id}">+ Ajouter une image</label>` +
+        `<input id="${id}" type="file" accept="image/jpeg,image/png" multiple hidden>` +
+        '<span class="imgCompte" data-compte></span>' +
+        '</div></div>';
+      break;
     default: {
       const listAttr = f.list && f.list.length ? ` list="${id}_list"` : '';
       const datalist =
@@ -182,7 +195,103 @@ export function buildFieldsNode(fields) {
   grid.innerHTML = fields.map(fieldHtml).join('');
   grid.querySelectorAll('select[data-add-label]').forEach(cablerAjout);
   grid.querySelectorAll('textarea[data-tiret]').forEach(cablerTirets);
+  fields.filter((f) => f.type === 'images').forEach((f) => {
+    const zone = grid.querySelector(`[data-images="${f.key}"]`);
+    if (zone) cablerImages(zone, f);
+  });
   return grid;
+}
+
+/* --------------------------- Champ images -------------------------- */
+
+/**
+ * Champ « images » : vignettes, ajout, agrandissement, suppression.
+ *
+ * La liste vit dans `field.value` — un tableau de fiches d'image — et c'est
+ * elle que `readFields` rend. Les octets, eux, ne passent jamais par ici :
+ * ils sont ranges par `images.js` a cote de la base, et la fiche ne retient
+ * qu'un identifiant.
+ *
+ * Une image ajoutee est ecrite tout de suite, avant meme que le formulaire
+ * soit valide. Annuler laisse donc des octets orphelins : c'est le prix a
+ * payer pour afficher la vignette immediatement, et le menage se fait au
+ * chargement (voir `imagesOrphelines`). Perdre quelques kilo-octets vaut
+ * mieux que perdre la photo qu'on vient de prendre.
+ */
+function cablerImages(zone, field) {
+  const liste = Array.isArray(field.value) ? field.value.slice() : [];
+  field.value = liste;
+
+  const galerie = zone.querySelector('[data-galerie]');
+  const entree = zone.querySelector('input[type="file"]');
+  const compte = zone.querySelector('[data-compte]');
+  const urls = [];
+
+  const dessiner = async () => {
+    urls.splice(0).forEach(libererUrl);
+    galerie.innerHTML = liste.length
+      ? ''
+      : '<span class="imgVide">Aucune image — les formats JPEG et PNG sont acceptés.</span>';
+    compte.textContent = liste.length ? `${liste.length} image(s)` : '';
+
+    for (const img of liste) {
+      const url = await urlImage(img.id);
+      const vignette = el(
+        `<figure class="imgVignette">${
+          url ? `<img src="${url}" alt="${esc(img.nom || '')}">` : '<span class="imgAbsente">image introuvable</span>'
+        }<figcaption>${esc(img.nom || '')}</figcaption>` +
+        '<button type="button" class="imgSuppr" title="Retirer cette image">✕</button></figure>'
+      );
+      if (url) urls.push(url);
+
+      const vue = vignette.querySelector('img');
+      if (vue) vue.onclick = () => agrandirImage(img);
+
+      vignette.querySelector('.imgSuppr').onclick = async () => {
+        if (!(await confirmDialog({
+          title: 'Retirer l’image',
+          message: `Retirer « ${img.nom || 'cette image'} » de la fiche ? Le fichier sera effacé.`,
+          okLabel: 'Retirer', danger: true
+        }))) return;
+        const i = liste.indexOf(img);
+        if (i >= 0) liste.splice(i, 1);
+        await supprimerImage(img.id);
+        dessiner();
+      };
+      galerie.appendChild(vignette);
+    }
+  };
+
+  entree.onchange = async () => {
+    const fichiers = [...entree.files];
+    entree.value = '';
+    for (const f of fichiers) {
+      try {
+        liste.push(await ajouterImage(f));
+      } catch (e) {
+        toast((e && e.message) || 'Image refusée.', 'err');
+      }
+    }
+    dessiner();
+  };
+
+  dessiner();
+}
+
+/** Ouvre une image en grand, dans une fenetre par-dessus le formulaire. */
+async function agrandirImage(img) {
+  const url = await urlImage(img.id);
+  if (!url) return toast('Image introuvable.', 'err');
+  const corps = el(
+    `<div style="text-align:center"><img src="${url}" alt="${esc(img.nom || '')}" ` +
+    'style="max-width:100%;max-height:70vh;border-radius:10px"></div>'
+  );
+  openModal({
+    title: img.nom || 'Image',
+    bodyNode: corps,
+    buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }],
+    onClose: () => libererUrl(url)
+  });
 }
 
 /**
@@ -281,6 +390,12 @@ function cablerAjout(select) {
 export function readFields(scope, fields) {
   const out = {};
   fields.forEach((f) => {
+    // Le champ images tient sa liste sur l'objet du champ, pas dans un
+    // element de formulaire : il n'a aucune `value` a lire dans le DOM.
+    if (f.type === 'images') {
+      out[f.key] = Array.isArray(f.value) ? f.value : [];
+      return;
+    }
     const node = scope.querySelector(`[data-key="${CSS.escape(f.key)}"]`);
     if (!node) return;
     let v = node.value;

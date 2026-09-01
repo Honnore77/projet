@@ -9,7 +9,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { sauvegardeDatee, listerSauvegardes } = require('./sauvegarde.cjs');
+const { sauvegardeDatee, listerSauvegardes, miroirImages } = require('./sauvegarde.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -21,6 +21,24 @@ function dataFile() {
 }
 function backupFile() {
   return path.join(app.getPath('userData'), 'pdu-parc-auto.backup.json');
+}
+
+/**
+ * Dossier des images jointes aux fiches.
+ *
+ * Elles ne sont pas dans la base : celle-ci est reecrite en entier a chaque
+ * saisie, et sur le web elle tient dans localStorage. Les octets vivent donc
+ * a cote, nommes par leur identifiant, et la fiche ne retient que celui-ci.
+ */
+function imagesDir() {
+  return path.join(app.getPath('userData'), 'images');
+}
+
+/** Chemin d'une image. Rejette tout identifiant qui sortirait du dossier. */
+function imageFile(id) {
+  const nom = String(id || '');
+  if (!/^img_[A-Za-z0-9]+$/.test(nom)) return null;
+  return path.join(imagesDir(), `${nom}.jpg`);
 }
 
 /* ------------------------ Sauvegarde datee ------------------------- */
@@ -46,6 +64,14 @@ function copierSelonReglages(raw) {
     reglages.dossierSauvegarde,
     reglages.sauvegardesConservees
   );
+
+  // Les photos vivent hors de la base : sans elles, la copie datee ne
+  // ramenerait que des fiches citant des images introuvables.
+  if (etatSauvegarde.dossier && !etatSauvegarde.erreur) {
+    const im = miroirImages(imagesDir(), etatSauvegarde.dossier);
+    etatSauvegarde.images = im.copiees;
+    if (im.erreur) etatSauvegarde.erreur = `images : ${im.erreur}`;
+  }
 }
 
 function createWindow() {
@@ -214,6 +240,70 @@ ipcMain.handle('backup:dossier', async () => {
 /** Liste des sauvegardes presentes dans un dossier, la plus recente en tete. */
 ipcMain.handle('backup:liste', (_evt, dossier) =>
   listerSauvegardes(dossier).slice().reverse());
+
+/* ---------------------------- Images ------------------------------- */
+
+ipcMain.handle('file:openBytes', async () => {
+  const res = await dialog.showOpenDialog(win, {
+    title: 'Ouvrir une sauvegarde',
+    properties: ['openFile'],
+    filters: [{ name: 'Sauvegarde PDU', extensions: ['zip', 'json'] }]
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  try {
+    return {
+      nom: path.basename(res.filePaths[0]),
+      octets: Array.from(fs.readFileSync(res.filePaths[0]))
+    };
+  } catch (e) {
+    console.error('Lecture impossible', e);
+    return null;
+  }
+});
+
+ipcMain.handle('image:write', (_evt, id, bytes) => {
+  const f = imageFile(id);
+  if (!f) return false;
+  try {
+    fs.mkdirSync(imagesDir(), { recursive: true });
+    fs.writeFileSync(f, Buffer.from(bytes));
+    return true;
+  } catch (e) {
+    console.error('Image non enregistree', e);
+    return false;
+  }
+});
+
+ipcMain.handle('image:read', (_evt, id) => {
+  const f = imageFile(id);
+  if (!f) return null;
+  try {
+    return fs.existsSync(f) ? Array.from(fs.readFileSync(f)) : null;
+  } catch (e) {
+    return null;
+  }
+});
+
+ipcMain.handle('image:delete', (_evt, id) => {
+  const f = imageFile(id);
+  if (!f) return false;
+  try {
+    if (fs.existsSync(f)) fs.unlinkSync(f);
+    return true;
+  } catch (e) {
+    return false;
+  }
+});
+
+ipcMain.handle('image:list', () => {
+  try {
+    return fs.readdirSync(imagesDir())
+      .filter((f) => f.endsWith('.jpg'))
+      .map((f) => f.slice(0, -4));
+  } catch (e) {
+    return [];
+  }
+});
 
 ipcMain.handle('file:save', async (_evt, filename, bytes) => {
   const res = await dialog.showSaveDialog(win, {

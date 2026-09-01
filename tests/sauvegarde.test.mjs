@@ -119,3 +119,42 @@ test('lister un dossier qui n’existe pas rend une liste vide', () => {
   assert.deepEqual(listerSauvegardes(path.join(os.tmpdir(), 'nexiste-vraiment-pas-pdu')), []);
   assert.deepEqual(listerSauvegardes(''), []);
 });
+
+/* ---- Miroir des images vers le dossier de sauvegarde ---- */
+
+const { miroirImages } = require('../electron/sauvegarde.cjs');
+
+test('les images sont recopiees a cote des copies datees', () => {
+  const source = dossierTemporaire();
+  const dest = dossierTemporaire();
+  fs.writeFileSync(path.join(source, 'img_a.jpg'), 'AAA');
+  fs.writeFileSync(path.join(source, 'img_b.jpg'), 'BBB');
+  const r = miroirImages(source, dest);
+  assert.equal(r.copiees, 2);
+  assert.equal(fs.readFileSync(path.join(dest, 'images', 'img_a.jpg'), 'utf8'), 'AAA');
+});
+
+test('une image deja copiee n’est pas recopiee : le miroir n’est pas duplique', () => {
+  const source = dossierTemporaire();
+  const dest = dossierTemporaire();
+  fs.writeFileSync(path.join(source, 'img_a.jpg'), 'AAA');
+  assert.equal(miroirImages(source, dest).copiees, 1);
+  assert.equal(miroirImages(source, dest).copiees, 0, 'deuxieme passage : rien a faire');
+});
+
+test('une image retiree du poste reste dans la sauvegarde', () => {
+  const source = dossierTemporaire();
+  const dest = dossierTemporaire();
+  fs.writeFileSync(path.join(source, 'img_a.jpg'), 'AAA');
+  miroirImages(source, dest);
+  fs.unlinkSync(path.join(source, 'img_a.jpg'));
+  miroirImages(source, dest);
+  assert.ok(fs.existsSync(path.join(dest, 'images', 'img_a.jpg')),
+    'une sauvegarde doit survivre a une suppression, y compris regrettee');
+});
+
+test('un dossier d’images absent ne fait pas echouer la sauvegarde', () => {
+  const r = miroirImages(path.join(os.tmpdir(), 'pdu-pas-d-images-ici'), dossierTemporaire());
+  assert.equal(r.copiees, 0);
+  assert.equal(r.erreur, '');
+});

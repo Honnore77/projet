@@ -9,10 +9,11 @@ import {
   createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
 } from '../../core/auth.js';
 import {
-  platformName, dataLocation, saveFile, openTextFile,
+  platformName, dataLocation, saveFile, openBinaryFile,
   backupEtat, backupChoisirDossier, backupListe
 } from '../../core/storage.js';
 import { esc, el, num, francSup } from '../../core/utils.js';
+import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
   card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
@@ -383,9 +384,20 @@ function countRecords() {
 async function doBackup() {
   try {
     await persistNow();
-    const json = JSON.stringify(DB, null, 2);
-    const res = await saveFile(`PDU_sauvegarde_${new Date().toISOString().slice(0, 10)}.json`, json, 'application/json');
-    toast(res ? 'Sauvegarde enregistrée.' : 'Sauvegarde annulée.', res ? 'ok' : 'info');
+    // Une archive, et non plus un .json : depuis que les fiches portent des
+    // photos rangées hors de la base, un fichier de données seul ne
+    // ramènerait qu'une moitié de sauvegarde.
+    const { octets, images, manquantes } = await construireArchive(DB);
+    const res = await saveFile(
+      `PDU_sauvegarde_${new Date().toISOString().slice(0, 10)}.zip`, octets, 'application/zip'
+    );
+    if (!res) return toast('Sauvegarde annulée.', 'info');
+    toast(
+      manquantes.length
+        ? `Sauvegarde enregistrée (${images} image(s)) — ${manquantes.length} introuvable(s), non incluse(s).`
+        : `Sauvegarde enregistrée : données et ${images} image(s).`,
+      manquantes.length ? 'info' : 'ok'
+    );
   } catch (e) {
     console.error(e);
     toast('La sauvegarde a échoué.', 'err');
@@ -393,11 +405,16 @@ async function doBackup() {
 }
 
 async function doRestore() {
-  const raw = await openTextFile();
-  if (!raw) return;
+  const fichier = await openBinaryFile();
+  if (!fichier) return;
   let parsed;
+  let imagesReprises = 0;
   try {
-    parsed = JSON.parse(raw);
+    // Archive ou ancien .json : la lecture accepte les deux. Une restauration
+    // ne doit pas dépendre de la version qui a produit la sauvegarde.
+    const lu = await lireArchive(fichier.octets);
+    parsed = lu.base;
+    imagesReprises = lu.images;
   } catch (e) {
     toast('Fichier illisible : ce n’est pas une sauvegarde valide.', 'err');
     return;
@@ -412,6 +429,7 @@ async function doRestore() {
     title: 'Restaurer la sauvegarde',
     message:
       `La sauvegarde contient ${nb} véhicule(s), ${(parsed.users || []).length} utilisateur(s) et ${(parsed.missions || []).length} mission(s).\n\n` +
+      `${imagesReprises ? `L’archive apporte aussi ${imagesReprises} image(s).\n` : ''}` +
       'Toutes les données actuelles seront remplacées. Cette action est irréversible.',
     okLabel: 'Restaurer',
     danger: true

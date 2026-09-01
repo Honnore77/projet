@@ -93,4 +93,37 @@ function sauvegardeDatee(raw, dossier, garder, jour) {
   }
 }
 
-module.exports = { sauvegardeDatee, listerSauvegardes, NOM_SAUVEGARDE };
+/**
+ * Recopie les images vers le dossier de sauvegarde.
+ *
+ * Un miroir, et non une copie par jour : une image ne change jamais apres
+ * son ajout, son nom suffit a savoir si elle est deja la. Trente copies
+ * datees partagent ainsi un seul jeu d'images, au lieu de le dupliquer
+ * trente fois.
+ *
+ * Rien n'est efface ici. Une photo retiree d'une fiche disparait du poste,
+ * mais sa copie reste : c'est une sauvegarde, elle est faite pour survivre
+ * a une suppression — y compris a une suppression regrettee.
+ *
+ * @returns {{copiees:number, erreur:string}}
+ */
+function miroirImages(sourceDir, dossier) {
+  const cible = path.join(String(dossier || ''), 'images');
+  try {
+    if (!fs.existsSync(sourceDir)) return { copiees: 0, erreur: '' };
+    fs.mkdirSync(cible, { recursive: true });
+    let copiees = 0;
+    for (const nom of fs.readdirSync(sourceDir)) {
+      if (!nom.endsWith('.jpg')) continue;
+      const dest = path.join(cible, nom);
+      if (fs.existsSync(dest)) continue;
+      fs.copyFileSync(path.join(sourceDir, nom), dest);
+      copiees += 1;
+    }
+    return { copiees, erreur: '' };
+  } catch (e) {
+    return { copiees: 0, erreur: String((e && e.message) || e) };
+  }
+}
+
+module.exports = { sauvegardeDatee, listerSauvegardes, miroirImages, NOM_SAUVEGARDE };

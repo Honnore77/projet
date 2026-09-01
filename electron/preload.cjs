@@ -34,5 +34,22 @@ contextBridge.exposeInMainWorld('pduDesktop', {
   backupChoisirDossier: () => ipcRenderer.invoke('backup:dossier'),
 
   /** @param {string} dossier @returns {Promise<{nom:string,taille:number,date:string}[]>} */
-  backupListe: (dossier) => ipcRenderer.invoke('backup:liste', dossier)
+  backupListe: (dossier) => ipcRenderer.invoke('backup:liste', dossier),
+
+  /** Ouvre un fichier et rend ses octets. @returns {Promise<{nom:string,octets:number[]}|null>} */
+  openBytes: () => ipcRenderer.invoke('file:openBytes'),
+
+  /* --- Images jointes aux fiches, rangees hors de la base --- */
+
+  /** @param {string} id @param {number[]} bytes @returns {Promise<boolean>} */
+  imageEcrire: (id, bytes) => ipcRenderer.invoke('image:write', id, bytes),
+
+  /** @param {string} id @returns {Promise<number[]|null>} */
+  imageLire: (id) => ipcRenderer.invoke('image:read', id),
+
+  /** @param {string} id @returns {Promise<boolean>} */
+  imageSupprimer: (id) => ipcRenderer.invoke('image:delete', id),
+
+  /** @returns {Promise<string[]>} identifiants presents dans le dossier */
+  imageListe: () => ipcRenderer.invoke('image:list')
 });

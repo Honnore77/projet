@@ -4,8 +4,9 @@
 
 import { DB, vehicleByImmat, kmCourant, ravMontant } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { el, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
-import { card, toolbar, statTile, sectionLabel, emptyState, toast, COLORS } from '../components.js';
+import { el, esc, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
+import { urlImage } from '../../core/images.js';
+import { card, toolbar, statTile, sectionLabel, emptyState, toast, openModal, COLORS } from '../components.js';
 import { state, navigate } from '../shell.js';
 import { statutColor, openVehicleForm } from './vehicles.js';
 import { renderMaintenanceEntries, openFicheForm } from './maintenance.js';
@@ -120,6 +121,20 @@ export function renderVehicleSheet(page) {
       });
   }
 
+  /* ------------------------ Photos et documents ---------------------- */
+  // Toutes les images qui parlent de ce vehicule, d'ou qu'elles viennent :
+  // la fiche vehicule, ses passages au garage, ses prises de carburant. On
+  // ne consulte pas un parc en ouvrant chaque formulaire.
+  const galerie = [
+    ...((vehicle && vehicle.images) || []).map((i) => ({ img: i, origine: 'fiche véhicule' })),
+    ...maint.flatMap((m) => (m.images || []).map((i) => ({ img: i, origine: `garage du ${dateFR(m.dateEntree)}` }))),
+    ...dots.flatMap((d) => (d.images || []).map((i) => ({ img: i, origine: `dotation du ${dateFR(d.date)}` })))
+  ];
+  if (galerie.length) {
+    page.appendChild(sectionLabel(`PHOTOS ET DOCUMENTS (${galerie.length})`, COLORS.blue));
+    page.appendChild(galerieNode(galerie));
+  }
+
   /* ---------------------------- Entretien ---------------------------- */
   if (maint.length) {
     page.appendChild(sectionLabel(`HISTORIQUE ENTRETIEN (${maint.length})`, COLORS.green));
@@ -174,3 +189,44 @@ async function doExport(kind, immat, vehicle, dots, missions, maint) {
   }
 }
 
+
+/**
+ * Vignettes en consultation : on regarde, on agrandit, on ne modifie pas.
+ * Chaque vignette dit d'ou elle vient — sans quoi une photo d'avarie et une
+ * carte grise se ressembleraient dans la liste.
+ */
+function galerieNode(entrees) {
+  const zone = el('<div class="imgChamp"><div class="imgGalerie"></div></div>');
+  const galerie = zone.querySelector('.imgGalerie');
+
+  entrees.forEach(({ img, origine }) => {
+    const fig = el(
+      '<figure class="imgVignette"><span class="imgAbsente">chargement…</span>' +
+      `<figcaption>${esc(img.nom || '')}<br><small>${esc(origine)}</small></figcaption></figure>`
+    );
+    galerie.appendChild(fig);
+
+    urlImage(img.id).then((url) => {
+      if (!url) {
+        fig.querySelector('.imgAbsente').textContent = 'introuvable';
+        return;
+      }
+      const vue = el(`<img src="${url}" alt="${esc(img.nom || '')}">`);
+      vue.onclick = () => ouvrirGrand(img, url);
+      fig.replaceChild(vue, fig.querySelector('.imgAbsente'));
+    });
+  });
+
+  return zone;
+}
+
+function ouvrirGrand(img, url) {
+  openModal({
+    title: img.nom || 'Image',
+    bodyNode: el(
+      `<div style="text-align:center"><img src="${url}" alt="${esc(img.nom || '')}" ` +
+      'style="max-width:100%;max-height:70vh;border-radius:10px"></div>'
+    ),
+    buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }]
+  });
+}

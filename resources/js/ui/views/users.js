@@ -54,7 +54,9 @@ function userFields(u = {}) {
       hint: 'Une ligne par numéro — complétez après les deux-points' },
     { key: 'email', label: 'Adresse email', value: u.email, full: true },
     { key: 'permis', label: 'N° de permis', value: u.permis },
-    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: u.observations }
+    { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: u.observations },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: u.images,
+      hint: 'Photo de l’agent, permis de conduire' }
   ];
 }
 
