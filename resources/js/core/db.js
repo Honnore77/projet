@@ -367,7 +367,13 @@ export function fichesAImages(db = DB) {
     ...db.users,
     ...db.maintenance,
     ...db.missions,
-    ...db.dotationPool
+    ...db.dotationPool,
+    // Les sous-fiches comptent autant que les autres : une image citee par
+    // une intervention ou un incident, mais absente d'ici, serait tenue pour
+    // orpheline et effacee au demarrage suivant — et elle manquerait a
+    // l'archive de sauvegarde.
+    ...db.maintenance.flatMap((m) => m.interventions || []),
+    ...db.users.flatMap((u) => u.historique || [])
   ];
 }
 

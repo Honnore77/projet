@@ -46,7 +46,9 @@ function interventionFields(iv = {}) {
     { key: 'observation', label: 'Observation / diagnostic', type: 'textarea', full: true, value: iv.observation },
     { key: 'travaux', label: 'Travaux effectués', type: 'textarea', full: true, value: iv.travaux },
     { key: 'pieces', label: 'Pièces remplacées', type: 'textarea', full: true, value: iv.pieces },
-    { key: 'cout', label: 'Coût (F)', type: 'number', value: iv.cout }
+    { key: 'cout', label: 'Coût (F)', type: 'number', value: iv.cout },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: iv.images,
+      hint: 'Facture de ce garage, pièce remplacée, travaux réalisés' }
   ];
 }
 

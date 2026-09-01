@@ -68,7 +68,9 @@ function incidentFields(h = {}) {
     { key: 'circonstances', label: 'Circonstances', type: 'textarea', full: true, value: h.circonstances },
     { key: 'responsabilite', label: 'Responsabilité', value: h.responsabilite },
     { key: 'suite', label: 'Suite donnée', value: h.suite },
-    { key: 'observations', label: 'Autres observations', type: 'textarea', full: true, value: h.observations }
+    { key: 'observations', label: 'Autres observations', type: 'textarea', full: true, value: h.observations },
+    { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: h.images,
+      hint: 'Constat, photo des dégâts, courrier' }
   ];
 }
 
