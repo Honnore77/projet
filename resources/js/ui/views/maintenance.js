@@ -10,9 +10,9 @@ import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
-  statTile, groupHeader, sectionLabel, subEmpty, dataTable, COLORS
+  statTile, sectionLabel, subEmpty, dataTable, COLORS
 } from '../components.js';
-import { state, rerender } from '../shell.js';
+import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
@@ -63,7 +63,7 @@ export function renderMaintenance(page) {
   const f = state.filters.maintenance;
 
   page.appendChild(
-    card('ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation.', COLORS.green)
+    card('ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation. Cliquez sur « Fiche » pour voir le détail d’un véhicule et agir dessus.', COLORS.green)
   );
 
   page.appendChild(
@@ -113,30 +113,6 @@ export function renderMaintenance(page) {
   }
 
   renderRecapitulatif(page, retenus);
-
-  page.appendChild(sectionLabel('DÉTAIL PAR VÉHICULE', COLORS.green));
-
-  const groups = groupBy(retenus, (m) => m.immat || '(sans immatriculation)');
-  Object.keys(groups)
-    .sort((a, b) => derniereEntree(groups[b]) - derniereEntree(groups[a]))
-    .forEach((immat) => {
-      const group = groups[immat];
-      const enGarage = group.filter((x) => !x.dateRetour).length;
-      const g0 = group[0];
-      page.appendChild(
-        groupHeader(
-          `🚗 ${immat} — ${g0.marque || ''} ${g0.modele || ''}`.trim(),
-          `${group.length} passage(s)${enGarage ? ' · au garage' : ''}`,
-          enGarage ? COLORS.orange : COLORS.green
-        )
-      );
-      renderMaintenanceEntries(page, group);
-    });
-}
-
-/** Date d'entree la plus recente d'un groupe de fiches. */
-function derniereEntree(group) {
-  return Math.max(...group.map((x) => new Date(x.dateEntree || 0).getTime() || 0));
 }
 
 /**
@@ -161,12 +137,17 @@ function fichesFiltrees(f) {
 }
 
 /**
- * Tableau recapitulatif de l'entretien, en tete de rubrique.
+ * Tableau recapitulatif de l'entretien : toute la rubrique tient dedans.
  *
  * Il reprend exactement les colonnes du fichier exporte : ce qu'on lit a
  * l'ecran est ce qu'on retrouvera dans le classeur ou le PDF, sans avoir a
- * exporter pour savoir ce que l'export dira. Le detail par vehicule, avec ses
- * interventions et ses boutons, reste dessous.
+ * exporter pour savoir ce que l'export dira.
+ *
+ * Le detail d'un passage — interventions, retour, boutons — ne s'empile plus
+ * sous le tableau : il se lit dans la fiche du vehicule, ouverte par le
+ * bouton de bout de ligne, comme dans la rubrique VEHICULES. Deroulant tout
+ * le parc a la suite, la page devenait longue de plusieurs ecrans avant
+ * qu'on ait rien pu faire.
  */
 function renderRecapitulatif(page, list) {
   const ds = dsMaintenance(list);
@@ -181,9 +162,9 @@ function renderRecapitulatif(page, list) {
 
   page.appendChild(
     dataTable(
-      ds.columns.map((c) => esc(c.label)),
-      lignes.map(({ r }) =>
-        ds.columns.map((c) => {
+      [...ds.columns.map((c) => esc(c.label)), ''],
+      lignes.map(({ r }) => [
+        ...ds.columns.map((c) => {
           const v = r[c.key];
           if (c.key === 'etat') {
             return `<span class="badge" style="background:${v === 'Au garage' ? COLORS.orange : COLORS.green}">${esc(v)}</span>`;
@@ -191,10 +172,20 @@ function renderRecapitulatif(page, list) {
           if (c.key === 'cout') return `<span style="display:block;text-align:right"><b>${fmt(v)} F</b></span>`;
           if (aDroite.has(c.key)) return `<span style="display:block;text-align:right">${v === '' ? '—' : fmt(v)}</span>`;
           return escLignes(v === undefined || v === null ? '' : v);
-        })
-      ),
+        }),
+        `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>`
+      ]),
       (tr, i) => {
-        tr.dataset.search = norm(Object.values(lignes[i].r).join(' '));
+        const { r, m } = lignes[i];
+        tr.dataset.search = norm(Object.values(r).join(' '));
+        tr.querySelector('[data-sheet]').onclick = () => {
+          // L'immatriculation est obligatoire a la saisie : seule une fiche
+          // reprise d'une version ancienne peut en manquer. Elle n'a pas de
+          // fiche vehicule ou aller — on ouvre la sienne, pour qu'elle reste
+          // atteignable et qu'on puisse lui rendre sa plaque.
+          if (m.immat) openVehicleSheet(m.immat);
+          else openFicheForm(m);
+        };
       }
     )
   );
