@@ -41,7 +41,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
   - *Tableau de suivi des missions* : toutes les missions en tableau, avec les informations du formulaire, plus le nombre de missions et le cumul des jours de chaque conducteur. Le **nombre de jours inclut le jour de départ** : partir et revenir le même jour fait une mission d'un jour, du 1<sup>er</sup> au 3 septembre en fait trois. La **référence suit l'ordre des départs** (voir ci-dessous). Un bandeau **tour de rôle** indique quel conducteur du pool doit partir ensuite (celui qui n'est jamais parti, puis celui dont la dernière mission est la plus ancienne). **Seuls les conducteurs du pool y figurent** : ils sont les seuls autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur du pool » de sa fiche, dans UTILISATEURS.
   - *Rapport de mission* : la liste des rapports en tableau (conducteur, immatriculation, période, destination), chacun ouvrable par le bouton « Voir ». Le bouton « Remplir le rapport » reste visible sous la liste. Le document reprend le formulaire papier du PDU — participants, dotation en carburant et points de ravitaillement, kilométrage départ/arrivée, observations — et s'imprime ou s'exporte en PDF à l'identique.
 - **Entretien** — la rubrique tient dans un **tableau récapitulatif**, avec exactement les colonnes du fichier exporté, une ligne par passage au garage. Le détail — interventions, retour, boutons d'action — s'ouvre par le bouton **« Fiche »** en bout de ligne, qui mène à la fiche du véhicule, **comme dans VÉHICULES**. Entrée au garage, interventions successives, retour, durée d'immobilisation. Marque et modèle repris des listes de VÉHICULES. Dates et kilométrages incohérents refusés. **Motif / problème** et **Observation du conducteur** s'écrivent en lignes tiretées (voir ci-dessous).
-- **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage.
+- **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage, et toutes les **photos et documents** qui la concernent, d'où qu'ils viennent.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 
 ### Carte carburant et soldes
@@ -227,6 +227,37 @@ Chaque voyant est **cliquable** et ouvre la fiche du véhicule. Au-delà de cinq
 
 Sur un **écran étroit**, une immatriculation par voyant ne tient pas : le bandeau donne alors le **nombre par couleur** (« 🛢️ 2 », « 🔧 1 »), et le titre de la rubrique s'efface le temps de l'alerte — l'onglet actif dit déjà où l'on est. Pour qui a demandé **moins d'animation** dans son système, le voyant ne clignote pas : il porte un liseré à la place.
 
+### Photos et documents
+
+Cinq formulaires acceptent des images **JPEG et PNG** : véhicules, utilisateurs, entretien, dotation et rapport de mission. Vignettes, agrandissement au clic, retrait. La **fiche véhicule** rassemble ensuite toutes celles qui la concernent — la sienne, celles de ses passages au garage, celles de ses prises de carburant — chacune disant d'où elle vient.
+
+| Rubrique | Ce qu'on y met en général |
+| --- | --- |
+| Véhicules | Photo du véhicule, carte grise, assurance, visite technique |
+| Entretien | Avarie à l'entrée, facture du garage, pièce remplacée |
+| Utilisateurs | Photo de l'agent, permis de conduire |
+| Dotation | Reçu de la station, ticket de la carte carburant |
+| Rapport de mission | Ordre de mission signé, justificatifs de frais |
+
+**Les images ne sont pas dans la base**, et c'est délibéré. La base est un seul fichier réécrit en entier à chaque saisie, et sur le web elle tient dans un stockage limité à quelques méga-octets. Deux photos par fiche y feraient une quinzaine de méga-octets : **la version web et l'APK cesseraient d'enregistrer**. Les octets vivent donc à côté — un dossier `images/` sur le bureau, IndexedDB dans le navigateur — et la fiche ne retient qu'un identifiant.
+
+Chaque image est **ramenée à 1 600 px en JPEG** à l'import : une photo de téléphone de 3 Mo tombe à une trentaine de kilo-octets sans qu'une carte grise cesse d'être déchiffrable. Un PNG transparent reçoit un fond blanc, sans quoi il virerait au noir.
+
+Une image est écrite dès qu'on la choisit, avant même de valider le formulaire — pour que la vignette apparaisse tout de suite. Annuler laisse donc quelques octets orphelins, balayés au démarrage suivant.
+
+### Sauvegarde automatique
+
+La copie `pdu-parc-auto.backup.json` du poste est **écrasée à chaque enregistrement** : elle protège d'une écriture interrompue, pas d'une erreur remarquée le lendemain, et elle est sur le même disque que l'original.
+
+**Réglages → Sauvegarde automatique** ouvre un second filet : une **copie datée par jour** dans le dossier que vous désignez — clé USB, disque réseau, dossier synchronisé.
+
+- Le fichier du jour est réécrit tant que la journée dure ; **celui de la veille reste intact**.
+- Au-delà du nombre conservé (30 par défaut), la plus ancienne s'en va.
+- Les **images sont recopiées à côté**, en miroir : une image ne changeant jamais, les trente copies partagent un seul jeu au lieu de le dupliquer trente fois. Rien n'y est effacé — une sauvegarde doit survivre à une suppression, y compris regrettée.
+- Une clé débranchée **ne fait jamais échouer un enregistrement** : la copie vient après l'écriture qui compte, et l'échec s'affiche dans la rubrique.
+
+L'**export manuel** produit désormais une **archive `.zip`** contenant les données et les images. Les anciennes sauvegardes `.json` restent restaurables : une restauration ne doit pas dépendre de la version qui l'a produite.
+
 ### Aperçu avant export
 
 Tout export — Excel comme PDF, depuis n’importe quelle rubrique — ouvre d’abord une fenêtre d’aperçu. Rien n’est écrit sur le disque tant que « Enregistrer » n’a pas été confirmé : une erreur de filtre ou de période se voit à l’écran plutôt que dans un fichier déjà transmis.
@@ -340,6 +371,6 @@ Rien n'est perdu : le commit `33713ed` le contient en entier, et la commande ci-
 
 ## 7. Limites connues
 
-- **Les données sont locales à ce poste.** Aucun partage automatique entre postes ; l'échange se fait par sauvegarde `.json`. C'est le choix assumé de cette version.
-- **Aucune sauvegarde automatique hors du poste.** Si le disque tombe, les données tombent avec lui. Exportez régulièrement une sauvegarde vers un autre support.
+- **Les données sont locales à ce poste.** Aucun partage automatique entre postes ; l'échange se fait par sauvegarde. C'est le choix assumé de cette version.
 - **L'exécutable n'est pas signé** (voir §5).
+- **La sauvegarde automatique n'existe que sur le bureau.** Le navigateur et l'APK n'ont pas accès à un dossier du disque ; ils s'en remettent à l'export manuel.

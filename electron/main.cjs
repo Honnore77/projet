@@ -331,7 +331,8 @@ function filtersFor(filename) {
   const known = {
     xlsx: { name: 'Classeur Excel', extensions: ['xlsx'] },
     pdf: { name: 'Document PDF', extensions: ['pdf'] },
-    json: { name: 'Sauvegarde PDU', extensions: ['json'] }
+    json: { name: 'Sauvegarde PDU (ancien format)', extensions: ['json'] },
+    zip: { name: 'Sauvegarde PDU (données et images)', extensions: ['zip'] }
   };
   return [known[ext] || { name: 'Fichier', extensions: [ext || '*'] }];
 }
