@@ -50,7 +50,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "signAndEditExecutable": false
     },
     "portable": {
       "artifactName": "PDU-Parc-Auto-${version}.exe"

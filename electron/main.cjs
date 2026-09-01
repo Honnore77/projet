@@ -31,7 +31,15 @@ function createWindow() {
     show: false,
     backgroundColor: '#F5F7F8',
     title: 'PDU Parc Auto',
-    icon: path.join(__dirname, '..', 'resources', 'static', 'icons', 'icon-512.png'),
+    // L'icone de la fenetre — donc celle de la barre des taches — doit venir
+    // d'un chemin reellement empaquete. « resources/static » ne l'est pas :
+    // seuls « public/app » et « electron » le sont, et Vite y recopie les
+    // icones. Pointer ailleurs ne provoque aucune erreur, la fenetre retombe
+    // simplement sur l'icone du binaire, ce qui donnait l'atome d'Electron.
+    // Le .ico est prefere sous Windows : il porte les petites tailles
+    // dessinees a la main, la barre des taches en affiche une de 32 px.
+    icon: path.join(__dirname, '..', 'public', 'app', 'icons',
+      process.platform === 'win32' ? 'icon.ico' : 'icon-512.png'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
