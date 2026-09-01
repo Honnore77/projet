@@ -34,3 +34,10 @@ auth.json
 Thumbs.db
 .phpunit.result.cache
 /.vite
+
+# Construction Android (regeneree par « npx cap sync » puis gradlew)
+/android/build
+/android/app/build
+/android/.gradle
+/android/local.properties
+/android/capacitor-cordova-android-plugins

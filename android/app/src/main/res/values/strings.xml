@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">PDU Parc Auto</string>
+    <string name="title_activity_main">PDU Parc Auto</string>
+    <string name="package_name">ci.pdu.parcauto</string>
+    <string name="custom_url_scheme">ci.pdu.parcauto</string>
+</resources>

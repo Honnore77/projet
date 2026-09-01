@@ -16,12 +16,15 @@
     "dist:win": "npm run build && electron-builder --win portable"
   },
   "dependencies": {
+    "@capacitor/android": "^8.5.1",
+    "@capacitor/core": "^8.5.1",
     "chart.js": "^4.4.7",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
     "xlsx-js-style": "^1.2.0"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.1",
     "concurrently": "^9.1.2",
     "electron": "^33.3.1",
     "electron-builder": "^25.1.8",
