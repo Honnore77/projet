@@ -1,0 +1,11 @@
+{
+  "appId": "ci.pdu.parcauto",
+  "appName": "PDU Parc Auto",
+  "webDir": "public/app",
+  "android": {
+    "allowMixedContent": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}
