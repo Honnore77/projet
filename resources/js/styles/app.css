@@ -4,6 +4,9 @@
 :root{
   --green:#008A3B; --green-dark:#006B2E; --green-soft:#E6F4EC;
   --orange:#F47B20; --blue:#1976D2; --red:#D32F2F; --purple:#6A3CB4;
+  /* Jaune du premier palier du voyant de vidange. Assez sombre pour porter
+     du texte fonce sans que le contraste tombe sous le lisible. */
+  --yellow:#F2C200;
   --bg:#F5F7F8; --text:#17313B; --muted:#5b7178; --line:#dbe3e4;
   --white:#ffffff; --shadow:0 1px 3px rgba(0,0,0,.08);
   --shadow-lg:0 10px 40px rgba(0,0,0,.18);
@@ -119,8 +122,38 @@ input,select,textarea{font-family:inherit;}
 header.top{display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--white);
   box-shadow:0 1px 4px rgba(0,0,0,.06);flex-shrink:0;}
 header.top img{height:36px;width:auto;}
-header.top h2{flex:1;font-size:16px;font-weight:700;color:var(--green);margin:0;letter-spacing:.2px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+header.top h2{flex:0 1 auto;min-width:0;font-size:16px;font-weight:700;color:var(--green);margin:0;
+  letter-spacing:.2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+
+/* Bandeau d'alerte, au centre de la ligne du logo.
+   Il occupe la place que prenait le titre : vide, la barre est exactement
+   celle d'avant ; plein, les voyants se posent au milieu sans rien pousser. */
+/* « safe center » centre tant que les voyants tiennent, puis bascule a gauche
+   des qu'ils debordent. Un centrage simple rognerait les deux extremites, et
+   l'immatriculation partirait avec — une alerte coupee ne previent plus. */
+.alertBar{flex:1 1 auto;min-width:0;display:flex;justify-content:safe center;align-items:center;
+  gap:6px;flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;}
+.alertBar::-webkit-scrollbar{display:none;}
+.voyant{display:inline-flex;align-items:center;gap:5px;border:none;border-radius:999px;
+  padding:5px 10px;font-size:11.5px;font-weight:700;line-height:1.15;white-space:nowrap;
+  color:#fff;cursor:pointer;font-family:inherit;}
+.voyant b{font-weight:800;letter-spacing:.2px;}
+.voyant.jaune{background:var(--yellow);color:#4a3a00;}
+.voyant.orange{background:var(--orange);}
+.voyant.rouge{background:var(--red);}
+/* Un vehicule au garage n'est pas une urgence qui se compte en kilometres :
+   il garde une teinte neutre, pour que le jaune, l'orange et le rouge ne
+   veuillent dire qu'une seule chose — l'echeance de vidange. */
+.voyant.garage{background:var(--muted);}
+.voyant.autres{background:var(--line);color:var(--text);}
+.voyant.clignote{animation:voyantClignote 1.15s ease-in-out infinite;}
+@keyframes voyantClignote{0%,100%{opacity:1;}50%{opacity:.28;}}
+/* Un clignotement permanent est penible, voire risque, pour qui a demande
+   moins d'animation : le voyant reste alors fixe, cercle d'un liseré qui le
+   distingue quand meme des autres. */
+@media (prefers-reduced-motion:reduce){
+  .voyant.clignote{animation:none;box-shadow:0 0 0 2px rgba(23,49,59,.35);}
+}
 .userChip{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;margin-right:2px;}
 .userChip b{font-size:12.5px;}
 .userChip span{font-size:10px;color:#fff;padding:2px 7px;border-radius:7px;font-weight:700;letter-spacing:.3px;}
@@ -141,6 +174,12 @@ header.top h2{flex:1;font-size:16px;font-weight:700;color:var(--green);margin:0;
 @media (max-width:459px){
   header.top .userChip{display:none;}
   header.top img{max-width:96px;object-fit:contain;object-position:left;}
+  /* Le titre ne cede la place que s'il y a reellement quelque chose a
+     signaler : sans alerte, la barre reste celle qu'on connait. */
+  header.top.hasAlerts h2{display:none;}
+}
+@media (max-width:820px){
+  .voyant{padding:4px 8px;font-size:10.5px;gap:4px;}
 }
 
 .searchWrap{padding:10px 12px 6px;flex-shrink:0;}
@@ -257,7 +296,9 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 .fRow input:focus,.fRow select:focus,.fRow textarea:focus{border-color:var(--green);box-shadow:0 0 0 3px rgba(0,138,59,.1);}
 .fRow textarea{min-height:70px;resize:vertical;}
 .fRow .hint{font-size:11px;color:var(--muted);}
-.fRow.readonly input{background:#f2f6f6;color:var(--muted);}
+.fRow.readonly input,.fRow.readonly textarea{background:#f2f6f6;color:var(--muted);}
+/* Champ calcule ou releve ailleurs : il se lit, il ne se saisit pas. */
+.fRow input[readonly],.fRow textarea[readonly]{background:#f2f6f6;color:var(--muted);}
 
 .modalBack{position:fixed;inset:0;background:rgba(12,32,40,.55);display:flex;align-items:flex-end;
   justify-content:center;z-index:100;padding:0;animation:fadeIn .16s ease;}

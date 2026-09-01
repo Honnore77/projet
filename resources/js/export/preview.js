@@ -13,7 +13,7 @@
    =================================================================== */
 
 import { saveFile, isDesktop } from '../core/storage.js';
-import { esc, el, fmt, mentionLieuDate } from '../core/utils.js';
+import { esc, escLignes, el, fmt, mentionLieuDate } from '../core/utils.js';
 import { DB } from '../core/db.js';
 import { openModal, toast } from '../ui/components.js';
 
@@ -122,7 +122,10 @@ function tablesNode(datasets) {
                       return '<td class="celluleManquante">non renseignée</td>';
                     }
                     const nombre = typeof v === 'number';
-                    return `<td${nombre ? ' style="text-align:right"' : ''}>${esc(nombre ? fmt(v) : v === undefined || v === null ? '' : v)}</td>`;
+                    // Telephone, motif d'entretien, observation du retour :
+                    // plusieurs lignes dans une cellule. Ecrasees ici, elles
+                    // ne diraient plus ce que le fichier dira.
+                    return `<td${nombre ? ' style="text-align:right"' : ''}>${nombre ? esc(fmt(v)) : escLignes(v === undefined || v === null ? '' : v)}</td>`;
                   })
                   .join('') +
                 '</tr>'

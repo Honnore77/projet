@@ -8,9 +8,12 @@
                           consultable par le bouton « Voir »
    =================================================================== */
 
-import { DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, ravMontant, joursMission } from '../../core/db.js';
+import {
+  DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs,
+  ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist
+} from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
   statTile, dataTable, groupHeader, subEmpty, COLORS
@@ -43,7 +46,7 @@ function renderSuivi(page) {
   page.appendChild(
     card(
       'TABLEAU DE SUIVI DES MISSIONS',
-      'Toutes les missions enregistrées, avec le nombre de missions et le cumul des jours de chaque conducteur.',
+      'Toutes les missions enregistrées, avec le nombre de missions et le cumul des jours de chaque conducteur. Les références suivent l’ordre des départs : la mission partie le plus tôt porte M-001.',
       COLORS.purple
     )
   );
@@ -76,7 +79,7 @@ function renderSuivi(page) {
   }
 
   const headers = [
-    'Référence', 'Conducteur', 'Nb missions<br>du conducteur', 'Véhicule', 'Destination', 'Objet',
+    'Référence', 'Conducteur', 'Nb missions<br>du conducteur', 'Véhicule', 'Destination',
     'Départ', 'Retour', 'Jours', 'Cumul jours<br>du conducteur', 'Frais', 'Paiement', ''
   ];
 
@@ -93,7 +96,6 @@ function renderSuivi(page) {
       `<span style="display:block;text-align:center">${g.length}</span>`,
       m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>` : '',
       esc(m.destination || ''),
-      esc(m.objet || ''),
       esc(dateFR(m.dateDepart) || ''),
       esc(dateFR(m.dateRetour) || ''),
       `<span style="display:block;text-align:center">${esc(m.jours === '' || m.jours === undefined ? '—' : m.jours)}</span>`,
@@ -110,7 +112,7 @@ function renderSuivi(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const m = list[i];
-      tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule} ${m.objet || ''}`);
+      tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule}`);
 
       const vehLink = tr.querySelector('[data-veh]');
       if (vehLink) vehLink.onclick = (ev) => { ev.preventDefault(); openVehicleSheet(m.vehicule); };
@@ -126,6 +128,7 @@ function renderSuivi(page) {
         del.onclick = async () => {
           if (!(await confirmDialog({ title: 'Supprimer la mission', message: `Supprimer la mission ${m.ref} (${m.conducteur}) ?`, okLabel: 'Supprimer', danger: true }))) return;
           remove('missions', m.id);
+          if (renumeroterMissions()) persist();
           toast('Mission supprimée.', 'ok');
           rerender();
         };
@@ -139,13 +142,17 @@ function renderRotation(page) {
   const rot = rotationConducteurs();
   if (!rot.length) {
     page.appendChild(
-      emptyState('Aucun conducteur actif. Renseignez les agents dans UTILISATEURS et indiquez « conducteur du pool ».')
+      emptyState(
+        'Aucun conducteur du pool. Le tour de rôle ne retient que les agents actifs marqués ' +
+        '« conducteur du pool » dans UTILISATEURS : ce sont les seuls autorisés à conduire les ' +
+        'véhicules de mission.'
+      )
     );
     return;
   }
 
   page.appendChild(
-    groupHeader(`🔁 TOUR DE RÔLE — prochain : ${rot[0].nom || '—'}`, `${rot.length} conducteur(s)`, COLORS.purple)
+    groupHeader(`🔁 TOUR DE RÔLE — prochain : ${rot[0].nom || '—'}`, `${rot.length} conducteur(s) du pool`, COLORS.purple)
   );
 
   const wrap = el('<div class="entry"></div>');
@@ -162,9 +169,9 @@ function renderRotation(page) {
       )
       .join('') +
     '</div>' +
-    (rot[0].marque
-      ? ''
-      : '<div class="fields"><small>Aucun agent n’est marqué « conducteur du pool » : la liste reprend donc tous les agents actifs.</small></div>');
+    '<div class="fields"><small>Seuls les conducteurs du pool figurent ici : ils sont les seuls ' +
+    'autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur ' +
+    'du pool » de sa fiche, dans UTILISATEURS.</small></div>';
   page.appendChild(wrap);
 }
 
@@ -330,6 +337,66 @@ function openRapportVue(m) {
   });
 }
 
+/**
+ * Champ « Prix du litre » du bloc ravitaillement : liste des prix regles dans
+ * REGLAGES, avec une derniere entree qui rend la saisie libre.
+ *
+ * Le bloc est monte a la main dans la modale, il ne passe pas par le
+ * formulaire declaratif : ce petit couple de fonctions lui rend le meme
+ * service que `selectAdd` rend aux champs ordinaires.
+ */
+function champPrixHtml() {
+  const prix = prixLitreOptions();
+  return (
+    '<select data-rprix>' +
+    '<option value="">— choisir —</option>' +
+    prix.map((p) => `<option value="${esc(p)}">${esc(fmt(p))} F</option>`).join('') +
+    '<option value="__autre__">+ Autre prix</option>' +
+    '</select>'
+  );
+}
+
+/**
+ * Bascule la liste des prix en saisie libre sur « + Autre prix », et revient
+ * a la liste par « ↩ ».
+ *
+ * Le bouton de retour n'est pas un ornement : sans lui, un clic de trop
+ * enferme dans la saisie libre pour tout le reste du rapport. C'est le geste
+ * qu'offrent deja les autres listes ouvertes de l'application (marque,
+ * modele, couleur, prix de la dotation) — celle-ci ne va pas s'en distinguer.
+ */
+function cablerPrix(bloc) {
+  const select = bloc.querySelector('select[data-rprix]');
+  if (!select) return;
+  select.addEventListener('change', () => {
+    if (select.value !== '__autre__') return;
+
+    const zone = el('<div class="addField"></div>');
+    const saisie = el('<input type="number" step="any" data-rprix placeholder="Prix du litre">');
+    const retour = el('<button type="button" class="miniBtn addBack" title="Revenir à la liste">↩</button>');
+    zone.appendChild(saisie);
+    zone.appendChild(retour);
+
+    select.replaceWith(zone);
+    saisie.focus();
+
+    retour.onclick = () => {
+      select.value = '';
+      zone.replaceWith(select);
+      cablerPrix(bloc);
+      select.focus();
+    };
+
+    // Le prix saisi rejoint la liste : on le retrouve si l'on repasse par « ↩ ».
+    saisie.addEventListener('change', () => {
+      const v = saisie.value.trim();
+      if (v && ![...select.options].some((o) => o.value === v)) {
+        select.insertBefore(el(`<option value="${esc(v)}">${esc(fmt(v))} F</option>`), select.lastElementChild);
+      }
+    });
+  });
+}
+
 /** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
 function openRapportForm(m) {
   const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
@@ -360,7 +427,7 @@ function openRapportForm(m) {
         '<div class="fGrid" style="margin-top:8px">' +
         '<div class="fRow"><label>Date</label><input type="date" data-rdate></div>' +
         '<div class="fRow"><label>Point de ravitaillement</label><input data-rstation></div>' +
-        '<div class="fRow"><label>Prix du litre</label><input type="number" step="any" data-rprix></div>' +
+        '<div class="fRow"><label>Prix du litre</label>' + champPrixHtml() + '</div>' +
         '<div class="fRow"><label>Quantité (L)</label><input type="number" step="any" data-rqte></div>' +
         '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
         '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>TOTAL</b></span><b data-rtotal>0 L — 0 F</b></div></div>'
@@ -368,6 +435,7 @@ function openRapportForm(m) {
 
       const liste = bloc.querySelector('[data-ravlist]');
       const total = bloc.querySelector('[data-rtotal]');
+      cablerPrix(bloc);
 
       const dessiner = () => {
         liste.innerHTML = rav.length
@@ -390,7 +458,7 @@ function openRapportForm(m) {
       bloc.querySelector('[data-radd]').onclick = () => {
         const station = bloc.querySelector('[data-rstation]').value.trim();
         const quantite = num(bloc.querySelector('[data-rqte]').value);
-        const prixL = num(bloc.querySelector('[data-rprix]').value);
+        const prixL = francSup(bloc.querySelector('[data-rprix]').value);
         if (!station || quantite <= 0) {
           toast('Renseignez le point de ravitaillement et une quantité valide.', 'err');
           return;
@@ -398,7 +466,6 @@ function openRapportForm(m) {
         rav.push({ date: bloc.querySelector('[data-rdate]').value, station, quantite, prixL });
         bloc.querySelector('[data-rstation]').value = '';
         bloc.querySelector('[data-rqte]').value = '';
-        bloc.querySelector('[data-rprix]').value = '';
         dessiner();
       };
 
@@ -407,7 +474,7 @@ function openRapportForm(m) {
     onSubmit: (v) => {
       update('missions', m.id, {
         participants: [v.participant1, v.participant2, v.participant3, v.participant4].filter(Boolean),
-        dotationCarburant: num(v.dotationCarburant),
+        dotationCarburant: francSup(v.dotationCarburant),
         kmDepart: v.kmDepart,
         kmArrivee: v.kmArrivee,
         ravitaillements: rav,
@@ -449,17 +516,26 @@ function filtered() {
   if (f.dateTo) list = list.filter((m) => !m.dateDepart || m.dateDepart <= f.dateTo);
   if (f.paiement === 'oui') list = list.filter((m) => m.paye);
   if (f.paiement === 'non') list = list.filter((m) => !m.paye);
-  list.sort((a, b) => String(b.dateDepart).localeCompare(String(a.dateDepart)));
+  // Depart le plus recent en tete. A date egale, on departage par la
+  // reference : elle suit l'ordre des departs, la colonne se lit donc de
+  // haut en bas sans rupture.
+  list.sort((a, b) => {
+    const parDate = String(b.dateDepart).localeCompare(String(a.dateDepart));
+    return parDate !== 0 ? parDate : String(b.ref).localeCompare(String(a.ref));
+  });
   return list;
 }
 
 function missionFields(m = {}) {
   return [
-    { key: 'ref', label: 'Référence (ex : M-002)', required: true, value: m.ref || suggestRef() },
+    // La reference dit le rang chronologique de la mission : elle se deduit
+    // de la date de depart et se recalcule a chaque enregistrement. La saisir
+    // a la main reviendrait a pouvoir la mettre en desaccord avec le tableau.
+    { key: 'ref', label: 'Référence', type: 'static', value: m.ref || '',
+      hint: 'Attribuée selon la date de départ — la plus ancienne porte M-001' },
     { key: 'conducteur', label: 'Conducteur', required: true, value: m.conducteur, list: conducteursProposes() },
     { key: 'vehicule', label: 'Véhicule (immatriculation)', value: m.vehicule, list: knownImmats() },
     { key: 'destination', label: 'Destination', value: m.destination },
-    { key: 'objet', label: 'Objet de la mission', full: true, value: m.objet },
     { key: 'dateDepart', label: 'Date départ', type: 'date', value: m.dateDepart || todayISO() },
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
     { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
@@ -475,15 +551,6 @@ function conducteursProposes() {
   return [...rot, ...autres];
 }
 
-function suggestRef() {
-  const nums = DB.missions
-    .map((m) => /(\d+)\s*$/.exec(String(m.ref || '')))
-    .filter(Boolean)
-    .map((x) => Number(x[1]));
-  const next = (nums.length ? Math.max(...nums) : 0) + 1;
-  return `M-${String(next).padStart(3, '0')}`;
-}
-
 export function openMissionForm(m) {
   const isEdit = !!m;
   const rot = rotationConducteurs();
@@ -496,36 +563,54 @@ export function openMissionForm(m) {
       const j = joursMission(values.dateDepart, values.dateRetour);
       const node = scope.querySelector('[data-key="jours"]');
       if (node) node.value = j === null || j < 1 ? '—' : `${j} j`;
+
+      // La reference se lit avant d'enregistrer : c'est le rang qu'occupera
+      // cette mission une fois les departs remis dans l'ordre.
+      const ref = scope.querySelector('[data-key="ref"]');
+      if (ref) ref.value = refPrevue(values.dateDepart, m);
     },
     onSubmit: (values) => {
       const jours = joursMission(values.dateDepart, values.dateRetour);
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
-      const doublon = DB.missions.find((x) => x.id !== (m && m.id) && norm(x.ref) === norm(values.ref));
-      if (doublon) return `La référence ${values.ref} existe déjà.`;
 
       const payload = {
-        ref: values.ref,
         conducteur: values.conducteur,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
         destination: values.destination,
-        objet: values.objet,
         dateDepart: values.dateDepart,
         dateRetour: values.dateRetour,
         jours: jours === null ? '' : jours,
-        montant: num(values.montant)
+        montant: francSup(values.montant)
       };
       if (isEdit) update('missions', m.id, payload);
       else {
         insert('missions', Object.assign(
-          { paye: false, datePaiement: '', participants: [], ravitaillements: [], kmDepart: '', kmArrivee: '', observations: '' },
+          { ref: '', paye: false, datePaiement: '', participants: [], ravitaillements: [], kmDepart: '', kmArrivee: '', observations: '' },
           payload
         ));
       }
+      // Une mission ajoutee ou redatee decale toutes celles qui la suivent :
+      // les references se recalculent d'un bloc plutot que de figer un rang
+      // que le tableau contredirait ensuite.
+      if (renumeroterMissions()) persist();
       toast(isEdit ? 'Mission mise à jour.' : 'Mission enregistrée.', 'ok');
       rerender();
       return null;
     }
   });
+}
+
+/**
+ * Reference qu'aura la mission pour une date de depart donnee : son rang
+ * parmi les departs deja enregistres, la mission en cours de modification
+ * mise a part.
+ */
+function refPrevue(dateDepart, mission) {
+  if (!dateDepart) return `M-${String(DB.missions.length + (mission ? 0 : 1)).padStart(3, '0')} (sans date)`;
+  const avant = DB.missions.filter(
+    (x) => x.id !== (mission && mission.id) && x.dateDepart && x.dateDepart <= dateDepart
+  ).length;
+  return `M-${String(avant + 1).padStart(3, '0')}`;
 }
 
 function openPaymentForm(m) {
@@ -543,7 +628,7 @@ function openPaymentForm(m) {
         paye: true,
         datePaiement: dateFR(values.datePaiement),
         datePaiementISO: values.datePaiement,
-        montant: num(values.montant),
+        montant: francSup(values.montant),
         referencePaiement: values.referencePaiement
       });
       toast('Mission marquée comme payée.', 'ok');

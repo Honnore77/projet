@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -13,6 +13,14 @@ import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
  * valeur manque, pour qu'un trou se voie dans le fichier transmis.
  */
 const C = (key, label, width, opts) => Object.assign({ key, label, width }, opts);
+
+/**
+ * Nombre a exporter, ou cellule vide quand la valeur n'a pas ete relevee.
+ *
+ * `num()` rendrait zero, ce qui se lit comme un compteur a zero : un vehicule
+ * encore au garage afficherait « Km sortie : 0 » au lieu de ne rien afficher.
+ */
+const nombreOuVide = (v) => (v === '' || v === undefined || v === null ? '' : num(v));
 
 /** Libelles du suivi de vidange, tels qu'ils paraissent dans les exports. */
 const LIBELLE_VIDANGE = {
@@ -59,7 +67,7 @@ export function dsVehicles(list = allVehicles()) {
       section: v.section || '',
       utilisateur: v.utilisateur || '',
       statut: v.statut || '',
-      km: num(v.km),
+      km: kmCourant(v),
       kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
       vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
       vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut]
@@ -79,7 +87,8 @@ export function dsUsers(list = DB.users) {
       C('section', 'Section', 20),
       C('statut', 'Statut', 12),
       C('poolConducteur', 'Conducteur du pool', 14),
-      C('telephone', 'Téléphone', 14),
+      C('telephone', 'Téléphone', 22),
+      C('email', 'Adresse email', 24),
       C('permis', 'N° de permis', 14),
       C('nbIncidents', 'Nb incidents', 12),
       C('dernierIncident', 'Dernier incident', 18),
@@ -96,6 +105,7 @@ export function dsUsers(list = DB.users) {
         statut: u.statut || '',
         poolConducteur: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
         telephone: u.telephone || '',
+        email: u.email || '',
         permis: u.permis || '',
         nbIncidents: h.length,
         dernierIncident: last ? `${dateFR(last.date)} — ${last.nature || ''}` : '',
@@ -377,7 +387,7 @@ export function dsMaintenance(list = DB.maintenance) {
         marque: m.marque || '',
         modele: m.modele || '',
         dateEntree: dateFR(m.dateEntree),
-        kmEntree: num(m.kmEntree),
+        kmEntree: nombreOuVide(m.kmEntree),
         conducteurEntree: m.conducteurEntree || '',
         motif: m.motif || '',
         signalePar: m.signalePar || '',
@@ -385,7 +395,7 @@ export function dsMaintenance(list = DB.maintenance) {
         travaux: iv.map((x) => x.travaux).filter(Boolean).join(' ; '),
         cout: sum(iv, (x) => x.cout),
         dateRetour: dateFR(m.dateRetour),
-        kmRetour: num(m.kmRetour),
+        kmRetour: nombreOuVide(m.kmRetour),
         duree: daysBetween(m.dateEntree, m.dateRetour) ?? '',
         etat: m.dateRetour ? 'Sorti' : 'Au garage'
       };
@@ -438,7 +448,7 @@ export function dsCoutParVehicule() {
       marque: v.marque || '',
       modele: v.modele || '',
       categorie: (v._cat || '').toUpperCase(),
-      km: num(v.km),
+      km: kmCourant(v),
       carburant: carb,
       entretien: ent,
       total: carb + ent,

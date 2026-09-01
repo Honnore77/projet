@@ -7,12 +7,12 @@ import {
   openMaintenance, valeursVehicules, MARQUES, MODELES
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy } from '../../core/utils.js';
+import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
-  statTile, groupHeader, subEmpty, COLORS
+  statTile, sectionLabel, subEmpty, dataTable, COLORS
 } from '../components.js';
-import { state, rerender } from '../shell.js';
+import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
@@ -28,7 +28,11 @@ function ficheFields(m = {}) {
     { key: 'dateEntree', label: 'Date entrée', type: 'date', required: true, value: m.dateEntree || todayISO() },
     { key: 'kmEntree', label: 'Km entrée', type: 'number', value: m.kmEntree },
     { key: 'conducteurEntree', label: 'Conducteur à l’entrée', value: m.conducteurEntree, list: knownDrivers() },
-    { key: 'motif', label: 'Motif / problème', full: true, required: true, value: m.motif },
+    // Un passage au garage cumule souvent plusieurs problemes : chacun sur sa
+    // ligne, ouverte par un tiret. Entree pose le tiret suivant.
+    { key: 'motif', label: 'Motif / problème', type: 'textarea', full: true, required: true,
+      lignesTiret: true, value: m.motif,
+      hint: 'Une ligne par problème — Entrée ouvre la suivante avec un tiret' },
     { key: 'signalePar', label: 'Signalé par', value: m.signalePar, list: knownDrivers() }
   ];
 }
@@ -49,7 +53,9 @@ function retourFields(m = {}) {
     { key: 'dateRetour', label: 'Date de sortie', type: 'date', required: true, value: m.dateRetour || todayISO() },
     { key: 'kmRetour', label: 'Km sortie', type: 'number', value: m.kmRetour },
     { key: 'conducteurRetour', label: 'Conducteur du retour', value: m.conducteurRetour, list: knownDrivers() },
-    { key: 'observationRetour', label: 'Observation du conducteur', type: 'textarea', full: true, value: m.observationRetour }
+    { key: 'observationRetour', label: 'Observation du conducteur', type: 'textarea', full: true,
+      lignesTiret: true, value: m.observationRetour,
+      hint: 'Une ligne par observation — Entrée ouvre la suivante avec un tiret' }
   ];
 }
 
@@ -57,7 +63,7 @@ export function renderMaintenance(page) {
   const f = state.filters.maintenance;
 
   page.appendChild(
-    card('ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation.', COLORS.green)
+    card('ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation. Cliquez sur « Fiche » pour voir le détail d’un véhicule et agir dessus.', COLORS.green)
   );
 
   page.appendChild(
@@ -83,11 +89,17 @@ export function renderMaintenance(page) {
   grid.appendChild(statTile('Coût total', `${fmt(totalCout)} F`, 'toutes interventions', COLORS.red));
   page.appendChild(grid);
 
+  // Le filtre commande tout ce qui suit : le recapitulatif, le detail et les
+  // exports partent de la meme liste. Un tableau qui compterait autre chose
+  // que ce qu'on lit dessous, ou un fichier qui contiendrait autre chose que
+  // ce qu'on voit a l'ecran, ne serait pas un recapitulatif.
+  const retenus = fichesFiltrees(f);
+
   page.appendChild(
     toolbar([
       canWrite() && { label: '+ Nouvelle fiche d’entretien', cls: 'addBtn', color: COLORS.green, write: true, onClick: () => openFicheForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel') },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf') }
+      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', retenus) },
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', retenus) }
     ])
   );
 
@@ -95,35 +107,89 @@ export function renderMaintenance(page) {
     page.appendChild(emptyState('Aucun véhicule enregistré au garage.'));
     return;
   }
+  if (!retenus.length) {
+    page.appendChild(emptyState('Aucun véhicule ne correspond au filtre choisi.'));
+    return;
+  }
 
+  renderRecapitulatif(page, retenus);
+}
+
+/**
+ * Fiches retenues par les filtres de la rubrique.
+ *
+ * Le tri se fait par vehicule et non fiche par fiche : demander « ceux qui
+ * sont au garage » veut dire « l'historique des vehicules qui y sont », pas
+ * « les seules fiches encore ouvertes ». On verrait sinon une immobilisation
+ * sans rien de ce qui l'a precedee.
+ */
+function fichesFiltrees(f) {
   const groups = groupBy(DB.maintenance, (m) => m.immat || '(sans immatriculation)');
-  const immats = Object.keys(groups).sort((a, b) => {
-    const la = Math.max(...groups[a].map((x) => new Date(x.dateEntree || 0).getTime() || 0));
-    const lb = Math.max(...groups[b].map((x) => new Date(x.dateEntree || 0).getTime() || 0));
-    return lb - la;
-  });
+  return Object.keys(groups)
+    .filter((immat) => {
+      const enGarage = groups[immat].filter((x) => !x.dateRetour).length;
+      if (f.etat === 'garage' && enGarage === 0) return false;
+      if (f.etat === 'sorti' && enGarage > 0) return false;
+      if (f.immat && !norm(immat).includes(norm(f.immat))) return false;
+      return true;
+    })
+    .flatMap((immat) => groups[immat]);
+}
 
-  let shown = 0;
-  immats.forEach((immat) => {
-    const group = groups[immat];
-    const enGarage = group.filter((x) => !x.dateRetour).length;
-    if (f.etat === 'garage' && enGarage === 0) return;
-    if (f.etat === 'sorti' && enGarage > 0) return;
-    if (f.immat && !norm(immat).includes(norm(f.immat))) return;
-    shown++;
+/**
+ * Tableau recapitulatif de l'entretien : toute la rubrique tient dedans.
+ *
+ * Il reprend exactement les colonnes du fichier exporte : ce qu'on lit a
+ * l'ecran est ce qu'on retrouvera dans le classeur ou le PDF, sans avoir a
+ * exporter pour savoir ce que l'export dira.
+ *
+ * Le detail d'un passage — interventions, retour, boutons — ne s'empile plus
+ * sous le tableau : il se lit dans la fiche du vehicule, ouverte par le
+ * bouton de bout de ligne, comme dans la rubrique VEHICULES. Deroulant tout
+ * le parc a la suite, la page devenait longue de plusieurs ecrans avant
+ * qu'on ait rien pu faire.
+ */
+function renderRecapitulatif(page, list) {
+  const ds = dsMaintenance(list);
+  page.appendChild(sectionLabel(`RÉCAPITULATIF DE L’ENTRETIEN (${ds.rows.length})`, COLORS.green));
 
-    const g0 = group[0];
-    page.appendChild(
-      groupHeader(
-        `🚗 ${immat} — ${g0.marque || ''} ${g0.modele || ''}`.trim(),
-        `${group.length} passage(s)${enGarage ? ' · au garage' : ''}`,
-        enGarage ? COLORS.orange : COLORS.green
-      )
-    );
-    renderMaintenanceEntries(page, group);
-  });
+  // Les lignes suivent l'ordre des entrees, la plus recente en tete.
+  const lignes = ds.rows
+    .map((r, i) => ({ r, m: list[i] }))
+    .sort((a, b) => String(b.m.dateEntree).localeCompare(String(a.m.dateEntree)));
 
-  if (!shown) page.appendChild(emptyState('Aucun véhicule ne correspond au filtre choisi.'));
+  const aDroite = new Set(['kmEntree', 'kmRetour', 'cout', 'duree']);
+
+  page.appendChild(
+    dataTable(
+      [...ds.columns.map((c) => esc(c.label)), ''],
+      lignes.map(({ r }) => [
+        ...ds.columns.map((c) => {
+          const v = r[c.key];
+          if (c.key === 'etat') {
+            return `<span class="badge" style="background:${v === 'Au garage' ? COLORS.orange : COLORS.green}">${esc(v)}</span>`;
+          }
+          if (c.key === 'cout') return `<span style="display:block;text-align:right"><b>${fmt(v)} F</b></span>`;
+          if (aDroite.has(c.key)) return `<span style="display:block;text-align:right">${v === '' ? '—' : fmt(v)}</span>`;
+          return escLignes(v === undefined || v === null ? '' : v);
+        }),
+        `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>`
+      ]),
+      (tr, i) => {
+        const { r, m } = lignes[i];
+        tr.dataset.search = norm(Object.values(r).join(' '));
+        tr.querySelector('[data-sheet]').onclick = () => {
+          // L'immatriculation est obligatoire a la saisie : seule une fiche
+          // reprise d'une version ancienne peut en manquer. Elle n'a pas de
+          // fiche vehicule ou aller — on ouvre la sienne, pour qu'elle reste
+          // atteignable et qu'on puisse lui rendre sa plaque.
+          if (m.immat) openVehicleSheet(m.immat);
+          else openFicheForm(m);
+        };
+      }
+    )
+  );
+  if (ds.note) page.appendChild(el(`<div class="empty" style="text-align:right">${esc(ds.note)}</div>`));
 }
 
 /** Rend les fiches d un groupe (reutilise par la fiche vehicule). */
@@ -163,7 +229,7 @@ export function renderMaintenanceEntries(container, group) {
         `<div class="row1"><h4>${esc(m.marque || '')} ${esc(m.modele || '')} — ${esc(m.immat)}</h4>` +
         `<span class="badge" style="background:${enCours ? COLORS.orange : COLORS.green}">${enCours ? 'Au garage' : 'Sorti'}</span></div>` +
         `<div class="meta">Entrée : ${esc(dateFR(m.dateEntree) || '—')} · Km : ${fmt(m.kmEntree)}${m.conducteurEntree ? ` · ${esc(m.conducteurEntree)}` : ''}</div>` +
-        `<div class="fields"><b>Motif :</b> ${esc(m.motif || '—')}${m.signalePar ? `<br><b>Signalé par :</b> ${esc(m.signalePar)}` : ''}</div>` +
+        `<div class="fields"><b>Motif :</b><br>${escLignes(m.motif || '—')}${m.signalePar ? `<br><b>Signalé par :</b> ${esc(m.signalePar)}` : ''}</div>` +
         `<div class="subBlock"><h5>Interventions du garage (${iv.length}) — total ${fmt(cout)} F</h5>${ivHtml}` +
         (canWrite() ? '<button class="smallBtn" data-addiv>+ Ajouter une intervention</button>' : '') +
         '</div>' +
@@ -173,7 +239,7 @@ export function renderMaintenanceEntries(container, group) {
           : `<div class="fields"><b>Retour :</b> ${esc(dateFR(m.dateRetour))} · <b>Km sortie :</b> ${fmt(m.kmRetour)}` +
             `${diffKm !== null ? ` · <b>Δ km :</b> ${fmt(diffKm)}` : ''} · <b>Durée :</b> ${duree === null ? '—' : `${duree} j`}` +
             `${m.conducteurRetour ? `<br><b>Repris par :</b> ${esc(m.conducteurRetour)}` : ''}` +
-            `${m.observationRetour ? `<br><b>Observation :</b> ${esc(m.observationRetour)}` : ''}</div>`) +
+            `${m.observationRetour ? `<br><b>Observation :</b><br>${escLignes(m.observationRetour)}` : ''}</div>`) +
         '<div class="actions">' +
         (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier la fiche</button>` : '') +
         (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
@@ -275,7 +341,7 @@ function openInterventionForm(m, iv) {
     fields: interventionFields(iv || {}),
     okLabel: isEdit ? 'Enregistrer' : 'Ajouter l’intervention',
     onSubmit: (values) => {
-      const payload = Object.assign({}, values, { cout: num(values.cout) });
+      const payload = Object.assign({}, values, { cout: francSup(values.cout) });
       if (isEdit) Object.assign(iv, payload);
       else {
         m.interventions = m.interventions || [];
@@ -310,9 +376,9 @@ function openRetourForm(m) {
   });
 }
 
-async function doExport(kind) {
+async function doExport(kind, list = DB.maintenance) {
   try {
-    const datasets = [dsMaintenance(), dsInterventions()];
+    const datasets = [dsMaintenance(list), dsInterventions(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_entretien')
       : await exportPdf(datasets, 'PDU_entretien', { title: 'Entretien du parc' });

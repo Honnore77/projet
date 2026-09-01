@@ -9,10 +9,11 @@
 
 import {
   DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats,
-  nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules
+  nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules,
+  lignesTelephone
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, norm, dateFR, todayISO } from '../../core/utils.js';
+import { esc, escLignes, el, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
   dataTable, openModal, subEmpty, COLORS
@@ -45,7 +46,13 @@ function userFields(u = {}) {
       value: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
       hint: 'Entre dans le tour de rôle des missions'
     },
-    { key: 'telephone', label: 'Téléphone', value: u.telephone },
+    // Trois lignes pre-inscrites : le numero de la flotte et les deux
+    // personnels. Chacun sait ainsi lequel il renseigne, et un tableau se lit
+    // de la meme facon d'une fiche a l'autre.
+    { key: 'telephone', label: 'Téléphone', type: 'textarea', full: true, rows: 3,
+      value: lignesTelephone(u.telephone),
+      hint: 'Une ligne par numéro — complétez après les deux-points' },
+    { key: 'email', label: 'Adresse email', value: u.email, full: true },
     { key: 'permis', label: 'N° de permis', value: u.permis },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: u.observations }
   ];
@@ -112,8 +119,8 @@ export function renderUsers(page) {
 
   const headers = [
     'Nom', 'Prénoms', 'Fonction au PDU', 'Section', 'Statut',
-    'Conducteur<br>du pool', 'Véhicule(s)<br>attribué(s)', 'Téléphone', 'N° de permis',
-    'Incidents', 'Observations', ''
+    'Conducteur<br>du pool', 'Véhicule(s)<br>attribué(s)', 'Téléphone', 'Adresse email',
+    'N° de permis', 'Incidents', 'Observations', ''
   ];
 
   const rows = list.map((u) => {
@@ -128,7 +135,8 @@ export function renderUsers(page) {
       vehiculesDeLAgent(nomComplet(u))
         .map((v) => `<span class="badge" style="background:${v._cat === 'pool' ? COLORS.green : COLORS.purple}">${esc(v.immatNouvelle || v.immatAncienne || '?')}</span>`)
         .join(' ') || '<span style="color:#8aa0a6">—</span>',
-      esc(u.telephone || ''),
+      `<span style="white-space:nowrap">${escLignes(u.telephone || '')}</span>`,
+      esc(u.email || ''),
       esc(u.permis || ''),
       `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist>${hist.length} incident(s)</button>`,
       esc(u.observations || ''),
@@ -142,7 +150,7 @@ export function renderUsers(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const u = list[i];
-      tr.dataset.search = norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''}`);
+      tr.dataset.search = norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''} ${u.email || ''}`);
 
       tr.querySelector('[data-hist]').onclick = () => openHistorique(u);
 
@@ -236,6 +244,7 @@ export function openUserForm(u) {
     fields: userFields(u || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer cet utilisateur',
     onSubmit: (values) => {
+      values.telephone = lignesTelephone(values.telephone);
       if (isEdit) {
         // Le nom change ici doit changer sur les fiches vehicule : elles ne
         // retiennent qu'un nom, pas un identifiant.

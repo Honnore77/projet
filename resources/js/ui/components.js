@@ -101,7 +101,7 @@ export function infoDialog({ title = 'Information', message, html }) {
 
 /**
  * Construit le HTML d un champ.
- * field = { key, label, type, options, list, value, required, full, hint, readonly, placeholder, step }
+ * field = { key, label, type, options, list, value, required, full, hint, readonly, placeholder, step, lignesTiret }
  */
 function fieldHtml(f) {
   const id = `f_${f.key}`;
@@ -142,7 +142,9 @@ function fieldHtml(f) {
       break;
     }
     case 'textarea':
-      input = `<textarea id="${id}" data-key="${esc(f.key)}"${req}${ro}${ph}>${esc(val)}</textarea>`;
+      input =
+        `<textarea id="${id}" data-key="${esc(f.key)}"${f.lignesTiret ? ' data-tiret' : ''}` +
+        `${f.rows ? ` rows="${Number(f.rows)}"` : ''}${req}${ro}${ph}>${esc(val)}</textarea>`;
       break;
     case 'number':
       input = `<input id="${id}" data-key="${esc(f.key)}" type="number" inputmode="decimal" step="${f.step || 'any'}" value="${esc(val)}"${req}${ro}${ph}>`;
@@ -179,7 +181,58 @@ export function buildFieldsNode(fields) {
   const grid = el('<div class="fGrid"></div>');
   grid.innerHTML = fields.map(fieldHtml).join('');
   grid.querySelectorAll('select[data-add-label]').forEach(cablerAjout);
+  grid.querySelectorAll('textarea[data-tiret]').forEach(cablerTirets);
   return grid;
+}
+
+/**
+ * Champ a lignes tiretees : chaque motif, chaque observation tient sur sa
+ * ligne, ouverte par un tiret.
+ *
+ * Entree passe a la ligne suivante en posant le tiret : on enumere sans avoir
+ * a le retaper, et les fiches se lisent toutes de la meme facon plutot qu'en
+ * un paragraphe ou tout se suit. La touche reste libre — une ligne effacee le
+ * reste, et coller un texte deja redige ne le decoupe pas.
+ */
+function cablerTirets(zone) {
+  const TIRET = '- ';
+
+  zone.addEventListener('focus', () => {
+    if (!zone.value.trim()) zone.value = TIRET;
+  });
+
+  zone.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter' || e.shiftKey) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const { selectionStart: debut, selectionEnd: fin, value } = zone;
+    zone.value = `${value.slice(0, debut)}\n${TIRET}${value.slice(fin)}`;
+    zone.selectionStart = zone.selectionEnd = debut + 1 + TIRET.length;
+    zone.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+
+  // A la sortie du champ, les lignes saisies sans tiret en recoivent un : le
+  // texte colle depuis ailleurs prend la meme forme que le texte tape ici.
+  zone.addEventListener('blur', () => {
+    zone.value = normaliserLignesTiret(zone.value);
+  });
+}
+
+/**
+ * Met un texte en lignes tiretees et jette les lignes vides de la fin.
+ *
+ * Un champ ou l'on est entre sans rien ecrire ne porte que le tiret pose par
+ * le formulaire : « - » n'est pas une saisie, c'est un champ vide. La regle
+ * vaut aussi a la lecture du formulaire, et pas seulement a la sortie du
+ * champ — un enregistrement qui ne passe pas par la sortie du champ y
+ * echapperait, et un motif obligatoire se retrouverait rempli d'un tiret.
+ */
+export function normaliserLignesTiret(valeur) {
+  const lignes = String(valeur === undefined || valeur === null ? '' : valeur)
+    .split(/\r?\n/)
+    .map((l) => l.trim());
+  while (lignes.length && !lignes[lignes.length - 1].replace(/^-\s*/, '')) lignes.pop();
+  return lignes.map((l) => (l.startsWith('-') ? l : `- ${l}`)).join('\n');
 }
 
 /**
@@ -234,6 +287,7 @@ export function readFields(scope, fields) {
     // Une liste selectAdd laissee sur « + Ajouter… » ne designe aucune valeur.
     if (v === '__ajout__') v = '';
     if (f.type === 'number') v = v === '' ? '' : Number(v);
+    else if (f.lignesTiret) v = normaliserLignesTiret(v);
     else if (typeof v === 'string') v = v.trim();
     out[f.key] = v;
   });
