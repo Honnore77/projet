@@ -15,7 +15,8 @@ import {
   renommerDestinationMission, missionsVersDestination, libelleDistance,
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
   destinationsDe, texteDestinations, parcoursDe, parcoursMission, libelleParcours,
-  distanceEntre, enregistrerTrajet, cleTrajet, lienParcours, lienEtape, ORIGINE_MISSIONS
+  distanceEntre, enregistrerTrajet, cleTrajet, lienParcours, lienEtape, ORIGINE_MISSIONS,
+  totaliser, distanceSurPlace
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
@@ -297,11 +298,11 @@ function openRapportVue(m) {
       '<div class="subBlock"><h5>Mission</h5>' +
       ligne('Période', d.periode) +
       (d.etapes.length > 1
-        ? d.etapes.map((e, i) =>
-            ligne(`Destination ${i + 1}`, `${e.vers} — ${e.km === null ? '? km' : `${fmt(e.km)} km${e.estimee ? ' (estimé)' : ''}`} depuis ${e.de}`)).join('') +
-          ligne('Distance totale du parcours', d.distanceParcours)
+        ? d.etapes.map((e, i) => ligne(`Destination ${i + 1}`, `${e.vers} — ${kmEtape(e)} depuis ${e.de}`)).join('')
         : ligne('Destination', d.destination) +
-          (d.distanceParcours ? ligne('Distance depuis Abidjan', d.distanceParcours) : '')) +
+          (d.etapes.length ? ligne('Distance depuis Abidjan', kmEtape(d.etapes[0])) : '')) +
+      (d.retour ? ligne(`Retour à ${d.retour.vers}`, `${kmEtape(d.retour)} depuis ${d.retour.de}`) : '') +
+      (d.etapes.length ? ligne('Distance du parcours (aller-retour)', d.distanceParcours) : '') +
       ligne('Nom du chauffeur', d.chauffeur) +
       ligne('Véhicule utilisé', d.vehicule) +
       '</div>' +
@@ -314,7 +315,9 @@ function openRapportVue(m) {
       '<div class="subBlock"><h5>Kilométrage</h5>' +
       ligne('Km départ', d.kmDepart) +
       ligne('Km arrivée', d.kmArrivee) +
-      ligne('Distance parcourue', d.distance !== null ? `${fmt(d.distance)} km` : '') +
+      ligne('Distance parcourue (compteur)', d.distance !== null ? `${fmt(d.distance)} km` : '') +
+      ligne('Parcours calculé (aller-retour)', d.distanceParcours) +
+      ligne('Distance parcourue sur place', texteSurPlace(d.surPlace)) +
       '</div>' +
       `<div class="subBlock"><h5>Observations</h5><div class="subEntryRow"><span>${esc(d.observations || '—')}</span></div></div>` +
       '</div>'
@@ -429,7 +432,12 @@ function openRapportForm(m) {
       { key: 'dotationCarburant', label: 'Dotation en carburant (F)', type: 'number', value: m.dotationCarburant },
       { key: 'kmDepart', label: 'Km départ', type: 'number', value: m.kmDepart },
       { key: 'kmArrivee', label: 'Km arrivée', type: 'number', value: m.kmArrivee },
-      { key: 'distance', label: 'Distance parcourue', type: 'static', value: '' },
+      { key: 'distance', label: 'Distance parcourue (compteur)', type: 'static', value: '' },
+      { key: 'parcours', label: 'Parcours calculé (aller-retour)', type: 'static',
+        value: libelleParcours(parcoursMission(m)) || 'destinations sans distance',
+        hint: 'Somme des étapes, retour à Abidjan compris — voir le tableau de suivi' },
+      { key: 'surPlace', label: 'Distance parcourue sur place', type: 'static', value: '',
+        hint: 'Compteur moins parcours calculé : les déplacements à l’intérieur des destinations' },
       { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: m.observations },
       { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
         hint: 'Ordre de mission signé, justificatifs de frais' }
@@ -438,6 +446,12 @@ function openRapportForm(m) {
     onInput: (values, scope) => {
       const node = scope.querySelector('[data-key="distance"]');
       if (node) node.value = `${fmt(num(values.kmArrivee) - num(values.kmDepart))} km`;
+      const sp = scope.querySelector('[data-key="surPlace"]');
+      if (sp) {
+        const r = distanceSurPlace(Object.assign({}, m, { kmDepart: values.kmDepart, kmArrivee: values.kmArrivee }));
+        sp.value = texteSurPlace(r);
+        sp.style.color = r && r.surPlace < 0 ? COLORS.red : '';
+      }
     },
     extra: (scope) => {
       const bloc = el(
@@ -630,11 +644,12 @@ export function openMissionForm(m) {
       // c'est un trajet enregistre, repris par les missions suivantes. Le
       // tableau de suivi et le rapport de mission lisent ainsi les memes
       // chiffres que ce formulaire.
-      parcoursDe(noms).etapes.forEach((e) => {
+      const calcule = parcoursDe(noms);
+      [...calcule.etapes, ...(calcule.retour ? [calcule.retour] : [])].forEach((e) => {
         const km = saisies.get(cleTrajet(e.de, e.vers));
         if (km === undefined || km === '') return;
-        if (norm(e.de) === norm(ORIGINE_MISSIONS)) {
-          const fiche = destinationMissionParNom(e.vers);
+        if (norm(e.de) === norm(ORIGINE_MISSIONS) || norm(e.vers) === norm(ORIGINE_MISSIONS)) {
+          const fiche = destinationMissionParNom(norm(e.de) === norm(ORIGINE_MISSIONS) ? e.vers : e.de);
           if (fiche && (num(km) !== num(fiche.distanceKm) || fiche.estimee)) {
             update('destinationsMission', fiche.id, { distanceKm: num(km), estimee: false });
           }
@@ -726,9 +741,12 @@ function celluleDestinations(m) {
     return `${esc(e.vers)} ${km}` +
       (connue ? ` <a href="#" data-carte="${i}" title="Voir sur Google Maps" style="text-decoration:none">📍</a>` : '');
   });
-  if (p.etapes.length > 1) {
-    lignes.push(`<small><b>Parcours : ${esc(libelleParcours(p) || '? km')}</b></small>`);
+  if (p.etapes.length > 1 && p.retour) {
+    lignes.push(`↩ ${esc(p.retour.vers)} ` + (p.retour.km === null
+      ? `<small style="color:${COLORS.orange}">? km</small>`
+      : `<small style="color:${COLORS.purple};white-space:nowrap"><b>${p.retour.estimee ? '≈ ' : ''}${fmt(p.retour.km)} km</b> depuis ${esc(p.retour.de)}</small>`));
   }
+  if (p.etapes.length) lignes.push(`<small><b>Aller-retour : ${esc(libelleParcours(p) || '? km')}</b></small>`);
   return lignes.join('<br>');
 }
 
@@ -740,6 +758,24 @@ function cablerCarte(tr, m) {
       ouvrirLien(lienCarteDestination(destinationMissionParNom(noms[Number(lien.dataset.carte)])));
     };
   });
+}
+
+/** « 240 km », « ≈ 265 km (estimé) » ou « ? km ». */
+function kmEtape(e) {
+  return e.km === null ? '? km' : `${fmt(e.km)} km${e.estimee ? ' (estimé)' : ''}`;
+}
+
+/**
+ * Distance parcourue sur place, telle qu'elle se lit : un ecart negatif veut
+ * dire que le compteur a moins tourne que le parcours calcule — un
+ * kilometrage mal releve, ou une distance d'etape trop forte.
+ */
+function texteSurPlace(r) {
+  if (!r) return 'à calculer : km départ, km arrivée et distances des étapes requis';
+  const base = `${r.estimee ? '≈ ' : ''}${fmt(r.surPlace)} km`;
+  return r.surPlace < 0
+    ? `${base} — le compteur indique moins que le parcours : vérifiez les kilométrages ou les distances`
+    : `${base} (compteur ${fmt(r.compteur)} − parcours ${fmt(r.parcours)})`;
 }
 
 /** Les liens partent dans le navigateur du systeme (voir electron/main.cjs). */
@@ -816,14 +852,11 @@ function cablerParcours(scope, parcours, saisies) {
   /** Les etapes, avec la distance tapee a la main quand il y en a une. */
   const calcul = () => {
     const p = parcoursDe(parcours.map((e) => e.nom));
-    p.etapes.forEach((e) => {
+    [...p.etapes, ...(p.retour ? [p.retour] : [])].forEach((e) => {
       const tape = saisies.get(cleTrajet(e.de, e.vers));
       if (tape !== undefined && tape !== '') { e.km = num(tape); e.estimee = false; e.tape = true; }
     });
-    p.total = p.etapes.reduce((t, e) => t + (e.km || 0), 0);
-    p.complet = p.etapes.every((e) => e.km !== null);
-    p.estimee = p.etapes.some((e) => e.estimee);
-    return p;
+    return totaliser(p);
   };
 
   const dessiner = () => {
@@ -878,16 +911,44 @@ function cablerParcours(scope, parcours, saisies) {
     dessinerResume();
   };
 
+  // Le retour se redessine avec le total : il depend de la derniere etape.
   const dessinerResume = () => {
     const p = calcul();
     if (!p.etapes.length) { resume.innerHTML = ''; return; }
+    const r = p.retour;
+    const aFocus = document.activeElement && document.activeElement.matches && document.activeElement.matches('[data-km-retour]');
     resume.innerHTML =
-      `<div class="subEntryRow" style="border:none"><span><b>Distance totale du parcours</b>` +
-        `${p.etapes.length > 1 ? `<br><small>${p.etapes.map((e) => (e.km === null ? '?' : fmt(e.km))).join(' + ')} km</small>` : ''}` +
+      '<div class="subEntryRow" style="gap:6px;flex-wrap:wrap;align-items:center">' +
+        `<span style="flex:1 1 160px"><b>↩ Retour à ${esc(r.vers)}</b><br><small>depuis ${esc(r.de)}</small>` +
+          (r.km === null
+            ? '<br><small style="color:#b26a00">distance à renseigner — voir l’itinéraire 🧭</small>'
+            : r.estimee ? '<br><small style="color:#b26a00">distance estimée — à vérifier</small>' : '') +
+        '</span>' +
+        '<span style="display:flex;gap:4px;align-items:center">' +
+          `<input type="number" min="0" step="any" data-km-retour value="${r.km === null ? '' : esc(r.km)}" placeholder="km" ` +
+            `title="Distance de ${esc(r.de)} à ${esc(r.vers)} (km)" style="width:80px">` +
+          '<small>km</small>' +
+          `<button type="button" class="miniBtn" style="background:${COLORS.blue};padding:4px 7px" data-itin-retour title="Itinéraire ${esc(r.de)} → ${esc(r.vers)}">🧭</button>` +
+        '</span>' +
+      '</div>' +
+      `<div class="subEntryRow" style="border:none"><span><b>Distance totale du parcours (aller-retour)</b>` +
+        `<br><small>${[...p.etapes, r].map((e) => (e.km === null ? '?' : fmt(e.km))).join(' + ')} km</small>` +
       `</span><b style="color:${COLORS.purple}">${esc(libelleParcours(p) || '? km')}</b></div>` +
       `<button type="button" class="miniBtn" style="background:${COLORS.blue};margin-top:4px" data-parcours>` +
         `🧭 Parcours sur Google Maps (Abidjan → ${esc(p.etapes[p.etapes.length - 1].vers)})</button>`;
     resume.querySelector('[data-parcours]').onclick = () => ouvrirLien(lienParcours(parcours.map((e) => e.nom)));
+    resume.querySelector('[data-itin-retour]').onclick = () => ouvrirLien(lienEtape(r.de, r.vers));
+    const champRetour = resume.querySelector('[data-km-retour]');
+    // Le champ est redessine a chaque frappe (le total change) : on lui
+    // rend le curseur pour qu'on puisse continuer a taper.
+    champRetour.oninput = () => {
+      saisies.set(cleTrajet(r.de, r.vers), champRetour.value === '' ? '' : Number(champRetour.value));
+      dessinerResume();
+      const n = resume.querySelector('[data-km-retour]');
+      n.focus();
+      n.setSelectionRange && n.type === 'text' && n.setSelectionRange(n.value.length, n.value.length);
+    };
+    if (aFocus) champRetour.focus();
   };
 
   dessiner();

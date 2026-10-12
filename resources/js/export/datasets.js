@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -197,6 +197,8 @@ export function dsCarburantMissions(list = missionsAvecCarburant()) {
       C('kmDepart', 'Km départ', 12),
       C('kmRetour', 'Km retour', 12),
       C('diff', 'Distance', 11),
+      C('parcours', 'Parcours A/R (km)', 13),
+      C('surPlace', 'Sur place (km)', 12),
       C('nbRav', 'Nb ravit.', 10),
       C('stations', 'Stations', 26),
       C('totalLitres', 'Total litres', 12),
@@ -212,6 +214,8 @@ export function dsCarburantMissions(list = missionsAvecCarburant()) {
         kmDepart: num(m.kmDepart),
         kmRetour: num(m.kmArrivee),
         diff: num(m.kmArrivee) - num(m.kmDepart),
+        parcours: kmAbidjan(m),
+        surPlace: (distanceSurPlace(m) || { surPlace: '' }).surPlace,
         nbRav: rav.length,
         stations: rav.map((r) => r.station).filter(Boolean).join(', '),
         totalLitres: sum(rav, (r) => r.quantite),
@@ -270,7 +274,7 @@ export function dsMissions(list = DB.missions) {
       C('nbMissions', 'Nb missions', 11),
       C('vehicule', 'Véhicule', 14),
       C('destination', 'Destination', 22),
-      C('distance', 'Distance du parcours (km)', 14),
+      C('distance', 'Parcours aller-retour (km)', 14),
       C('dateDepart', 'Départ', 12),
       C('dateRetour', 'Retour', 12),
       C('jours', 'Jours', 8),
@@ -539,7 +543,8 @@ export function dsDestinataires(list = DB.destinataires) {
 }
 
 /**
- * Distance du parcours a exporter : la somme des etapes depuis Abidjan.
+ * Distance du parcours a exporter : la somme des etapes depuis Abidjan,
+ * retour compris.
  * Vide si une etape manque — un total partiel se lirait comme le total.
  */
 function kmAbidjan(m) {

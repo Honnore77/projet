@@ -1593,6 +1593,8 @@ const TOLERANCE_AXE = 1.15;
  */
 export function distanceEntre(de, vers, db = DB) {
   if (!vers) return null;
+  // Le retour vers Abidjan est la meme route que l'aller depuis Abidjan.
+  if (estOrigine(vers) && !estOrigine(de)) return distanceEntre(ORIGINE_MISSIONS, de, db);
   if (!estOrigine(de) && norm(de) === norm(vers)) return { km: 0, estimee: false, source: 'trajet' };
 
   const t = trajetEnregistre(estOrigine(de) ? ORIGINE_MISSIONS : de, vers, db);
@@ -1625,9 +1627,11 @@ export function distanceEntre(de, vers, db = DB) {
 }
 
 /**
- * Le parcours d'une liste de destinations, etape par etape, depuis Abidjan.
+ * Le parcours d'une liste de destinations : les etapes de l'aller, depuis
+ * Abidjan, puis le retour de la derniere destination a Abidjan.
  * @returns {{etapes:Array<{de:string,vers:string,km:number|null,estimee:boolean}>,
- *            total:number, complet:boolean, estimee:boolean}}
+ *            retour:{de:string,vers:string,km:number|null,estimee:boolean}|null,
+ *            aller:number, total:number, complet:boolean, estimee:boolean}}
  */
 export function parcoursDe(noms, db = DB) {
   const etapes = [];
@@ -1637,12 +1641,38 @@ export function parcoursDe(noms, db = DB) {
     etapes.push({ de: precedent, vers, km: d ? d.km : null, estimee: !!(d && d.estimee) });
     precedent = vers;
   });
-  return {
-    etapes,
-    total: etapes.reduce((t, e) => t + (e.km || 0), 0),
-    complet: etapes.every((e) => e.km !== null),
-    estimee: etapes.some((e) => e.estimee)
-  };
+  const dr = etapes.length ? distanceEntre(precedent, ORIGINE_MISSIONS, db) : null;
+  const retour = etapes.length
+    ? { de: precedent, vers: ORIGINE_MISSIONS, km: dr ? dr.km : null, estimee: !!(dr && dr.estimee), retour: true }
+    : null;
+  return totaliser({ etapes, retour });
+}
+
+/** Totaux d'un parcours, apres calcul ou correction de ses etapes. */
+export function totaliser(p) {
+  const toutes = p.retour ? [...p.etapes, p.retour] : p.etapes;
+  p.aller = p.etapes.reduce((t, e) => t + (e.km || 0), 0);
+  p.total = toutes.reduce((t, e) => t + (e.km || 0), 0);
+  p.complet = toutes.every((e) => e.km !== null);
+  p.estimee = toutes.some((e) => e.estimee);
+  return p;
+}
+
+/**
+ * Distance parcourue a l'interieur des destinations : ce que le compteur a
+ * enregistre au-dela du parcours aller-retour calcule — les deplacements
+ * sur place, d'un site a l'autre d'une meme ville.
+ *
+ * @returns {{compteur:number, parcours:number, surPlace:number}|null}
+ *   null tant que les deux kilometrages ou une distance d'etape manquent
+ */
+export function distanceSurPlace(m, db = DB) {
+  const vide = (v) => v === '' || v === undefined || v === null;
+  if (vide(m.kmDepart) || vide(m.kmArrivee)) return null;
+  const p = parcoursMission(m, db);
+  if (!p.etapes.length || !p.complet) return null;
+  const compteur = num(m.kmArrivee) - num(m.kmDepart);
+  return { compteur, parcours: p.total, surPlace: compteur - p.total, estimee: p.estimee };
 }
 
 /** Le parcours d'une mission. */
@@ -1650,7 +1680,7 @@ export function parcoursMission(m, db = DB) {
   return parcoursDe(destinationsDe(m), db);
 }
 
-/** « 900 km », « ≈ 900 km » ou « 640 km + ? » quand une etape manque. */
+/** Total aller-retour : « 1 740 km », « ≈ 1 740 km » ou « 640 km + ? » quand une etape manque. */
 export function libelleParcours(p) {
   if (!p || !p.etapes.length) return '';
   if (!p.total && !p.complet) return '';

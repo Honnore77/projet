@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours } from '../core/db.js';
+import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours, distanceSurPlace } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -30,10 +30,16 @@ const LIGNES_MINIMUM = 8;
  */
 function destinationAvecDistance(d) {
   if (!d.destination) return '';
-  if (!d.distanceParcours) return d.destination;
-  return d.etapes.length > 1
-    ? `${d.destination} (parcours : ${d.distanceParcours})`
-    : `${d.destination} (${d.distanceParcours} d'Abidjan)`;
+  if (d.etapes.length === 1) {
+    const e = d.etapes[0];
+    return e.km === null ? d.destination : `${d.destination} (${e.estimee ? '≈ ' : ''}${fmt(e.km)} km d'Abidjan)`;
+  }
+  return d.distanceParcours ? `${d.destination} (parcours aller-retour : ${d.distanceParcours})` : d.destination;
+}
+
+/** Ligne « SUR PLACE » du document : vide tant qu'elle ne se calcule pas. */
+function texteSurPlaceDoc(d) {
+  return d.surPlace ? `${d.surPlace.estimee ? '≈ ' : ''}${fmt(d.surPlace.surPlace)} km` : '';
 }
 
 export function reportData(m) {
@@ -60,7 +66,11 @@ export function reportData(m) {
     // Le parcours etape par etape, calcule comme dans le tableau de suivi :
     // le rapport imprime annonce les memes chiffres.
     etapes: parcoursMission(m).etapes,
+    retour: parcoursMission(m).retour,
     distanceParcours: libelleParcours(parcoursMission(m)),
+    // Ce que le compteur a enregistre au-dela du parcours : les
+    // deplacements a l'interieur des destinations.
+    surPlace: distanceSurPlace(m),
     chauffeur: m.conducteur || '',
     vehicule: m.vehicule || '',
     reference: m.ref || '',
@@ -240,6 +250,18 @@ export function buildMissionReport(mission) {
   doc.text(pointilles(doc, d.kmArrivee, demi - doc.getTextWidth('KM ARRIVEE :') - 6), M + demi + doc.getTextWidth('KM ARRIVEE :') + 4, y + 5.8);
   y += 9;
 
+  // Parcours calcule et distance parcourue sur place, sous le compteur.
+  const caseKm = (x, libelle, valeur) => {
+    doc.rect(x, y, demi, 9);
+    doc.setFont('helvetica', 'bold');
+    doc.text(libelle, x + 2, y + 5.8);
+    doc.setFont('helvetica', 'normal');
+    doc.text(pointilles(doc, valeur, demi - doc.getTextWidth(libelle) - 6), x + doc.getTextWidth(libelle) + 4, y + 5.8);
+  };
+  caseKm(M, 'PARCOURS ALLER-RETOUR :', d.distanceParcours);
+  caseKm(M + demi, 'DISTANCE SUR PLACE :', texteSurPlaceDoc(d));
+  y += 9;
+
   /* ---- observations ---- */
   doc.setFillColor(...BLEU_ENTETE);
   doc.rect(M, y, W, hLigne, 'FD');
@@ -377,6 +399,10 @@ export function printMissionReport(mission) {
       <div class="km">
         <div>KM DEPART : <span style="font-weight:normal">${esc(d.kmDepart)}</span></div>
         <div>KM ARRIVEE : <span style="font-weight:normal">${esc(d.kmArrivee)}</span></div>
+      </div>
+      <div class="km" style="margin-top:0">
+        <div style="border-top:none">PARCOURS ALLER-RETOUR : <span style="font-weight:normal">${esc(d.distanceParcours)}</span></div>
+        <div style="border-top:none">DISTANCE SUR PLACE : <span style="font-weight:normal">${esc(texteSurPlaceDoc(d))}</span></div>
       </div>
 
       <div class="bandeau" style="margin-top:14px">OBSERVATIONS</div>

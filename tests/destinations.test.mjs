@@ -114,7 +114,10 @@ test('chaque etape se compte depuis la precedente, la premiere depuis Abidjan', 
   assert.equal(p.etapes[2].km, 285);
   // La route d'Odienne ne passe pas par Korhogo : etape estimee.
   assert.equal(p.etapes[3].estimee, true);
-  assert.equal(p.total, p.etapes.reduce((t, e) => t + e.km, 0));
+  // Le retour se fait de la derniere destination a Abidjan.
+  assert.deepEqual([p.retour.de, p.retour.vers, p.retour.km], ['Odienné', 'Abidjan', 840]);
+  assert.equal(p.aller, p.etapes.reduce((t, e) => t + e.km, 0));
+  assert.equal(p.total, p.aller + 840);
   assert.equal(p.complet, true);
 });
 
@@ -123,8 +126,9 @@ test('un trajet enregistre l’emporte sur le calcul, dans les deux sens', async
   db.enregistrerTrajet('Odienné', 'Korhogo', 255);
   const p = db.parcoursDe(['Korhogo', 'Odienné']);
   assert.deepEqual(p.etapes[1], { de: 'Korhogo', vers: 'Odienné', km: 255, estimee: false });
-  assert.equal(p.total, 635 + 255);
-  assert.equal(db.libelleParcours(p).replace(/\s/g, ' '), '890 km');
+  assert.equal(p.aller, 635 + 255);
+  assert.equal(p.total, 635 + 255 + 840);
+  assert.equal(db.libelleParcours(p).replace(/\s/g, ' '), '1 730 km');
 });
 
 test('une etape sans distance laisse le total incomplet, sans rien inventer', async () => {
@@ -132,6 +136,7 @@ test('une etape sans distance laisse le total incomplet, sans rien inventer', as
   const p = db.parcoursDe(['Bouaké', 'Hameau inconnu']);
   assert.equal(p.etapes[1].km, null);
   assert.equal(p.complet, false);
+  // Aller vers Bouaké connu, la suite non : le total le signale.
   assert.equal(db.libelleParcours(p).replace(/\s/g, ' '), '350 km + ?');
 });
 
@@ -163,4 +168,38 @@ test('le parcours Google Maps part d’Abidjan, passe par les etapes et finit a 
   assert.ok(p.get('origin').startsWith('Abidjan'));
   assert.equal(p.get('waypoints'), '6.8276,-5.2893|7.6939,-5.0303');
   assert.equal(p.get('destination'), '9.458,-5.6296');
+});
+
+/* ------------------- Retour et distance sur place ------------------- */
+
+test('une mission a une destination fait l’aller et le retour', async () => {
+  await charger();
+  const p = db.parcoursDe(['Bouaké']);
+  assert.equal(p.aller, 350);
+  assert.equal(p.total, 700);
+});
+
+test('la distance sur place est le compteur moins le parcours aller-retour', async () => {
+  const base = await charger({
+    trajets: [{ id: 't', a: 'Korhogo', b: 'Odienné', km: 260 }],
+    missions: [{ id: 'a', destinations: ['Yamoussoukro', 'Bouaké', 'Korhogo', 'Odienné'], kmDepart: 10000, kmArrivee: 12000 }]
+  });
+  // 240 + 110 + 285 + 260 + retour 840 = 1 735 km ; compteur 2 000 km.
+  assert.deepEqual(db.distanceSurPlace(base.missions[0]), { compteur: 2000, parcours: 1735, surPlace: 265, estimee: false });
+});
+
+test('sans kilometrage ou avec une etape inconnue, la distance sur place ne se calcule pas', async () => {
+  const base = await charger({
+    missions: [
+      { id: 'a', destinations: ['Bouaké'], kmDepart: 1000, kmArrivee: '' },
+      { id: 'b', destinations: ['Bouaké', 'Hameau inconnu'], kmDepart: 1000, kmArrivee: 2000 }
+    ]
+  });
+  assert.equal(db.distanceSurPlace(base.missions[0]), null);
+  assert.equal(db.distanceSurPlace(base.missions[1]), null);
+});
+
+test('un compteur inferieur au parcours donne un ecart negatif, signale tel quel', async () => {
+  const base = await charger({ missions: [{ id: 'a', destinations: ['Bouaké'], kmDepart: 1000, kmArrivee: 1600 }] });
+  assert.equal(db.distanceSurPlace(base.missions[0]).surPlace, -100);
 });
