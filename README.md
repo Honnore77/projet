@@ -46,6 +46,13 @@ Les données des versions précédentes de l'application (y compris le fichier H
 - **Décharge** — deux sous-rubriques, chacune en tableau :
   - *Les décharges* : les courriers remis contre décharge — référence (proposée à la suite, `D-001`, `D-002`…, doublons refusés), n° de courrier, objet(s) en lignes tiretées, destinataire, date, personne qui a récupéré la décharge, conducteur et véhicule. Formulaire « Nouvelle décharge ». Un destinataire tapé pour la première fois rejoint de lui-même la liste des destinataires.
   - *Les destinataires* : les structures — nom, contacts, localisation. Formulaire « Nouveau destinataire ». La localisation accepte une adresse ou un lien copié depuis Google Maps, et s'ouvre sur la carte d'un clic. Renommer une structure met à jour ses décharges.
+- **Simulation** — sous-rubrique *Simulation de mission* : estimer les frais d'une mission avant le départ. Formulaire « Nouvelle simulation » : période, destinations (même parcours étape par étape que dans MISSION, retour à Abidjan compris), parcours en interne (km estimés à l'intérieur de chaque destination), véhicule (immatriculation et énergie), consommation (L/100 km, reprise de la dernière simulation du véhicule), prix du litre (réglé dans RÉGLAGES), total des participants, péages (libellé et prix, les péages déjà saisis sont proposés avec leur dernier prix). Calculés en direct :
+  - **Frais OM** = participants × 1 000 F ;
+  - **Frais de péage** = somme des péages ;
+  - **Carburant** = (parcours aller-retour + parcours en interne) × consommation ÷ 100 × prix du litre ;
+  - **Estimation des frais de mission** = frais OM + frais de péage + carburant.
+
+  Les simulations enregistrées sont listées en tableau, modifiables, et s'exportent en Excel et PDF.
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage, et toutes les **photos et documents** qui la concernent, d'où qu'ils viennent.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 

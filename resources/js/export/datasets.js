@@ -572,3 +572,44 @@ export function dsDestinationsMission(list = DB.destinationsMission) {
     }))
   };
 }
+
+/** Simulations de mission : le detail du calcul, colonne par colonne. */
+export function dsSimulations(list = DB.simulations) {
+  return {
+    title: 'Simulations de mission',
+    columns: [
+      C('periode', 'Période', 22),
+      C('destinations', 'Destinations', 30),
+      C('parcoursKm', 'Parcours A/R (km)', 13),
+      C('interneKm', 'En interne (km)', 12),
+      C('distanceTotale', 'Distance totale (km)', 13),
+      C('vehicule', 'Véhicule', 14),
+      C('energie', 'Énergie', 10),
+      C('consommation', 'L/100 km', 9),
+      C('litres', 'Litres', 9),
+      C('prixL', 'Prix / L', 9),
+      C('montantCarburant', 'Carburant (F)', 13),
+      C('participants', 'Participants', 11),
+      C('fraisOm', 'Frais OM (F)', 12),
+      C('fraisPeage', 'Péages (F)', 11),
+      C('estimation', 'Estimation (F)', 14)
+    ],
+    rows: list.map((s) => ({
+      periode: `${dateFR(s.dateDepart) || '…'} - ${dateFR(s.dateRetour) || '…'}`,
+      destinations: (s.destinations || []).join(', '),
+      parcoursKm: num(s.parcoursKm),
+      interneKm: num(s.interneKm),
+      distanceTotale: num(s.distanceTotale),
+      vehicule: s.vehicule || '',
+      energie: s.energie || '',
+      consommation: num(s.consommation),
+      litres: num(s.litres),
+      prixL: num(s.prixL),
+      montantCarburant: num(s.montantCarburant),
+      participants: num(s.participants),
+      fraisOm: num(s.fraisOm),
+      fraisPeage: num(s.fraisPeage),
+      estimation: num(s.estimation)
+    }))
+  };
+}

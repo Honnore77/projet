@@ -630,33 +630,7 @@ export function openMissionForm(m) {
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
       if ([...saisies.values()].some((km) => km !== '' && num(km) < 0)) return 'Une distance ne peut pas être négative.';
 
-      // Une destination tapee sans avoir clique « Ajouter » n'est pas perdue.
-      if (values.destination && values.destination !== '__ajout__') ajouterEtape(parcours, values.destination);
-
-      // Chaque destination garde l'ecriture de la liste ; une nouvelle y entre.
-      const noms = parcours.map((e) => {
-        const fiche = destinationMissionParNom(e.nom) || assurerDestinationMission(e.nom);
-        return fiche ? fiche.nom : e.nom;
-      });
-
-      // Une distance d'etape corrigee ici est gardee pour de bon : depuis
-      // Abidjan, c'est la distance de la destination ; entre deux villes,
-      // c'est un trajet enregistre, repris par les missions suivantes. Le
-      // tableau de suivi et le rapport de mission lisent ainsi les memes
-      // chiffres que ce formulaire.
-      const calcule = parcoursDe(noms);
-      [...calcule.etapes, ...(calcule.retour ? [calcule.retour] : [])].forEach((e) => {
-        const km = saisies.get(cleTrajet(e.de, e.vers));
-        if (km === undefined || km === '') return;
-        if (norm(e.de) === norm(ORIGINE_MISSIONS) || norm(e.vers) === norm(ORIGINE_MISSIONS)) {
-          const fiche = destinationMissionParNom(norm(e.de) === norm(ORIGINE_MISSIONS) ? e.vers : e.de);
-          if (fiche && (num(km) !== num(fiche.distanceKm) || fiche.estimee)) {
-            update('destinationsMission', fiche.id, { distanceKm: num(km), estimee: false });
-          }
-        } else if (e.km === null || num(km) !== num(e.km) || e.estimee) {
-          enregistrerTrajet(e.de, e.vers, km);
-        }
-      });
+      const noms = enregistrerParcours(parcours, saisies, values.destination);
 
       const payload = {
         conducteur: values.conducteur,
@@ -783,8 +757,43 @@ function ouvrirLien(url) {
   if (url) window.open(url, '_blank', 'noopener');
 }
 
+/**
+ * Enregistre ce qu'un formulaire a parcours a appris : les nouvelles
+ * destinations entrent dans la liste, et une distance d'etape corrigee est
+ * gardee pour de bon — depuis ou vers Abidjan, c'est la distance de la
+ * destination ; entre deux villes, c'est un trajet enregistre, repris par
+ * les missions et les simulations suivantes.
+ *
+ * @param {string} [saisieEnCours] destination tapee sans avoir clique
+ *   « Ajouter » : elle n'est pas perdue
+ * @returns {string[]} les destinations, sous leur nom de la liste
+ */
+export function enregistrerParcours(parcours, saisies, saisieEnCours) {
+  if (saisieEnCours && saisieEnCours !== '__ajout__') ajouterEtape(parcours, saisieEnCours);
+
+  const noms = parcours.map((e) => {
+    const fiche = destinationMissionParNom(e.nom) || assurerDestinationMission(e.nom);
+    return fiche ? fiche.nom : e.nom;
+  });
+
+  const calcule = parcoursDe(noms);
+  [...calcule.etapes, ...(calcule.retour ? [calcule.retour] : [])].forEach((e) => {
+    const km = saisies.get(cleTrajet(e.de, e.vers));
+    if (km === undefined || km === '') return;
+    if (norm(e.de) === norm(ORIGINE_MISSIONS) || norm(e.vers) === norm(ORIGINE_MISSIONS)) {
+      const fiche = destinationMissionParNom(norm(e.de) === norm(ORIGINE_MISSIONS) ? e.vers : e.de);
+      if (fiche && (num(km) !== num(fiche.distanceKm) || fiche.estimee)) {
+        update('destinationsMission', fiche.id, { distanceKm: num(km), estimee: false });
+      }
+    } else if (e.km === null || num(km) !== num(e.km) || e.estimee) {
+      enregistrerTrajet(e.de, e.vers, km);
+    }
+  });
+  return noms;
+}
+
 /** Ajoute une destination au parcours, sans doublon, sous son nom de la liste. */
-function ajouterEtape(parcours, saisie) {
+export function ajouterEtape(parcours, saisie) {
   const nom = String(saisie || '').trim();
   if (!nom || parcours.some((e) => norm(e.nom) === norm(nom))) return false;
   const d = destinationMissionParNom(nom);
@@ -800,9 +809,11 @@ function ajouterEtape(parcours, saisie) {
  * complet sur Google Maps pour le verifier.
  *
  * @param {Map} saisies distances tapees a la main, par trajet (cleTrajet)
+ * @param {Function} [surChangement] (parcours calcule) => void, a chaque
+ *   changement d'etape ou de distance — pour les totaux qui en dependent
  * @returns {Function} redessine le parcours (apres un ajout depuis la liste)
  */
-function cablerParcours(scope, parcours, saisies) {
+export function cablerParcours(scope, parcours, saisies, surChangement) {
   const ligneChamp = scope.querySelector('[data-key="destination"]').closest('.fRow');
   const bloc = el(
     '<div class="subBlock" style="margin-top:8px">' +
@@ -914,7 +925,7 @@ function cablerParcours(scope, parcours, saisies) {
   // Le retour se redessine avec le total : il depend de la derniere etape.
   const dessinerResume = () => {
     const p = calcul();
-    if (!p.etapes.length) { resume.innerHTML = ''; return; }
+    if (!p.etapes.length) { resume.innerHTML = ''; if (surChangement) surChangement(p); return; }
     const r = p.retour;
     const aFocus = document.activeElement && document.activeElement.matches && document.activeElement.matches('[data-km-retour]');
     resume.innerHTML =
@@ -949,6 +960,7 @@ function cablerParcours(scope, parcours, saisies) {
       n.setSelectionRange && n.type === 'text' && n.setSelectionRange(n.value.length, n.value.length);
     };
     if (aFocus) champRetour.focus();
+    if (surChangement) surChangement(p);
   };
 
   dessiner();

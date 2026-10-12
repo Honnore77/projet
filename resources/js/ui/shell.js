@@ -15,6 +15,7 @@ import { renderDotation } from './views/dotation.js';
 import { renderMissions } from './views/missions.js';
 import { renderMaintenance } from './views/maintenance.js';
 import { renderDecharges } from './views/decharges.js';
+import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
@@ -22,7 +23,7 @@ import { renderGlobalSearch } from './views/globalSearch.js';
 
 /**
  * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
- * quand elle est ouverte. Neuf teintes bien distinctes, pour qu'on repere la
+ * quand elle est ouverte. Dix teintes bien distinctes, pour qu'on repere la
  * rubrique a la couleur avant meme d'avoir lu le libelle.
  */
 export const MODULES = [
@@ -33,6 +34,7 @@ export const MODULES = [
   { key: 'MISSION', label: 'MISSION', color: '#C2185B' },
   { key: 'ENTRETIEN', label: 'ENTRETIEN', color: '#D32F2F' },
   { key: 'DECHARGE', label: 'DÉCHARGE', color: '#8D6E63' },
+  { key: 'SIMULATION', label: 'SIMULATION', color: '#3949AB' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
 ];
@@ -51,6 +53,7 @@ const TITLES = {
   MISSION: 'MISSION',
   ENTRETIEN: 'ENTRETIEN',
   DECHARGE: 'DÉCHARGE',
+  SIMULATION: 'SIMULATION',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
@@ -60,7 +63,7 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation' },
   vehicleSheetImmat: null,
   query: '',
   filters: {
@@ -321,6 +324,7 @@ const ROUTES = {
   MISSION: renderMissions,
   ENTRETIEN: renderMaintenance,
   DECHARGE: renderDecharges,
+  SIMULATION: renderSimulation,
   RAPPORTS: renderReports,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,

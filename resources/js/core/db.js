@@ -247,7 +247,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -1824,4 +1824,76 @@ export function lienItineraire(d) {
     travelmode: 'driving'
   });
   return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/* =================================================================
+   SIMULATION — estimation des frais d'une mission avant le depart.
+
+     estimation = frais OM + frais de peage + carburant
+     carburant  = (parcours aller-retour + parcours en interne)
+                  x consommation / 100 x prix du litre
+     frais OM   = participants x 1 000 F
+
+   Le parcours se calcule comme celui d'une mission, etape par etape.
+   ================================================================= */
+
+/** Frais d'ordre de mission, par participant. */
+export const FRAIS_OM_PAR_PARTICIPANT = 1000;
+
+/**
+ * Tous les montants d'une simulation, a partir de ce qui a ete saisi.
+ *
+ * Le montant du carburant est calcule sur les litres exacts, puis arrondi
+ * au franc superieur, comme partout ailleurs dans l'application ; les
+ * litres affiches sont arrondis au dixieme.
+ *
+ * @param {object} s
+ * @param {number} s.parcoursKm  parcours aller-retour, en km
+ * @param {Array<{km:number}>} s.interne  distance parcourue dans chaque destination
+ * @param {number} s.consommation  litres aux 100 km
+ * @param {number} s.prixL  prix du litre
+ * @param {number} s.participants
+ * @param {Array<{prix:number}>} s.peages
+ */
+export function calculerSimulation(s) {
+  const parcoursKm = num(s.parcoursKm);
+  const interneKm = (s.interne || []).reduce((t, x) => t + num(x.km), 0);
+  const distanceTotale = parcoursKm + interneKm;
+  const litresExacts = (distanceTotale * num(s.consommation)) / 100;
+  const montantCarburant = francSup(litresExacts * francSup(s.prixL));
+  const participants = Math.max(0, Math.floor(num(s.participants)));
+  const fraisOm = participants * FRAIS_OM_PAR_PARTICIPANT;
+  const fraisPeage = francSup((s.peages || []).reduce((t, p) => t + num(p.prix), 0));
+  return {
+    parcoursKm,
+    interneKm,
+    distanceTotale,
+    litres: Math.round(litresExacts * 10) / 10,
+    montantCarburant,
+    participants,
+    fraisOm,
+    fraisPeage,
+    estimation: fraisOm + fraisPeage + montantCarburant
+  };
+}
+
+/** Peages deja saisis dans les simulations, avec leur dernier prix. */
+export function peagesConnus(db = DB) {
+  const vus = new Map();
+  (db.simulations || []).forEach((s) => (s.peages || []).forEach((p) => {
+    const nom = String(p.libelle || '').trim();
+    if (nom) vus.set(norm(nom), { libelle: nom, prix: num(p.prix) });
+  }));
+  return [...vus.values()].sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'));
+}
+
+/** Consommation retenue lors de la derniere simulation de ce vehicule. */
+export function derniereConsommation(immat, db = DB) {
+  const cle = norm(immat || '');
+  if (!cle) return '';
+  const s = (db.simulations || [])
+    .filter((x) => norm(x.vehicule || '') === cle && num(x.consommation))
+    .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
+    .pop();
+  return s ? num(s.consommation) : '';
 }
