@@ -247,7 +247,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -1520,18 +1520,141 @@ function normaliserDestinations(m) {
   m.destination = texteDestinations(m.destinations);
 }
 
+/* ------------------------------------------------------------------ */
+/* Distances d'etape : chaque ville depuis la precedente               */
+/* ------------------------------------------------------------------ */
+
+/** Lieu de depart de toutes les missions. */
+export const ORIGINE_MISSIONS = 'Abidjan';
+
 /**
- * Distance de reference d'une mission : celle de sa destination la plus
- * eloignee d'Abidjan, c'est elle qui dit jusqu'ou l'on va.
- * @returns {{km:number, estimee:boolean, nom:string}|null}
+ * Une mission a plusieurs destinations se parcourt de proche en proche :
+ * Abidjan → Yamoussoukro, puis Yamoussoukro → Bouaké, puis Bouaké →
+ * Korhogo… Le kilometrage de la mission est la somme de ces etapes.
+ *
+ * La distance d'une etape vient, dans l'ordre :
+ *   1. d'un trajet enregistre (« Les trajets entre villes ») — tout chiffre
+ *      corrige dans un formulaire y est garde, et sert aux missions suivantes ;
+ *   2. pour une etape partant d'Abidjan, de la distance de la destination ;
+ *   3. pour deux villes sur la meme route depuis Abidjan, de la difference de
+ *      leurs distances : Bouaké (350) − Yamoussoukro (240) = 110 km ;
+ *   4. sinon, des coordonnees des deux villes : ligne droite majoree,
+ *      marquee « estimee ».
+ * Faute de tout cela, l'etape reste a renseigner : on n'invente rien.
  */
-export function distanceMission(m, db = DB) {
-  let max = null;
-  destinationsDe(m).forEach((nom) => {
-    const d = distanceAbidjan(nom, db);
-    if (d && (!max || d.km > max.km)) max = Object.assign({ nom }, d);
+
+/** Cle d'un trajet, dans un sens comme dans l'autre. */
+export function cleTrajet(a, b) {
+  return [norm(a || ''), norm(b || '')].sort().join('|');
+}
+
+export function trajetEnregistre(a, b, db = DB) {
+  const k = cleTrajet(a, b);
+  return (db.trajets || []).find((t) => cleTrajet(t.a, t.b) === k) || null;
+}
+
+/** Garde la distance d'un trajet entre deux villes, dans les deux sens. */
+export function enregistrerTrajet(a, b, km, db = DB) {
+  const de = String(a || '').trim();
+  const vers = String(b || '').trim();
+  if (!de || !vers || norm(de) === norm(vers) || km === '' || km === null || km === undefined) return null;
+  if (!Array.isArray(db.trajets)) db.trajets = [];
+  const t = trajetEnregistre(de, vers, db);
+  if (t) t.km = num(km);
+  else db.trajets.push({ id: uid(), a: de, b: vers, km: num(km) });
+  if (db === DB) persist();
+  return t || db.trajets[db.trajets.length - 1];
+}
+
+function estOrigine(nom) {
+  return !nom || norm(nom) === norm(ORIGINE_MISSIONS);
+}
+
+function coordDe(nom, db) {
+  const d = destinationMissionParNom(nom, db);
+  return d && d.lat !== '' && d.lat !== undefined && d.lat !== null && d.lng !== '' && d.lng !== undefined && d.lng !== null
+    ? { lat: num(d.lat), lng: num(d.lng) }
+    : null;
+}
+
+/**
+ * Tolerance de l'alignement : B est « sur la route » de A quand passer par
+ * A n'allonge pas de plus de 15 % la ligne droite Abidjan → B. Yamoussoukro
+ * puis Bouaké (+ 0,6 %) ou Bouaké puis Korhogo (0 %) le sont ; Korhogo puis
+ * Odienné (+ 16 %) ne l'est pas — la route d'Odienné ne passe pas par Korhogo.
+ */
+const TOLERANCE_AXE = 1.15;
+
+/**
+ * Distance par la route entre deux etapes. `de` vide ou « Abidjan » : depuis
+ * le lieu de depart.
+ * @returns {{km:number, estimee:boolean, source:string}|null}
+ *   source : 'trajet' | 'abidjan' | 'axe' | 'coordonnees'
+ */
+export function distanceEntre(de, vers, db = DB) {
+  if (!vers) return null;
+  if (!estOrigine(de) && norm(de) === norm(vers)) return { km: 0, estimee: false, source: 'trajet' };
+
+  const t = trajetEnregistre(estOrigine(de) ? ORIGINE_MISSIONS : de, vers, db);
+  if (t && t.km !== '' && t.km !== undefined) return { km: num(t.km), estimee: false, source: 'trajet' };
+
+  if (estOrigine(de)) {
+    const d = distanceAbidjan(vers, db);
+    return d ? { km: d.km, estimee: d.estimee, source: 'abidjan' } : null;
+  }
+
+  const ca = coordDe(de, db);
+  const cb = coordDe(vers, db);
+  const da = distanceAbidjan(de, db);
+  const dv = distanceAbidjan(vers, db);
+  if (ca && cb && da && dv) {
+    const [proche, loin] = distanceVolOiseau(ABIDJAN, ca) <= distanceVolOiseau(ABIDJAN, cb) ? [ca, cb] : [cb, ca];
+    const parProche = distanceVolOiseau(ABIDJAN, proche) + distanceVolOiseau(proche, loin);
+    if (parProche <= TOLERANCE_AXE * distanceVolOiseau(ABIDJAN, loin)) {
+      return { km: Math.abs(dv.km - da.km), estimee: da.estimee || dv.estimee, source: 'axe' };
+    }
+  }
+  if (ca && cb) {
+    return {
+      km: Math.max(5, Math.round((distanceVolOiseau(ca, cb) * FACTEUR_ROUTE) / 5) * 5),
+      estimee: true,
+      source: 'coordonnees'
+    };
+  }
+  return null;
+}
+
+/**
+ * Le parcours d'une liste de destinations, etape par etape, depuis Abidjan.
+ * @returns {{etapes:Array<{de:string,vers:string,km:number|null,estimee:boolean}>,
+ *            total:number, complet:boolean, estimee:boolean}}
+ */
+export function parcoursDe(noms, db = DB) {
+  const etapes = [];
+  let precedent = ORIGINE_MISSIONS;
+  (noms || []).filter(Boolean).forEach((vers) => {
+    const d = distanceEntre(precedent, vers, db);
+    etapes.push({ de: precedent, vers, km: d ? d.km : null, estimee: !!(d && d.estimee) });
+    precedent = vers;
   });
-  return max;
+  return {
+    etapes,
+    total: etapes.reduce((t, e) => t + (e.km || 0), 0),
+    complet: etapes.every((e) => e.km !== null),
+    estimee: etapes.some((e) => e.estimee)
+  };
+}
+
+/** Le parcours d'une mission. */
+export function parcoursMission(m, db = DB) {
+  return parcoursDe(destinationsDe(m), db);
+}
+
+/** « 900 km », « ≈ 900 km » ou « 640 km + ? » quand une etape manque. */
+export function libelleParcours(p) {
+  if (!p || !p.etapes.length) return '';
+  if (!p.total && !p.complet) return '';
+  return `${p.estimee ? '≈ ' : ''}${p.total.toLocaleString('fr-FR')} km${p.complet ? '' : ' + ?'}`;
 }
 
 export function nomsDestinationsMission(db = DB) {
@@ -1587,6 +1710,10 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
     m.destination = texteDestinations(liste);
     n += 1;
   });
+  (db.trajets || []).forEach((t) => {
+    if (norm(t.a || '') === cle) t.a = propre;
+    if (norm(t.b || '') === cle) t.b = propre;
+  });
   if (n && db === DB) persist();
   return n;
 }
@@ -1630,21 +1757,30 @@ export function lienCarteDestination(d) {
 }
 
 /**
- * Itineraire complet d'une mission : depart d'Abidjan, chaque destination
- * dans l'ordre, retour a Abidjan. Google Maps y donne le kilometrage total
- * du circuit, que le releve des distances depuis Abidjan ne peut pas donner.
+ * Itineraire Google Maps du parcours : Abidjan, puis chaque destination dans
+ * l'ordre, jusqu'a la derniere. Google Maps y donne la distance de chaque
+ * etape et le total, de quoi verifier ou corriger le calcul.
  */
-export function lienCircuit(noms, db = DB) {
+export function lienParcours(noms, db = DB) {
   const etapes = (noms || []).filter(Boolean).map((nom) =>
     cibleCarte(destinationMissionParNom(nom, db) || { nom, localisation: '', lat: '', lng: '' }));
   if (!etapes.length) return '';
   const params = new URLSearchParams({
     api: '1',
     origin: 'Abidjan, Côte d’Ivoire',
-    destination: 'Abidjan, Côte d’Ivoire',
-    waypoints: etapes.join('|'),
+    destination: etapes[etapes.length - 1],
     travelmode: 'driving'
   });
+  if (etapes.length > 1) params.set('waypoints', etapes.slice(0, -1).join('|'));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
+}
+
+/** Itineraire Google Maps d'une seule etape, de la ville precedente a la suivante. */
+export function lienEtape(de, vers, db = DB) {
+  const cible = (nom) => (estOrigine(nom)
+    ? 'Abidjan, Côte d’Ivoire'
+    : cibleCarte(destinationMissionParNom(nom, db) || { nom, localisation: '', lat: '', lng: '' }));
+  const params = new URLSearchParams({ api: '1', origin: cible(de), destination: cible(vers), travelmode: 'driving' });
   return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 

@@ -102,9 +102,43 @@ test('le libelle « destination » suit la liste, sans doublon', async () => {
   assert.equal(base.missions[0].destination, 'Bouaké, Korhogo');
 });
 
-test('la distance de la mission est celle de l’etape la plus eloignee', async () => {
-  const base = await charger({ missions: [{ id: 'a', destinations: ['Bouaké', 'Korhogo', 'Katiola'] }] });
-  assert.deepEqual(db.distanceMission(base.missions[0]), { nom: 'Korhogo', km: 635, estimee: false });
+test('chaque etape se compte depuis la precedente, la premiere depuis Abidjan', async () => {
+  const base = await charger({ missions: [{ id: 'a', destinations: ['Yamoussoukro', 'Bouaké', 'Korhogo', 'Odienné'] }] });
+  const p = db.parcoursMission(base.missions[0]);
+  assert.deepEqual(p.etapes.map((e) => `${e.de}>${e.vers}`), [
+    'Abidjan>Yamoussoukro', 'Yamoussoukro>Bouaké', 'Bouaké>Korhogo', 'Korhogo>Odienné'
+  ]);
+  // Sur la meme route : difference des distances depuis Abidjan.
+  assert.equal(p.etapes[0].km, 240);
+  assert.equal(p.etapes[1].km, 110);
+  assert.equal(p.etapes[2].km, 285);
+  // La route d'Odienne ne passe pas par Korhogo : etape estimee.
+  assert.equal(p.etapes[3].estimee, true);
+  assert.equal(p.total, p.etapes.reduce((t, e) => t + e.km, 0));
+  assert.equal(p.complet, true);
+});
+
+test('un trajet enregistre l’emporte sur le calcul, dans les deux sens', async () => {
+  await charger();
+  db.enregistrerTrajet('Odienné', 'Korhogo', 255);
+  const p = db.parcoursDe(['Korhogo', 'Odienné']);
+  assert.deepEqual(p.etapes[1], { de: 'Korhogo', vers: 'Odienné', km: 255, estimee: false });
+  assert.equal(p.total, 635 + 255);
+  assert.equal(db.libelleParcours(p).replace(/\s/g, ' '), '890 km');
+});
+
+test('une etape sans distance laisse le total incomplet, sans rien inventer', async () => {
+  await charger({ missions: [{ id: 'a', destinations: ['Bouaké', 'Hameau inconnu'] }] });
+  const p = db.parcoursDe(['Bouaké', 'Hameau inconnu']);
+  assert.equal(p.etapes[1].km, null);
+  assert.equal(p.complet, false);
+  assert.equal(db.libelleParcours(p).replace(/\s/g, ' '), '350 km + ?');
+});
+
+test('renommer une ville la renomme aussi dans les trajets', async () => {
+  const base = await charger({ trajets: [{ id: 't', a: 'Ferke', b: 'Korhogo', km: 55 }], destinationsMission: [{ id: 'x', nom: 'Ferke' }] });
+  db.renommerDestinationMission('Ferke', 'Ferkessédougou');
+  assert.equal(base.trajets[0].a, 'Ferkessédougou');
 });
 
 test('une mission compte pour chacune de ses destinations', async () => {
@@ -123,10 +157,10 @@ test('renommer une etape la remplace dans le parcours et dans le libelle', async
   assert.equal(base.missions[0].destination, 'Bouaké, Ferkessédougou, Korhogo');
 });
 
-test('le circuit part d’Abidjan, passe par chaque etape dans l’ordre et y revient', async () => {
+test('le parcours Google Maps part d’Abidjan, passe par les etapes et finit a la derniere', async () => {
   await charger();
-  const p = new URL(db.lienCircuit(['Bouaké', 'Korhogo'])).searchParams;
+  const p = new URL(db.lienParcours(['Yamoussoukro', 'Bouaké', 'Korhogo'])).searchParams;
   assert.ok(p.get('origin').startsWith('Abidjan'));
-  assert.ok(p.get('destination').startsWith('Abidjan'));
-  assert.equal(p.get('waypoints'), '7.6939,-5.0303|9.458,-5.6296');
+  assert.equal(p.get('waypoints'), '6.8276,-5.2893|7.6939,-5.0303');
+  assert.equal(p.get('destination'), '9.458,-5.6296');
 });

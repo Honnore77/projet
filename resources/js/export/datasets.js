@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, distanceMission, missionsVersDestination } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -270,7 +270,7 @@ export function dsMissions(list = DB.missions) {
       C('nbMissions', 'Nb missions', 11),
       C('vehicule', 'Véhicule', 14),
       C('destination', 'Destination', 22),
-      C('distance', 'Distance Abidjan (km) — la plus éloignée', 16),
+      C('distance', 'Distance du parcours (km)', 14),
       C('dateDepart', 'Départ', 12),
       C('dateRetour', 'Retour', 12),
       C('jours', 'Jours', 8),
@@ -538,10 +538,13 @@ export function dsDestinataires(list = DB.destinataires) {
   };
 }
 
-/** Distance d'Abidjan a exporter : celle de la destination la plus eloignee. */
+/**
+ * Distance du parcours a exporter : la somme des etapes depuis Abidjan.
+ * Vide si une etape manque — un total partiel se lirait comme le total.
+ */
 function kmAbidjan(m) {
-  const d = distanceMission(m);
-  return d ? d.km : '';
+  const p = parcoursMission(m);
+  return p.etapes.length && p.complet ? p.total : '';
 }
 
 /** Destinations des missions, avec leur distance et le nombre de missions. */

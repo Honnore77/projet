@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant, libelleDistance, destinationsDe, texteDestinations } from '../core/db.js';
+import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -26,14 +26,14 @@ const LIGNES_MINIMUM = 8;
  */
 /**
  * Ligne DESTINATION du document : « Bouaké (350 km d'Abidjan) », ou pour un
- * parcours « Bouaké (350 km), Korhogo (635 km) » — distances depuis Abidjan.
+ * parcours « Yamoussoukro, Bouaké, Korhogo (parcours : 635 km) ».
  */
 function destinationAvecDistance(d) {
-  const etapes = d.destinationsDetail || [];
-  if (etapes.length === 1) {
-    return etapes[0].distance ? `${etapes[0].nom} (${etapes[0].distance} d'Abidjan)` : etapes[0].nom;
-  }
-  return etapes.map((e) => (e.distance ? `${e.nom} (${e.distance})` : e.nom)).join(', ');
+  if (!d.destination) return '';
+  if (!d.distanceParcours) return d.destination;
+  return d.etapes.length > 1
+    ? `${d.destination} (parcours : ${d.distanceParcours})`
+    : `${d.destination} (${d.distanceParcours} d'Abidjan)`;
 }
 
 export function reportData(m) {
@@ -57,10 +57,10 @@ export function reportData(m) {
     organisation: (DB.settings && DB.settings.organisation) || 'PDU',
     periode,
     destination: texteDestinations(destinationsDe(m)),
-    // Les distances viennent de la liste des destinations : le rapport
-    // imprime annonce les memes chiffres que le tableau de suivi.
-    destinationsDetail: destinationsDe(m).map((nom) => ({ nom, distance: libelleDistance(nom) })),
-    distanceAbidjan: destinationsDe(m).length === 1 ? libelleDistance(destinationsDe(m)[0]) : '',
+    // Le parcours etape par etape, calcule comme dans le tableau de suivi :
+    // le rapport imprime annonce les memes chiffres.
+    etapes: parcoursMission(m).etapes,
+    distanceParcours: libelleParcours(parcoursMission(m)),
     chauffeur: m.conducteur || '',
     vehicule: m.vehicule || '',
     reference: m.ref || '',
