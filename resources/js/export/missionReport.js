@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant } from '../core/db.js';
+import { DB, ravMontant, libelleDistance } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -24,6 +24,13 @@ const LIGNES_MINIMUM = 8;
  * Extrait du dossier de mission tout ce que le formulaire affiche.
  * @param {object} m mission
  */
+/** « Bouaké (350 km d'Abidjan) » sur la ligne DESTINATION du document. */
+function destinationAvecDistance(d) {
+  return d.destination && d.distanceAbidjan
+    ? `${d.destination} (${d.distanceAbidjan} d'Abidjan)`
+    : d.destination;
+}
+
 export function reportData(m) {
   const rav = (m.ravitaillements || []).map((r) => ({
     date: dateFR(r.date),
@@ -45,6 +52,9 @@ export function reportData(m) {
     organisation: (DB.settings && DB.settings.organisation) || 'PDU',
     periode,
     destination: m.destination || '',
+    // La distance vient de la liste des destinations : le rapport imprime
+    // annonce le meme chiffre que le tableau de suivi.
+    distanceAbidjan: libelleDistance(m.destination),
     chauffeur: m.conducteur || '',
     vehicule: m.vehicule || '',
     reference: m.ref || '',
@@ -108,7 +118,7 @@ export function buildMissionReport(mission) {
     y += 7;
   };
   ligne('PERIODE :', d.periode);
-  ligne('DESTINATION :', d.destination);
+  ligne('DESTINATION :', destinationAvecDistance(d));
   ligne('NOM DU CHAUFFEUR :', d.chauffeur);
   ligne('VEHICULE UTILISE :', d.vehicule);
   y += 3;
@@ -334,7 +344,7 @@ export function printMissionReport(mission) {
     </style></head><body>
       <div class="titreWrap"><span class="titre">RAPPORT DE MISSION</span></div>
       <div class="champ">PERIODE : <span class="val pointille">${esc(d.periode)}</span></div>
-      <div class="champ">DESTINATION : <span class="val pointille">${esc(d.destination)}</span></div>
+      <div class="champ">DESTINATION : <span class="val pointille">${esc(destinationAvecDistance(d))}</span></div>
       <div class="champ">NOM DU CHAUFFEUR : <span class="val pointille">${esc(d.chauffeur)}</span></div>
       <div class="champ">VEHICULE UTILISE : <span class="val pointille">${esc(d.vehicule)}</span></div>
 

@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, distanceAbidjan, missionsVersDestination } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -270,6 +270,7 @@ export function dsMissions(list = DB.missions) {
       C('nbMissions', 'Nb missions', 11),
       C('vehicule', 'Véhicule', 14),
       C('destination', 'Destination', 22),
+      C('distance', 'Distance Abidjan (km)', 13),
       C('dateDepart', 'Départ', 12),
       C('dateRetour', 'Retour', 12),
       C('jours', 'Jours', 8),
@@ -285,6 +286,7 @@ export function dsMissions(list = DB.missions) {
         nbMissions: g.length,
         vehicule: m.vehicule || '',
         destination: m.destination || '',
+        distance: kmAbidjan(m.destination),
         dateDepart: dateFR(m.dateDepart),
         dateRetour: dateFR(m.dateRetour),
         jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
@@ -532,6 +534,33 @@ export function dsDestinataires(list = DB.destinataires) {
       contacts: d.contacts || '',
       localisation: d.localisation || '',
       decharges: (DB.decharges || []).filter((x) => norm(x.destinataire || '') === norm(d.nom || '')).length
+    }))
+  };
+}
+
+/** Distance d'Abidjan a exporter : vide si la destination n'en a pas. */
+function kmAbidjan(nom) {
+  const d = distanceAbidjan(nom);
+  return d ? d.km : '';
+}
+
+/** Destinations des missions, avec leur distance et le nombre de missions. */
+export function dsDestinationsMission(list = DB.destinationsMission) {
+  return {
+    title: 'Destinations des missions',
+    columns: [
+      C('nom', 'Destination', 26),
+      C('distance', 'Distance depuis Abidjan (km)', 16),
+      C('nature', 'Distance', 12),
+      C('localisation', 'Localisation', 40),
+      C('missions', 'Missions', 10)
+    ],
+    rows: list.map((d) => ({
+      nom: d.nom || '',
+      distance: d.distanceKm === '' || d.distanceKm === undefined ? '' : num(d.distanceKm),
+      nature: d.distanceKm === '' || d.distanceKm === undefined ? '' : d.estimee ? 'estimée' : 'routière',
+      localisation: d.localisation || (d.lat !== '' && d.lat !== undefined ? `${d.lat}, ${d.lng}` : ''),
+      missions: missionsVersDestination(d.nom).length
     }))
   };
 }

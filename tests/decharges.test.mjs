@@ -68,6 +68,12 @@ test('renommer une structure met a jour ses decharges, et elles seules', async (
   assert.equal(dechargesDuDestinataire('mairie de cocody (cabinet)').length, 2);
 });
 
+test('corriger un accent dans le nom d’une structure se reporte sur ses decharges', async () => {
+  const base = await charger({ decharges: [{ id: 'a', destinataire: 'Tresor public' }] });
+  assert.equal(renommerDestinataire('Tresor public', 'Trésor public'), 1);
+  assert.equal(base.decharges[0].destinataire, 'Trésor public');
+});
+
 test('un lien colle depuis Google Maps est garde tel quel', () => {
   assert.equal(lienCarte(' https://maps.app.goo.gl/abc123 '), 'https://maps.app.goo.gl/abc123');
 });

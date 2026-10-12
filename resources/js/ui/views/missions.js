@@ -10,7 +10,10 @@
 
 import {
   DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs,
-  ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist
+  ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist,
+  nomsDestinationsMission, destinationMissionParNom, assurerDestinationMission,
+  renommerDestinationMission, missionsVersDestination, libelleDistance,
+  lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
@@ -21,20 +24,23 @@ import {
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
-import { dsSuiviMissions, dsMissions, dsMissionsParConducteur } from '../../export/datasets.js';
+import { dsSuiviMissions, dsMissions, dsMissionsParConducteur, dsDestinationsMission } from '../../export/datasets.js';
 import { exportMissionReport, printMissionReport, reportData } from '../../export/missionReport.js';
 
 const SUBS = [
   { key: 'suivi', label: 'TABLEAU DE SUIVI' },
-  { key: 'rapport', label: 'RAPPORT DE MISSION' }
+  { key: 'rapport', label: 'RAPPORT DE MISSION' },
+  { key: 'destinations', label: 'DESTINATIONS' }
 ];
 
 export function renderMissions(page) {
   const sub = state.sub.MISSION || 'suivi';
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.MISSION = k; rerender(); }, { suivi: COLORS.purple, rapport: COLORS.purple })
+    subtabs(SUBS, sub, (k) => { state.sub.MISSION = k; rerender(); },
+      { suivi: COLORS.purple, rapport: COLORS.purple, destinations: COLORS.purple })
   );
   if (sub === 'rapport') renderRapport(page);
+  else if (sub === 'destinations') renderDestinations(page);
   else renderSuivi(page);
 }
 
@@ -95,7 +101,7 @@ function renderSuivi(page) {
       esc(m.conducteur || ''),
       `<span style="display:block;text-align:center">${g.length}</span>`,
       m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>` : '',
-      esc(m.destination || ''),
+      celluleDestination(m.destination),
       esc(dateFR(m.dateDepart) || ''),
       esc(dateFR(m.dateRetour) || ''),
       `<span style="display:block;text-align:center">${esc(m.jours === '' || m.jours === undefined ? '—' : m.jours)}</span>`,
@@ -116,6 +122,7 @@ function renderSuivi(page) {
 
       const vehLink = tr.querySelector('[data-veh]');
       if (vehLink) vehLink.onclick = (ev) => { ev.preventDefault(); openVehicleSheet(m.vehicule); };
+      cablerCarte(tr, m.destination);
 
       const pay = tr.querySelector('[data-pay]');
       if (pay) pay.onclick = () => openPaymentForm(m);
@@ -207,7 +214,7 @@ function renderRapport(page) {
         esc(m.vehicule || ''),
         `${esc(dateFR(m.dateDepart) || '…')} → ${esc(dateFR(m.dateRetour) || '…')}` +
           (m.jours !== '' && m.jours !== undefined ? `<br><small>${m.jours} jour(s)</small>` : ''),
-        esc(m.destination || ''),
+        celluleDestination(m.destination),
         `<span class="badge" style="background:${rempli ? COLORS.purple : COLORS.orange}">${rempli ? 'Rempli' : 'À compléter'}</span>`,
         `<button class="miniBtn" style="background:${COLORS.blue};padding:6px 12px" data-voir>Voir</button>`
       ];
@@ -218,6 +225,7 @@ function renderRapport(page) {
         const m = list[i];
         tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.vehicule} ${m.destination}`);
         tr.querySelector('[data-voir]').onclick = () => openRapportVue(m);
+        cablerCarte(tr, m.destination);
       })
     );
   }
@@ -287,6 +295,7 @@ function openRapportVue(m) {
       '<div class="subBlock"><h5>Mission</h5>' +
       ligne('Période', d.periode) +
       ligne('Destination', d.destination) +
+      (d.distanceAbidjan ? ligne('Distance depuis Abidjan', d.distanceAbidjan) : '') +
       ligne('Nom du chauffeur', d.chauffeur) +
       ligne('Véhicule utilisé', d.vehicule) +
       '</div>' +
@@ -403,7 +412,9 @@ function openRapportForm(m) {
 
   openForm({
     title: `Rapport de mission — ${m.ref || m.conducteur}`,
-    intro: `${m.conducteur || '—'} · ${m.destination || '—'} · ${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
+    intro: `${m.conducteur || '—'} · ${m.destination || '—'}` +
+      `${libelleDistance(m.destination) ? ` (${libelleDistance(m.destination)} d’Abidjan)` : ''}` +
+      ` · ${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
     fields: [
       { key: 'participant1', label: 'Participant 1', value: (m.participants || [])[0] },
       { key: 'participant2', label: 'Participant 2', value: (m.participants || [])[1] },
@@ -538,7 +549,13 @@ function missionFields(m = {}) {
       hint: 'Attribuée selon la date de départ — la plus ancienne porte M-001' },
     { key: 'conducteur', label: 'Conducteur', required: true, value: m.conducteur, list: conducteursProposes() },
     { key: 'vehicule', label: 'Véhicule (immatriculation)', value: m.vehicule, list: knownImmats() },
-    { key: 'destination', label: 'Destination', value: m.destination },
+    // Choisie dans la liste des destinations, ou ajoutee : elle y entre a
+    // l'enregistrement, avec la distance saisie ici.
+    { key: 'destination', label: 'Destination', type: 'selectAdd', value: m.destination,
+      options: nomsDestinationsMission(), emptyLabel: '— choisir —', addLabel: 'Nouvelle destination' },
+    { key: 'distanceKm', label: 'Distance depuis Abidjan (km)', type: 'number',
+      value: (destinationMissionParNom(m.destination) || {}).distanceKm,
+      hint: 'Reprise de la liste des destinations ; à compléter pour une nouvelle destination' },
     { key: 'dateDepart', label: 'Date départ', type: 'date', value: m.dateDepart || todayISO() },
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
     { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
@@ -557,12 +574,29 @@ function conducteursProposes() {
 export function openMissionForm(m) {
   const isEdit = !!m;
   const rot = rotationConducteurs();
+  let derniereDestination = isEdit ? m.destination : undefined;
   openForm({
     title: isEdit ? `Modifier la mission ${m.ref}` : 'Nouvelle mission',
     intro: !isEdit && rot.length ? `Tour de rôle : c’est au tour de ${rot[0].nom}.` : undefined,
     fields: missionFields(m || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la mission',
+    extra: (scope) => cablerBoutonsCarte(scope),
     onInput: (values, scope) => {
+      // Changer de destination reprend sa distance. Tant que la destination
+      // ne change pas, le champ reste a la main de celui qui saisit.
+      if (values.destination !== derniereDestination) {
+        derniereDestination = values.destination;
+        const champ = scope.querySelector('[data-key="distanceKm"]');
+        const dest = destinationMissionParNom(values.destination);
+        if (champ) champ.value = dest && dest.distanceKm !== '' && dest.distanceKm !== undefined ? dest.distanceKm : '';
+        const note = scope.querySelector('[data-note-distance]');
+        if (note) {
+          note.textContent = dest && dest.estimee
+            ? 'Distance estimée à partir des coordonnées : vérifiez-la avec « Itinéraire depuis Abidjan ».'
+            : '';
+        }
+      }
+
       const j = joursMission(values.dateDepart, values.dateRetour);
       const node = scope.querySelector('[data-key="jours"]');
       if (node) node.value = j === null || j < 1 ? '—' : `${j} j`;
@@ -575,11 +609,22 @@ export function openMissionForm(m) {
     onSubmit: (values) => {
       const jours = joursMission(values.dateDepart, values.dateRetour);
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
+      if (values.distanceKm !== '' && num(values.distanceKm) < 0) return 'La distance ne peut pas être négative.';
+
+      // La destination garde l'ecriture de la liste ; une nouvelle y entre,
+      // et la distance saisie ici devient la sienne — la liste, le tableau
+      // de suivi et le rapport de mission lisent alors le meme chiffre.
+      const connue = destinationMissionParNom(values.destination);
+      const destination = connue ? connue.nom : String(values.destination || '').trim();
+      const fiche = connue || assurerDestinationMission(destination);
+      if (fiche && values.distanceKm !== '' && num(values.distanceKm) !== num(fiche.distanceKm)) {
+        update('destinationsMission', fiche.id, { distanceKm: num(values.distanceKm), estimee: false });
+      }
 
       const payload = {
         conducteur: values.conducteur,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
-        destination: values.destination,
+        destination,
         dateDepart: values.dateDepart,
         dateRetour: values.dateRetour,
         jours: jours === null ? '' : jours,
@@ -639,6 +684,245 @@ function openPaymentForm(m) {
       return null;
     }
   });
+}
+
+/* ========================= DESTINATIONS ============================ */
+
+/** Cellule « Destination » : le nom, sa distance d'Abidjan, la carte. */
+function celluleDestination(nom) {
+  if (!nom) return '';
+  const dist = libelleDistance(nom);
+  const dest = destinationMissionParNom(nom);
+  return `${esc(nom)}` +
+    (dist ? `<br><small style="color:${COLORS.purple}"><b>${esc(dist)}</b> d’Abidjan</small>` : '') +
+    (dest ? ` <a href="#" data-carte title="Voir sur Google Maps" style="text-decoration:none">📍</a>` : '');
+}
+
+function cablerCarte(tr, nom) {
+  const lien = tr.querySelector('[data-carte]');
+  if (lien) lien.onclick = (ev) => { ev.preventDefault(); ouvrirLien(lienCarteDestination(destinationMissionParNom(nom))); };
+}
+
+/** Les liens partent dans le navigateur du systeme (voir electron/main.cjs). */
+function ouvrirLien(url) {
+  if (url) window.open(url, '_blank', 'noopener');
+}
+
+/**
+ * Sous le champ distance du formulaire de mission : voir la destination sur
+ * la carte, et l'itineraire depuis Abidjan, ou se lit la distance par la
+ * route. Une destination pas encore enregistree se cherche par son nom.
+ */
+function cablerBoutonsCarte(scope) {
+  const champ = scope.querySelector('[data-key="distanceKm"]');
+  if (!champ) return;
+  const barre = el(
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
+      `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-voir-carte>📍 Voir sur Google Maps</button>` +
+      `<button type="button" class="miniBtn" style="background:${COLORS.blue}" data-itineraire>🧭 Itinéraire depuis Abidjan</button>` +
+    '</div>'
+  );
+  const note = el('<span class="hint" data-note-distance style="color:#b26a00"></span>');
+  const destination = () => {
+    const v = (scope.querySelector('[data-key="destination"]') || {}).value || '';
+    const nom = v === '__ajout__' ? '' : v.trim();
+    return destinationMissionParNom(nom) || (nom ? { nom, localisation: '', lat: '', lng: '' } : null);
+  };
+  barre.querySelector('[data-voir-carte]').onclick = () => {
+    const d = destination();
+    if (!d) return toast('Choisissez d’abord une destination.', 'info');
+    ouvrirLien(lienCarteDestination(d));
+  };
+  barre.querySelector('[data-itineraire]').onclick = () => {
+    const d = destination();
+    if (!d) return toast('Choisissez d’abord une destination.', 'info');
+    ouvrirLien(lienItineraire(d));
+  };
+  const ligne = champ.closest('.fRow');
+  ligne.appendChild(note);
+  ligne.appendChild(barre);
+}
+
+function renderDestinations(page) {
+  page.appendChild(
+    card(
+      'DESTINATIONS DES MISSIONS',
+      'Les lieux de mission, avec leur distance depuis Abidjan et leur localisation sur Google Maps. Ils sont proposés dans le formulaire de mission ; une destination ajoutée là rejoint cette liste. Les distances des villes fournies sont indicatives : « Itinéraire » ouvre le trajet routier exact pour les vérifier.',
+      COLORS.purple
+    )
+  );
+
+  const list = DB.destinationsMission.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
+
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('Destinations', fmt(list.length), 'enregistrées', COLORS.purple));
+  grid.appendChild(statTile('Sans distance', fmt(list.filter((d) => d.distanceKm === '' || d.distanceKm === undefined).length),
+    'à compléter', COLORS.orange));
+  page.appendChild(grid);
+
+  page.appendChild(
+    toolbar([
+      canWrite() && { label: '+ Nouvelle destination', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openDestinationForm(null) },
+      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportDestinations('excel', list) },
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportDestinations('pdf', list) }
+    ])
+  );
+
+  if (!list.length) {
+    page.appendChild(emptyState('Aucune destination enregistrée.'));
+    return;
+  }
+
+  const headers = ['Destination', 'Distance<br>depuis Abidjan', 'Localisation', 'Missions', ''];
+  const rows = list.map((d) => {
+    const n = missionsVersDestination(d.nom).length;
+    const dist = libelleDistance(d.nom);
+    return [
+      `<b>${esc(d.nom || '')}</b>`,
+      `<span style="display:block;text-align:right">${dist
+        ? `<b>${esc(dist)}</b>${d.estimee ? '<br><small>estimée</small>' : ''}`
+        : `<span class="badge" style="background:${COLORS.orange}">à renseigner</span>`}</span>`,
+      (d.localisation ? `${esc(d.localisation)}<br>` : '') +
+        `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-carte>📍 Carte</button> ` +
+        `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-itin>🧭 Itinéraire</button>`,
+      `<span style="display:block;text-align:center">${fmt(n)}</span>`,
+      canWrite()
+        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+        : ''
+    ];
+  });
+
+  page.appendChild(
+    dataTable(headers, rows, (tr, i) => {
+      const d = list[i];
+      tr.dataset.search = norm(`${d.nom} ${d.localisation}`);
+      tr.querySelector('[data-carte]').onclick = () => ouvrirLien(lienCarteDestination(d));
+      tr.querySelector('[data-itin]').onclick = () => ouvrirLien(lienItineraire(d));
+
+      const ed = tr.querySelector('[data-edit]');
+      if (ed) ed.onclick = () => openDestinationForm(d);
+
+      const del = tr.querySelector('[data-del]');
+      if (del) {
+        del.onclick = async () => {
+          const n = missionsVersDestination(d.nom).length;
+          if (!(await confirmDialog({
+            title: 'Supprimer la destination',
+            message: n
+              ? `« ${d.nom} » est la destination de ${n} mission(s). Elles garderont ce nom, mais sans distance. Supprimer ?`
+              : `Supprimer « ${d.nom} » ?`,
+            okLabel: 'Supprimer', danger: true
+          }))) return;
+          remove('destinationsMission', d.id);
+          toast('Destination supprimée.', 'ok');
+          rerender();
+        };
+      }
+    })
+  );
+}
+
+function openDestinationForm(d) {
+  const isEdit = !!d;
+  // La distance proposee a partir des coordonnees n'ecrase jamais une
+  // distance tapee : on ne remplace que le vide ou notre propre estimation.
+  let estimationProposee = null;
+  let estimee = isEdit ? !!d.estimee : false;
+
+  openForm({
+    title: isEdit ? `Modifier la destination — ${d.nom}` : 'Nouvelle destination',
+    fields: [
+      { key: 'nom', label: 'Destination', required: true, full: true, value: d && d.nom,
+        placeholder: 'Ville, localité, site…' },
+      { key: 'localisation', label: 'Localisation', full: true, value: d && d.localisation,
+        placeholder: 'Coordonnées (ex. 7.6939, -5.0303), lien Google Maps ou adresse',
+        hint: 'Sur Google Maps, un clic droit sur le lieu affiche ses coordonnées : un clic dessus les copie. Collées ici, elles donnent la distance.' },
+      { key: 'distanceKm', label: 'Distance depuis Abidjan (km)', type: 'number', value: d && d.distanceKm,
+        hint: 'Calculée à partir des coordonnées (estimation), ou lue sur « Itinéraire depuis Abidjan »' }
+    ],
+    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la destination',
+    extra: (scope) => {
+      const champ = scope.querySelector('[data-key="localisation"]');
+      const barre = el(
+        '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
+          `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-voir-carte>📍 Rechercher sur Google Maps</button>` +
+          `<button type="button" class="miniBtn" style="background:${COLORS.blue}" data-itineraire>🧭 Itinéraire depuis Abidjan</button>` +
+        '</div>'
+      );
+      const lue = () => {
+        const nom = (scope.querySelector('[data-key="nom"]') || {}).value || '';
+        const loc = champ.value.trim();
+        const coord = coordonneesDe(loc);
+        return { nom: nom.trim(), localisation: loc, lat: coord ? coord.lat : '', lng: coord ? coord.lng : '' };
+      };
+      barre.querySelector('[data-voir-carte]').onclick = () => {
+        const x = lue();
+        if (!x.nom && !x.localisation) return toast('Tapez d’abord le nom de la destination.', 'info');
+        ouvrirLien(lienCarteDestination(x));
+      };
+      barre.querySelector('[data-itineraire]').onclick = () => {
+        const x = lue();
+        if (!x.nom && !x.localisation) return toast('Tapez d’abord le nom de la destination.', 'info');
+        ouvrirLien(lienItineraire(x));
+      };
+      champ.closest('.fRow').appendChild(barre);
+    },
+    onInput: (values, scope) => {
+      const champ = scope.querySelector('[data-key="distanceKm"]');
+      if (!champ) return;
+      const coord = coordonneesDe(values.localisation);
+      const proposee = coord ? distanceEstimee(coord) : null;
+      if (proposee && (champ.value === '' || Number(champ.value) === estimationProposee)) {
+        champ.value = proposee;
+        estimationProposee = proposee;
+        estimee = true;
+      } else if (champ.value !== '' && Number(champ.value) !== estimationProposee &&
+                 !(isEdit && Number(champ.value) === Number(d.distanceKm))) {
+        // Une distance tapee a la main n'est plus une estimation.
+        estimee = false;
+      }
+    },
+    onSubmit: (values) => {
+      const nom = String(values.nom || '').trim();
+      const autre = destinationMissionParNom(nom);
+      if (autre && (!isEdit || autre.id !== d.id)) return `« ${autre.nom} » existe déjà dans la liste.`;
+      if (values.distanceKm !== '' && num(values.distanceKm) < 0) return 'La distance ne peut pas être négative.';
+
+      const coord = coordonneesDe(values.localisation);
+      const payload = {
+        nom,
+        localisation: values.localisation,
+        lat: coord ? coord.lat : (isEdit && !values.localisation ? d.lat : ''),
+        lng: coord ? coord.lng : (isEdit && !values.localisation ? d.lng : ''),
+        distanceKm: values.distanceKm === '' ? '' : num(values.distanceKm),
+        estimee: values.distanceKm === '' ? false : estimee
+      };
+      if (isEdit) {
+        const suivies = renommerDestinationMission(d.nom, nom);
+        update('destinationsMission', d.id, payload);
+        toast(`Destination mise à jour.${suivies ? ` ${suivies} mission(s) suivent le nouveau nom.` : ''}`, 'ok');
+      } else {
+        insert('destinationsMission', payload);
+        toast('Destination enregistrée.', 'ok');
+      }
+      rerender();
+      return null;
+    }
+  });
+}
+
+async function exportDestinations(kind, list) {
+  try {
+    const datasets = [dsDestinationsMission(list)];
+    const res = kind === 'excel'
+      ? await exportExcel(datasets, 'PDU_destinations_missions')
+      : await exportPdf(datasets, 'PDU_destinations_missions', { title: 'Destinations des missions' });
+    toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
+  } catch (e) {
+    console.error(e);
+    toast("L'export a échoué.", 'err');
+  }
 }
 
 async function doExport(kind, list) {

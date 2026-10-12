@@ -283,6 +283,7 @@ export function normalize(raw) {
   });
 
   migrerDotationsMission(db);
+  initialiserDestinationsMission(db);
   migrerSectionsRenommees(db);
   renumeroterMissions(db);
   arrondirMontants(db);
@@ -1310,10 +1311,12 @@ export function assurerDestinataire(nom, db = DB) {
 export function renommerDestinataire(ancien, nouveau, db = DB) {
   const cle = norm(ancien || '');
   const propre = String(nouveau || '').trim();
-  if (!cle || !propre || cle === norm(propre)) return 0;
+  // Corriger un accent ou une majuscule est un vrai changement : on ne
+  // compare donc pas les noms normalises, seulement l'ecriture exacte.
+  if (!cle || !propre) return 0;
   let n = 0;
   (db.decharges || []).forEach((d) => {
-    if (norm(d.destinataire || '') === cle) { d.destinataire = propre; n += 1; }
+    if (norm(d.destinataire || '') === cle && d.destinataire !== propre) { d.destinataire = propre; n += 1; }
   });
   if (n && db === DB) persist();
   return n;
@@ -1339,4 +1342,244 @@ export function lienCarte(localisation) {
   if (!v) return '';
   if (/^https?:\/\//i.test(v)) return v;
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
+}
+
+/* =================================================================
+   DESTINATIONS DES MISSIONS — lieux enregistres, localises, et leur
+   distance depuis Abidjan.
+
+   Une mission ne retient que le nom de sa destination, comme avant : les
+   missions deja saisies se lisent sans reprise, et le rapport de mission,
+   qui lit la meme fiche, suit de lui-meme. La distance se lit dans la liste
+   des destinations, par le nom.
+
+   L'application fonctionne sans Internet : la distance ne peut pas etre
+   demandee a un service d'itineraire. Elle vient donc :
+     - d'un releve pour les principales villes du pays (distance routiere
+       indicative, a corriger au besoin) ;
+     - sinon, des coordonnees du lieu : distance a vol d'oiseau majoree pour
+       approcher la route, marquee « estimee » ;
+     - ou de ce qu'on saisit, par exemple lu sur l'itineraire Google Maps.
+   ================================================================= */
+
+/** Point de depart des distances : Abidjan-Plateau. */
+export const ABIDJAN = { lat: 5.3197, lng: -4.0168 };
+
+/**
+ * Rapport entre la route et la ligne droite sur le reseau ivoirien : la
+ * mediane des villes de reference ci-dessous (de 1,10 pour Yamoussoukro,
+ * sur l'autoroute, a 1,45 pour Daoukro). Il ne sert qu'a une estimation,
+ * signalee comme telle.
+ */
+const FACTEUR_ROUTE = 1.25;
+
+/**
+ * Principales villes : coordonnees et distance routiere depuis Abidjan, en
+ * km. Valeurs indicatives, arrondies ; chacune reste modifiable dans la liste.
+ */
+export const DESTINATIONS_REFERENCE = [
+  ['Bingerville', 5.3550, -3.8853, 18],
+  ['Anyama', 5.4947, -4.0517, 25],
+  ['Grand-Bassam', 5.2118, -3.7388, 43],
+  ['Alépé', 5.5000, -3.6667, 50],
+  ['Dabou', 5.3256, -4.3767, 50],
+  ['Jacqueville', 5.2050, -4.4150, 55],
+  ['Agboville', 5.9280, -4.2130, 80],
+  ['Adzopé', 6.1067, -3.8619, 105],
+  ['Aboisso', 5.4667, -3.2000, 120],
+  ['Tiassalé', 5.8983, -4.8228, 125],
+  ['Grand-Lahou', 5.1367, -5.0244, 145],
+  ['Divo', 5.8372, -5.3572, 190],
+  ['Toumodi', 6.5520, -5.0190, 200],
+  ['Bongouanou', 6.6517, -4.2041, 200],
+  ['Abengourou', 6.7297, -3.4964, 210],
+  ['Yamoussoukro', 6.8276, -5.2893, 240],
+  ['Dimbokro', 6.6500, -4.7000, 240],
+  ['Lakota', 5.8500, -5.6833, 240],
+  ['Sassandra', 4.9500, -6.0833, 260],
+  ['Gagnoa', 6.1319, -5.9506, 275],
+  ['Daoukro', 7.0591, -3.9631, 280],
+  ['Sinfra', 6.6210, -5.9114, 290],
+  ['Bouaflé', 6.9903, -5.7442, 300],
+  ['San-Pédro', 4.7485, -6.6363, 340],
+  ['Bouaké', 7.6939, -5.0303, 350],
+  ['Daloa', 6.8774, -6.4502, 385],
+  ['Soubré', 5.7856, -6.6083, 390],
+  ['Katiola', 8.1372, -5.1006, 400],
+  ['Issia', 6.4922, -6.5856, 410],
+  ['Bondoukou', 8.0402, -2.8000, 420],
+  ['Tabou', 4.4230, -7.3528, 430],
+  ['Vavoua', 7.3819, -6.4778, 440],
+  ['Duékoué', 6.7419, -7.3492, 500],
+  ['Séguéla', 7.9611, -6.6731, 520],
+  ['Guiglo', 6.5436, -7.4933, 530],
+  ['Mankono', 8.0586, -6.1897, 550],
+  ['Ferkessédougou', 9.5928, -5.1944, 580],
+  ['Man', 7.4125, -7.5536, 580],
+  ['Bouna', 9.2667, -3.0000, 620],
+  ['Korhogo', 9.4580, -5.6296, 635],
+  ['Danané', 7.2596, -8.1550, 650],
+  ['Touba', 8.2833, -7.6833, 700],
+  ['Boundiali', 9.5167, -6.4833, 720],
+  ['Tengréla', 10.4833, -6.4000, 800],
+  ['Odienné', 9.5000, -7.5667, 840]
+];
+
+/** Distance a vol d'oiseau entre deux points, en km (formule de haversine). */
+export function distanceVolOiseau(a, b) {
+  const rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat - a.lat);
+  const dLng = rad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * 6371 * Math.asin(Math.sqrt(h));
+}
+
+/**
+ * Coordonnees lues dans ce qu'on colle depuis Google Maps : « 7.69, -5.03 »
+ * (clic droit sur la carte), un lien « …/@7.69,-5.03,12z », « …?q=7.69,-5.03 »
+ * ou « …!3d7.69!4d-5.03 ». Un lien court (maps.app.goo.gl) ne porte pas les
+ * coordonnees : il faut l'ouvrir pour les connaitre, ce qui demande Internet.
+ *
+ * @returns {{lat:number,lng:number}|null}
+ */
+export function coordonneesDe(texte) {
+  const t = String(texte || '').trim();
+  if (!t) return null;
+  const formes = [
+    /!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/,
+    /@(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)/,
+    /[?&](?:q|query|ll|destination)=(-?\d+(?:\.\d+)?)(?:,|%2C)\s*(-?\d+(?:\.\d+)?)/i,
+    /^(-?\d+(?:\.\d+)?)\s*[,;]\s*(-?\d+(?:\.\d+)?)$/,
+    /^(-?\d+(?:,\d+)?)\s*;\s*(-?\d+(?:,\d+)?)$/
+  ];
+  for (const f of formes) {
+    const r = f.exec(t);
+    if (!r) continue;
+    const lat = Number(String(r[1]).replace(',', '.'));
+    const lng = Number(String(r[2]).replace(',', '.'));
+    if (Math.abs(lat) <= 90 && Math.abs(lng) <= 180) return { lat, lng };
+  }
+  return null;
+}
+
+/** Distance routiere estimee depuis Abidjan, arrondie a 5 km. */
+export function distanceEstimee(coord) {
+  if (!coord) return null;
+  return Math.max(5, Math.round((distanceVolOiseau(ABIDJAN, coord) * FACTEUR_ROUTE) / 5) * 5);
+}
+
+/**
+ * Premiere ouverture apres la mise a jour : la liste recoit les villes de
+ * reference, puis les destinations deja tapees dans les missions — une
+ * mission ancienne retrouve ainsi sa distance si sa ville est connue.
+ * La cle absente est le signal : on ne le fait qu'une fois, une ville
+ * retiree ensuite ne revient pas.
+ */
+function initialiserDestinationsMission(db) {
+  if (Array.isArray(db.destinationsMission)) return;
+  db.destinationsMission = DESTINATIONS_REFERENCE.map(([nom, lat, lng, km]) => ({
+    id: uid(), nom, localisation: '', lat, lng, distanceKm: km, estimee: false
+  }));
+  (db.missions || []).forEach((m) => assurerDestinationMission(m.destination, db));
+}
+
+export function nomsDestinationsMission(db = DB) {
+  return (db.destinationsMission || [])
+    .map((d) => String(d.nom || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+export function destinationMissionParNom(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return null;
+  return (db.destinationsMission || []).find((d) => norm(d.nom || '') === cle) || null;
+}
+
+/**
+ * Inscrit une destination tapee dans une mission. Sans coordonnees, sa
+ * distance reste a renseigner : on ne l'invente pas.
+ *
+ * @returns {object|null} la fiche creee, ou null si elle existait deja
+ */
+export function assurerDestinationMission(nom, db = DB) {
+  const propre = String(nom || '').trim();
+  if (!propre || destinationMissionParNom(propre, db)) return null;
+  const fiche = {
+    id: uid(),
+    nom: propre,
+    localisation: '',
+    lat: '',
+    lng: '',
+    distanceKm: '',
+    estimee: false
+  };
+  if (!Array.isArray(db.destinationsMission)) db.destinationsMission = [];
+  db.destinationsMission.push(fiche);
+  if (db === DB) persist();
+  return fiche;
+}
+
+/** Reporte le nouveau nom d'une destination sur toutes ses missions. */
+export function renommerDestinationMission(ancien, nouveau, db = DB) {
+  const cle = norm(ancien || '');
+  const propre = String(nouveau || '').trim();
+  // Comme pour les destinataires : un accent corrige se reporte aussi.
+  if (!cle || !propre) return 0;
+  let n = 0;
+  (db.missions || []).forEach((m) => {
+    if (norm(m.destination || '') === cle && m.destination !== propre) { m.destination = propre; n += 1; }
+  });
+  if (n && db === DB) persist();
+  return n;
+}
+
+export function missionsVersDestination(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return [];
+  return (db.missions || []).filter((m) => norm(m.destination || '') === cle);
+}
+
+/**
+ * Distance depuis Abidjan d'une destination, par son nom.
+ * @returns {{km:number, estimee:boolean}|null} null si elle n'est pas connue
+ */
+export function distanceAbidjan(nom, db = DB) {
+  const d = destinationMissionParNom(nom, db);
+  if (!d || d.distanceKm === '' || d.distanceKm === undefined || d.distanceKm === null) return null;
+  return { km: num(d.distanceKm), estimee: !!d.estimee };
+}
+
+/** « 350 km », ou « ≈ 455 km » pour une estimation ; vide si inconnue. */
+export function libelleDistance(nom, db = DB) {
+  const d = distanceAbidjan(nom, db);
+  return d ? `${d.estimee ? '≈ ' : ''}${d.km.toLocaleString('fr-FR')} km` : '';
+}
+
+/** Ce que Google Maps doit chercher pour trouver la destination. */
+function cibleCarte(d) {
+  const loc = String(d.localisation || '').trim();
+  if (loc && !/^https?:\/\//i.test(loc) && !coordonneesDe(loc)) return loc;
+  if (d.lat !== '' && d.lat !== undefined && d.lng !== '' && d.lng !== undefined) return `${d.lat},${d.lng}`;
+  return `${d.nom}, Côte d’Ivoire`;
+}
+
+/** Lien Google Maps de la destination : le lien colle s'il y en a un. */
+export function lienCarteDestination(d) {
+  if (!d) return '';
+  const loc = String(d.localisation || '').trim();
+  if (/^https?:\/\//i.test(loc)) return loc;
+  return lienCarte(cibleCarte(d));
+}
+
+/** Itineraire Google Maps depuis Abidjan : la distance routiere exacte s'y lit. */
+export function lienItineraire(d) {
+  if (!d) return '';
+  const params = new URLSearchParams({
+    api: '1',
+    origin: 'Abidjan, Côte d’Ivoire',
+    destination: cibleCarte(d),
+    travelmode: 'driving'
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
