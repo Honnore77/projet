@@ -87,3 +87,46 @@ test('l’itineraire part d’Abidjan et vise les coordonnees quand on les a', (
   assert.equal(p.get('destination'), '7.6939,-5.0303');
   assert.ok(p.get('origin').startsWith('Abidjan'));
 });
+
+/* ---------------- Plusieurs destinations par mission ---------------- */
+
+test('une mission d’avant, a destination unique, devient un parcours d’une etape', async () => {
+  const base = await charger({ missions: [{ id: 'a', destination: 'Bouaké' }] });
+  assert.deepEqual(base.missions[0].destinations, ['Bouaké']);
+  assert.equal(base.missions[0].destination, 'Bouaké');
+});
+
+test('le libelle « destination » suit la liste, sans doublon', async () => {
+  const base = await charger({ missions: [{ id: 'a', destinations: ['Bouaké', 'Korhogo', 'bouake'] }] });
+  assert.deepEqual(base.missions[0].destinations, ['Bouaké', 'Korhogo']);
+  assert.equal(base.missions[0].destination, 'Bouaké, Korhogo');
+});
+
+test('la distance de la mission est celle de l’etape la plus eloignee', async () => {
+  const base = await charger({ missions: [{ id: 'a', destinations: ['Bouaké', 'Korhogo', 'Katiola'] }] });
+  assert.deepEqual(db.distanceMission(base.missions[0]), { nom: 'Korhogo', km: 635, estimee: false });
+});
+
+test('une mission compte pour chacune de ses destinations', async () => {
+  await charger({ missions: [{ id: 'a', destinations: ['Bouaké', 'Korhogo'] }, { id: 'b', destinations: ['Korhogo'] }] });
+  assert.equal(db.missionsVersDestination('Bouaké').length, 1);
+  assert.equal(db.missionsVersDestination('korhogo').length, 2);
+});
+
+test('renommer une etape la remplace dans le parcours et dans le libelle', async () => {
+  const base = await charger({
+    destinationsMission: [{ id: 'x', nom: 'Ferke' }],
+    missions: [{ id: 'a', destinations: ['Bouaké', 'Ferke', 'Korhogo'] }]
+  });
+  assert.equal(renommerDestinationMission('Ferke', 'Ferkessédougou'), 1);
+  assert.deepEqual(base.missions[0].destinations, ['Bouaké', 'Ferkessédougou', 'Korhogo']);
+  assert.equal(base.missions[0].destination, 'Bouaké, Ferkessédougou, Korhogo');
+});
+
+test('le circuit part d’Abidjan, passe par chaque etape dans l’ordre et y revient', async () => {
+  await charger();
+  const p = new URL(db.lienCircuit(['Bouaké', 'Korhogo'])).searchParams;
+  assert.ok(p.get('origin').startsWith('Abidjan'));
+  assert.ok(p.get('destination').startsWith('Abidjan'));
+  assert.equal(p.get('waypoints'), '7.6939,-5.0303|9.458,-5.6296');
+});

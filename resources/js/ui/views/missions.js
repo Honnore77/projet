@@ -13,7 +13,8 @@ import {
   ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist,
   nomsDestinationsMission, destinationMissionParNom, assurerDestinationMission,
   renommerDestinationMission, missionsVersDestination, libelleDistance,
-  lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee
+  lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
+  destinationsDe, texteDestinations, distanceMission, lienCircuit
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
@@ -101,7 +102,7 @@ function renderSuivi(page) {
       esc(m.conducteur || ''),
       `<span style="display:block;text-align:center">${g.length}</span>`,
       m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>` : '',
-      celluleDestination(m.destination),
+      celluleDestinations(m),
       esc(dateFR(m.dateDepart) || ''),
       esc(dateFR(m.dateRetour) || ''),
       `<span style="display:block;text-align:center">${esc(m.jours === '' || m.jours === undefined ? '—' : m.jours)}</span>`,
@@ -122,7 +123,7 @@ function renderSuivi(page) {
 
       const vehLink = tr.querySelector('[data-veh]');
       if (vehLink) vehLink.onclick = (ev) => { ev.preventDefault(); openVehicleSheet(m.vehicule); };
-      cablerCarte(tr, m.destination);
+      cablerCarte(tr, m);
 
       const pay = tr.querySelector('[data-pay]');
       if (pay) pay.onclick = () => openPaymentForm(m);
@@ -214,7 +215,7 @@ function renderRapport(page) {
         esc(m.vehicule || ''),
         `${esc(dateFR(m.dateDepart) || '…')} → ${esc(dateFR(m.dateRetour) || '…')}` +
           (m.jours !== '' && m.jours !== undefined ? `<br><small>${m.jours} jour(s)</small>` : ''),
-        celluleDestination(m.destination),
+        celluleDestinations(m),
         `<span class="badge" style="background:${rempli ? COLORS.purple : COLORS.orange}">${rempli ? 'Rempli' : 'À compléter'}</span>`,
         `<button class="miniBtn" style="background:${COLORS.blue};padding:6px 12px" data-voir>Voir</button>`
       ];
@@ -225,7 +226,7 @@ function renderRapport(page) {
         const m = list[i];
         tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.vehicule} ${m.destination}`);
         tr.querySelector('[data-voir]').onclick = () => openRapportVue(m);
-        cablerCarte(tr, m.destination);
+        cablerCarte(tr, m);
       })
     );
   }
@@ -294,8 +295,11 @@ function openRapportVue(m) {
     '<div>' +
       '<div class="subBlock"><h5>Mission</h5>' +
       ligne('Période', d.periode) +
-      ligne('Destination', d.destination) +
-      (d.distanceAbidjan ? ligne('Distance depuis Abidjan', d.distanceAbidjan) : '') +
+      (d.destinationsDetail.length > 1
+        ? d.destinationsDetail.map((x, i) =>
+            ligne(`Destination ${i + 1}`, x.distance ? `${x.nom} — ${x.distance} d’Abidjan` : x.nom)).join('')
+        : ligne('Destination', d.destination) +
+          (d.distanceAbidjan ? ligne('Distance depuis Abidjan', d.distanceAbidjan) : '')) +
       ligne('Nom du chauffeur', d.chauffeur) +
       ligne('Véhicule utilisé', d.vehicule) +
       '</div>' +
@@ -412,8 +416,8 @@ function openRapportForm(m) {
 
   openForm({
     title: `Rapport de mission — ${m.ref || m.conducteur}`,
-    intro: `${m.conducteur || '—'} · ${m.destination || '—'}` +
-      `${libelleDistance(m.destination) ? ` (${libelleDistance(m.destination)} d’Abidjan)` : ''}` +
+    intro: `${m.conducteur || '—'} · ${destinationsDe(m).map((nom) =>
+      (libelleDistance(nom) ? `${nom} (${libelleDistance(nom)})` : nom)).join(', ') || '—'}` +
       ` · ${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
     fields: [
       { key: 'participant1', label: 'Participant 1', value: (m.participants || [])[0] },
@@ -549,13 +553,12 @@ function missionFields(m = {}) {
       hint: 'Attribuée selon la date de départ — la plus ancienne porte M-001' },
     { key: 'conducteur', label: 'Conducteur', required: true, value: m.conducteur, list: conducteursProposes() },
     { key: 'vehicule', label: 'Véhicule (immatriculation)', value: m.vehicule, list: knownImmats() },
-    // Choisie dans la liste des destinations, ou ajoutee : elle y entre a
-    // l'enregistrement, avec la distance saisie ici.
-    { key: 'destination', label: 'Destination', type: 'selectAdd', value: m.destination,
-      options: nomsDestinationsMission(), emptyLabel: '— choisir —', addLabel: 'Nouvelle destination' },
-    { key: 'distanceKm', label: 'Distance depuis Abidjan (km)', type: 'number',
-      value: (destinationMissionParNom(m.destination) || {}).distanceKm,
-      hint: 'Reprise de la liste des destinations ; à compléter pour une nouvelle destination' },
+    // Liste ou l'on puise les destinations, une a une : chacune rejoint le
+    // parcours affiche juste dessous (voir cablerParcours). Le champ lui-meme
+    // revient a vide apres chaque ajout, il n'est pas enregistre.
+    { key: 'destination', label: 'Destinations', type: 'selectAdd', full: true, value: '',
+      options: nomsDestinationsMission(), emptyLabel: '— ajouter une destination —', addLabel: 'Nouvelle destination',
+      hint: 'Ajoutez autant de destinations que nécessaire, dans l’ordre du parcours' },
     { key: 'dateDepart', label: 'Date départ', type: 'date', value: m.dateDepart || todayISO() },
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
     { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
@@ -574,27 +577,28 @@ function conducteursProposes() {
 export function openMissionForm(m) {
   const isEdit = !!m;
   const rot = rotationConducteurs();
-  let derniereDestination = isEdit ? m.destination : undefined;
+  // Le parcours en cours de saisie : nom et distance de chaque etape. La
+  // distance tapee ici sera reportee sur la destination a l'enregistrement.
+  const parcours = destinationsDe(m || {}).map((nom) => {
+    const d = destinationMissionParNom(nom);
+    return { nom, km: d && d.distanceKm !== '' && d.distanceKm !== undefined ? d.distanceKm : '', estimee: !!(d && d.estimee) };
+  });
+  let redessinerParcours = () => {};
   openForm({
     title: isEdit ? `Modifier la mission ${m.ref}` : 'Nouvelle mission',
     intro: !isEdit && rot.length ? `Tour de rôle : c’est au tour de ${rot[0].nom}.` : undefined,
     fields: missionFields(m || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la mission',
-    extra: (scope) => cablerBoutonsCarte(scope),
+    extra: (scope) => { redessinerParcours = cablerParcours(scope, parcours); },
     onInput: (values, scope) => {
-      // Changer de destination reprend sa distance. Tant que la destination
-      // ne change pas, le champ reste a la main de celui qui saisit.
-      if (values.destination !== derniereDestination) {
-        derniereDestination = values.destination;
-        const champ = scope.querySelector('[data-key="distanceKm"]');
-        const dest = destinationMissionParNom(values.destination);
-        if (champ) champ.value = dest && dest.distanceKm !== '' && dest.distanceKm !== undefined ? dest.distanceKm : '';
-        const note = scope.querySelector('[data-note-distance]');
-        if (note) {
-          note.textContent = dest && dest.estimee
-            ? 'Distance estimée à partir des coordonnées : vérifiez-la avec « Itinéraire depuis Abidjan ».'
-            : '';
-        }
+      // Une destination choisie dans la liste rejoint aussitot le parcours.
+      // Une nouvelle, tapee a la main, attend le bouton « Ajouter » : on ne
+      // l'ajoute pas lettre a lettre.
+      const liste = scope.querySelector('select[data-key="destination"]');
+      if (liste && liste.value && liste.value !== '__ajout__') {
+        ajouterEtape(parcours, liste.value);
+        liste.value = '';
+        redessinerParcours();
       }
 
       const j = joursMission(values.dateDepart, values.dateRetour);
@@ -609,22 +613,27 @@ export function openMissionForm(m) {
     onSubmit: (values) => {
       const jours = joursMission(values.dateDepart, values.dateRetour);
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
-      if (values.distanceKm !== '' && num(values.distanceKm) < 0) return 'La distance ne peut pas être négative.';
+      if (parcours.some((e) => e.km !== '' && num(e.km) < 0)) return 'Une distance ne peut pas être négative.';
 
-      // La destination garde l'ecriture de la liste ; une nouvelle y entre,
-      // et la distance saisie ici devient la sienne — la liste, le tableau
-      // de suivi et le rapport de mission lisent alors le meme chiffre.
-      const connue = destinationMissionParNom(values.destination);
-      const destination = connue ? connue.nom : String(values.destination || '').trim();
-      const fiche = connue || assurerDestinationMission(destination);
-      if (fiche && values.distanceKm !== '' && num(values.distanceKm) !== num(fiche.distanceKm)) {
-        update('destinationsMission', fiche.id, { distanceKm: num(values.distanceKm), estimee: false });
-      }
+      // Une destination tapee sans avoir clique « Ajouter » n'est pas perdue.
+      if (values.destination && values.destination !== '__ajout__') ajouterEtape(parcours, values.destination);
+
+      // Chaque destination garde l'ecriture de la liste ; une nouvelle y
+      // entre, et la distance saisie ici devient la sienne — la liste, le
+      // tableau de suivi et le rapport de mission lisent le meme chiffre.
+      const noms = parcours.map((e) => {
+        const fiche = destinationMissionParNom(e.nom) || assurerDestinationMission(e.nom);
+        if (fiche && e.km !== '' && num(e.km) !== num(fiche.distanceKm)) {
+          update('destinationsMission', fiche.id, { distanceKm: num(e.km), estimee: false });
+        }
+        return fiche ? fiche.nom : e.nom;
+      });
 
       const payload = {
         conducteur: values.conducteur,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
-        destination,
+        destinations: noms,
+        destination: texteDestinations(noms),
         dateDepart: values.dateDepart,
         dateRetour: values.dateRetour,
         jours: jours === null ? '' : jours,
@@ -688,19 +697,25 @@ function openPaymentForm(m) {
 
 /* ========================= DESTINATIONS ============================ */
 
-/** Cellule « Destination » : le nom, sa distance d'Abidjan, la carte. */
-function celluleDestination(nom) {
-  if (!nom) return '';
-  const dist = libelleDistance(nom);
-  const dest = destinationMissionParNom(nom);
-  return `${esc(nom)}` +
-    (dist ? `<br><small style="color:${COLORS.purple}"><b>${esc(dist)}</b> d’Abidjan</small>` : '') +
-    (dest ? ` <a href="#" data-carte title="Voir sur Google Maps" style="text-decoration:none">📍</a>` : '');
+/** Cellule « Destination » : chaque etape, sa distance d'Abidjan, la carte. */
+function celluleDestinations(m) {
+  return destinationsDe(m).map((nom, i) => {
+    const dist = libelleDistance(nom);
+    const connue = destinationMissionParNom(nom);
+    return `${esc(nom)}` +
+      (dist ? ` <small style="color:${COLORS.purple};white-space:nowrap"><b>${esc(dist)}</b></small>` : '') +
+      (connue ? ` <a href="#" data-carte="${i}" title="Voir sur Google Maps" style="text-decoration:none">📍</a>` : '');
+  }).join('<br>');
 }
 
-function cablerCarte(tr, nom) {
-  const lien = tr.querySelector('[data-carte]');
-  if (lien) lien.onclick = (ev) => { ev.preventDefault(); ouvrirLien(lienCarteDestination(destinationMissionParNom(nom))); };
+function cablerCarte(tr, m) {
+  const noms = destinationsDe(m);
+  tr.querySelectorAll('[data-carte]').forEach((lien) => {
+    lien.onclick = (ev) => {
+      ev.preventDefault();
+      ouvrirLien(lienCarteDestination(destinationMissionParNom(noms[Number(lien.dataset.carte)])));
+    };
+  });
 }
 
 /** Les liens partent dans le navigateur du systeme (voir electron/main.cjs). */
@@ -708,39 +723,134 @@ function ouvrirLien(url) {
   if (url) window.open(url, '_blank', 'noopener');
 }
 
+/** Ajoute une etape au parcours, sans doublon, avec la distance connue. */
+function ajouterEtape(parcours, saisie) {
+  const nom = String(saisie || '').trim();
+  if (!nom || parcours.some((e) => norm(e.nom) === norm(nom))) return false;
+  const d = destinationMissionParNom(nom);
+  parcours.push({
+    nom: d ? d.nom : nom,
+    km: d && d.distanceKm !== '' && d.distanceKm !== undefined ? d.distanceKm : '',
+    estimee: !!(d && d.estimee)
+  });
+  return true;
+}
+
 /**
- * Sous le champ distance du formulaire de mission : voir la destination sur
- * la carte, et l'itineraire depuis Abidjan, ou se lit la distance par la
- * route. Une destination pas encore enregistree se cherche par son nom.
+ * Le parcours d'une mission, sous la liste des destinations : une ligne par
+ * etape, avec sa distance d'Abidjan (modifiable), la carte, l'itineraire, et
+ * de quoi la retirer ou la deplacer. En dessous, l'itineraire complet
+ * Abidjan → etapes → Abidjan, ou Google Maps donne le kilometrage du circuit.
+ *
+ * @returns {Function} redessine le parcours (apres un ajout depuis la liste)
  */
-function cablerBoutonsCarte(scope) {
-  const champ = scope.querySelector('[data-key="distanceKm"]');
-  if (!champ) return;
-  const barre = el(
-    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
-      `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-voir-carte>📍 Voir sur Google Maps</button>` +
-      `<button type="button" class="miniBtn" style="background:${COLORS.blue}" data-itineraire>🧭 Itinéraire depuis Abidjan</button>` +
+function cablerParcours(scope, parcours) {
+  const ligneChamp = scope.querySelector('[data-key="destination"]').closest('.fRow');
+  const bloc = el(
+    '<div class="subBlock" style="margin-top:8px">' +
+      `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">` +
+        `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-ajout-etape>+ Ajouter cette destination</button>` +
+      '</div>' +
+      '<div data-etapes></div>' +
+      '<div data-resume style="margin-top:6px"></div>' +
     '</div>'
   );
-  const note = el('<span class="hint" data-note-distance style="color:#b26a00"></span>');
-  const destination = () => {
-    const v = (scope.querySelector('[data-key="destination"]') || {}).value || '';
-    const nom = v === '__ajout__' ? '' : v.trim();
-    return destinationMissionParNom(nom) || (nom ? { nom, localisation: '', lat: '', lng: '' } : null);
+  ligneChamp.appendChild(bloc);
+  const etapes = bloc.querySelector('[data-etapes]');
+  const resume = bloc.querySelector('[data-resume]');
+  const boutonAjout = bloc.querySelector('[data-ajout-etape]');
+
+  // Le bouton ne sert qu'a la saisie libre : une destination de la liste
+  // s'ajoute d'elle-meme des qu'on la choisit.
+  const saisieLibre = () => {
+    const n = ligneChamp.querySelector('input[data-key="destination"]');
+    boutonAjout.style.display = n ? '' : 'none';
+    return n;
   };
-  barre.querySelector('[data-voir-carte]').onclick = () => {
-    const d = destination();
-    if (!d) return toast('Choisissez d’abord une destination.', 'info');
-    ouvrirLien(lienCarteDestination(d));
+
+  const ajouterSaisie = () => {
+    const n = saisieLibre();
+    if (!n || !n.value.trim()) return toast('Tapez le nom de la nouvelle destination.', 'info');
+    if (!ajouterEtape(parcours, n.value)) toast('Cette destination est déjà dans le parcours.', 'info');
+    n.value = '';
+    dessiner();
+    n.focus();
   };
-  barre.querySelector('[data-itineraire]').onclick = () => {
-    const d = destination();
-    if (!d) return toast('Choisissez d’abord une destination.', 'info');
-    ouvrirLien(lienItineraire(d));
+  boutonAjout.onclick = ajouterSaisie;
+
+  // Entree dans le champ de saisie ajoute l'etape au lieu d'enregistrer la
+  // mission : on tape plusieurs destinations a la suite.
+  scope.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.matches && e.target.matches('input[data-key="destination"]')) {
+      e.preventDefault();
+      e.stopPropagation();
+      ajouterSaisie();
+    }
+  }, true);
+  // La bascule liste <-> saisie libre remplace le champ : on suit le mouvement.
+  ligneChamp.addEventListener('change', () => setTimeout(saisieLibre, 0));
+  ligneChamp.addEventListener('click', () => setTimeout(saisieLibre, 0));
+
+  const dessiner = () => {
+    saisieLibre();
+    etapes.innerHTML = parcours.length
+      ? parcours.map((e, i) =>
+          '<div class="subEntryRow" style="gap:6px;flex-wrap:wrap;align-items:center">' +
+            `<span style="flex:1 1 140px"><b>${i + 1}. ${esc(e.nom)}</b>` +
+              `${e.estimee && e.km !== '' ? '<br><small style="color:#b26a00">distance estimée — à vérifier</small>' : ''}</span>` +
+            '<span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">' +
+              `<input type="number" min="0" step="any" data-km="${i}" value="${esc(e.km)}" placeholder="km" ` +
+                'title="Distance depuis Abidjan (km)" style="width:80px">' +
+              '<small>km</small>' +
+              `<button type="button" class="miniBtn" style="background:${COLORS.purple};padding:4px 7px" data-carte-e="${i}" title="Voir sur Google Maps">📍</button>` +
+              `<button type="button" class="miniBtn" style="background:${COLORS.blue};padding:4px 7px" data-itin-e="${i}" title="Itinéraire depuis Abidjan">🧭</button>` +
+              (i > 0 ? `<button type="button" class="miniBtn" style="background:${COLORS.grey};padding:4px 7px" data-monte="${i}" title="Plus tôt dans le parcours">↑</button>` : '') +
+              `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 7px" data-retire="${i}" title="Retirer">✕</button>` +
+            '</span>' +
+          '</div>'
+        ).join('')
+      : '<div class="subEntryRow"><span><small>Aucune destination — choisissez-en une dans la liste.</small></span></div>';
+
+    etapes.querySelectorAll('[data-km]').forEach((n) => {
+      n.oninput = () => {
+        const e = parcours[Number(n.dataset.km)];
+        e.km = n.value === '' ? '' : Number(n.value);
+        e.estimee = false;
+        dessinerResume();
+      };
+    });
+    const fiche = (i) => destinationMissionParNom(parcours[i].nom) || { nom: parcours[i].nom, localisation: '', lat: '', lng: '' };
+    etapes.querySelectorAll('[data-carte-e]').forEach((b) => { b.onclick = () => ouvrirLien(lienCarteDestination(fiche(Number(b.dataset.carteE)))); });
+    etapes.querySelectorAll('[data-itin-e]').forEach((b) => { b.onclick = () => ouvrirLien(lienItineraire(fiche(Number(b.dataset.itinE)))); });
+    etapes.querySelectorAll('[data-retire]').forEach((b) => {
+      b.onclick = () => { parcours.splice(Number(b.dataset.retire), 1); dessiner(); };
+    });
+    etapes.querySelectorAll('[data-monte]').forEach((b) => {
+      b.onclick = () => {
+        const i = Number(b.dataset.monte);
+        [parcours[i - 1], parcours[i]] = [parcours[i], parcours[i - 1]];
+        dessiner();
+      };
+    });
+    dessinerResume();
   };
-  const ligne = champ.closest('.fRow');
-  ligne.appendChild(note);
-  ligne.appendChild(barre);
+
+  const dessinerResume = () => {
+    const connues = parcours.filter((e) => e.km !== '');
+    const loin = connues.reduce((m, e) => (!m || num(e.km) > num(m.km) ? e : m), null);
+    resume.innerHTML = parcours.length
+      ? (loin
+          ? `<small>La plus éloignée : <b>${esc(loin.nom)}</b>, ${fmt(num(loin.km))} km d’Abidjan.</small> `
+          : '') +
+        `<button type="button" class="miniBtn" style="background:${COLORS.blue};margin-top:4px" data-circuit>` +
+          `🧭 Circuit complet sur Google Maps (Abidjan → ${parcours.length > 1 ? `${parcours.length} étapes` : esc(parcours[0].nom)} → Abidjan)</button>`
+      : '';
+    const c = resume.querySelector('[data-circuit]');
+    if (c) c.onclick = () => ouvrirLien(lienCircuit(parcours.map((e) => e.nom)));
+  };
+
+  dessiner();
+  return dessiner;
 }
 
 function renderDestinations(page) {

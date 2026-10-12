@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, distanceAbidjan, missionsVersDestination } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, distanceMission, missionsVersDestination } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -270,7 +270,7 @@ export function dsMissions(list = DB.missions) {
       C('nbMissions', 'Nb missions', 11),
       C('vehicule', 'Véhicule', 14),
       C('destination', 'Destination', 22),
-      C('distance', 'Distance Abidjan (km)', 13),
+      C('distance', 'Distance Abidjan (km) — la plus éloignée', 16),
       C('dateDepart', 'Départ', 12),
       C('dateRetour', 'Retour', 12),
       C('jours', 'Jours', 8),
@@ -286,7 +286,7 @@ export function dsMissions(list = DB.missions) {
         nbMissions: g.length,
         vehicule: m.vehicule || '',
         destination: m.destination || '',
-        distance: kmAbidjan(m.destination),
+        distance: kmAbidjan(m),
         dateDepart: dateFR(m.dateDepart),
         dateRetour: dateFR(m.dateRetour),
         jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
@@ -538,9 +538,9 @@ export function dsDestinataires(list = DB.destinataires) {
   };
 }
 
-/** Distance d'Abidjan a exporter : vide si la destination n'en a pas. */
-function kmAbidjan(nom) {
-  const d = distanceAbidjan(nom);
+/** Distance d'Abidjan a exporter : celle de la destination la plus eloignee. */
+function kmAbidjan(m) {
+  const d = distanceMission(m);
   return d ? d.km : '';
 }
 

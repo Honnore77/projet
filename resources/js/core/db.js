@@ -283,6 +283,7 @@ export function normalize(raw) {
   });
 
   migrerDotationsMission(db);
+  db.missions.forEach(normaliserDestinations);
   initialiserDestinationsMission(db);
   migrerSectionsRenommees(db);
   renumeroterMissions(db);
@@ -1480,7 +1481,57 @@ function initialiserDestinationsMission(db) {
   db.destinationsMission = DESTINATIONS_REFERENCE.map(([nom, lat, lng, km]) => ({
     id: uid(), nom, localisation: '', lat, lng, distanceKm: km, estimee: false
   }));
-  (db.missions || []).forEach((m) => assurerDestinationMission(m.destination, db));
+  (db.missions || []).forEach((m) => destinationsDe(m).forEach((nom) => assurerDestinationMission(nom, db)));
+}
+
+/* ------------------------------------------------------------------ */
+/* Plusieurs destinations par mission                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Une mission peut passer par plusieurs lieux : ils sont ranges dans
+ * `destinations`, dans l'ordre du parcours.
+ *
+ * `destination` est garde a cote, en texte (« Bouaké, Korhogo ») : c'est ce
+ * que lisent les exports, la recherche, la fiche vehicule et la rubrique
+ * DOTATION. Il est toujours recalcule a partir de la liste, jamais saisi.
+ */
+export function destinationsDe(m) {
+  if (!m) return [];
+  if (Array.isArray(m.destinations)) return m.destinations.filter(Boolean);
+  return m.destination ? [String(m.destination).trim()].filter(Boolean) : [];
+}
+
+/** Libelle d'une liste de destinations, tel qu'il s'affiche partout. */
+export function texteDestinations(liste) {
+  return (liste || []).filter(Boolean).join(', ');
+}
+
+/**
+ * Les missions d'avant ne connaissaient qu'une destination : elle devient la
+ * premiere de la liste. On ne coupe pas sur les virgules — « Abidjan,
+ * Cocody » peut tres bien designer un seul lieu.
+ */
+function normaliserDestinations(m) {
+  const vus = new Set();
+  m.destinations = destinationsDe(m)
+    .map((d) => String(d).trim())
+    .filter((d) => d && !vus.has(norm(d)) && vus.add(norm(d)));
+  m.destination = texteDestinations(m.destinations);
+}
+
+/**
+ * Distance de reference d'une mission : celle de sa destination la plus
+ * eloignee d'Abidjan, c'est elle qui dit jusqu'ou l'on va.
+ * @returns {{km:number, estimee:boolean, nom:string}|null}
+ */
+export function distanceMission(m, db = DB) {
+  let max = null;
+  destinationsDe(m).forEach((nom) => {
+    const d = distanceAbidjan(nom, db);
+    if (d && (!max || d.km > max.km)) max = Object.assign({ nom }, d);
+  });
+  return max;
 }
 
 export function nomsDestinationsMission(db = DB) {
@@ -1528,7 +1579,13 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
   if (!cle || !propre) return 0;
   let n = 0;
   (db.missions || []).forEach((m) => {
-    if (norm(m.destination || '') === cle && m.destination !== propre) { m.destination = propre; n += 1; }
+    const liste = destinationsDe(m);
+    const i = liste.findIndex((x) => norm(x) === cle && x !== propre);
+    if (i < 0) return;
+    liste[i] = propre;
+    m.destinations = liste;
+    m.destination = texteDestinations(liste);
+    n += 1;
   });
   if (n && db === DB) persist();
   return n;
@@ -1537,7 +1594,7 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
 export function missionsVersDestination(nom, db = DB) {
   const cle = norm(nom || '');
   if (!cle) return [];
-  return (db.missions || []).filter((m) => norm(m.destination || '') === cle);
+  return (db.missions || []).filter((m) => destinationsDe(m).some((x) => norm(x) === cle));
 }
 
 /**
@@ -1570,6 +1627,25 @@ export function lienCarteDestination(d) {
   const loc = String(d.localisation || '').trim();
   if (/^https?:\/\//i.test(loc)) return loc;
   return lienCarte(cibleCarte(d));
+}
+
+/**
+ * Itineraire complet d'une mission : depart d'Abidjan, chaque destination
+ * dans l'ordre, retour a Abidjan. Google Maps y donne le kilometrage total
+ * du circuit, que le releve des distances depuis Abidjan ne peut pas donner.
+ */
+export function lienCircuit(noms, db = DB) {
+  const etapes = (noms || []).filter(Boolean).map((nom) =>
+    cibleCarte(destinationMissionParNom(nom, db) || { nom, localisation: '', lat: '', lng: '' }));
+  if (!etapes.length) return '';
+  const params = new URLSearchParams({
+    api: '1',
+    origin: 'Abidjan, Côte d’Ivoire',
+    destination: 'Abidjan, Côte d’Ivoire',
+    waypoints: etapes.join('|'),
+    travelmode: 'driving'
+  });
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 /** Itineraire Google Maps depuis Abidjan : la distance routiere exacte s'y lit. */

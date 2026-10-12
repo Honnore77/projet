@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant, libelleDistance } from '../core/db.js';
+import { DB, ravMontant, libelleDistance, destinationsDe, texteDestinations } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -24,11 +24,16 @@ const LIGNES_MINIMUM = 8;
  * Extrait du dossier de mission tout ce que le formulaire affiche.
  * @param {object} m mission
  */
-/** « Bouaké (350 km d'Abidjan) » sur la ligne DESTINATION du document. */
+/**
+ * Ligne DESTINATION du document : « Bouaké (350 km d'Abidjan) », ou pour un
+ * parcours « Bouaké (350 km), Korhogo (635 km) » — distances depuis Abidjan.
+ */
 function destinationAvecDistance(d) {
-  return d.destination && d.distanceAbidjan
-    ? `${d.destination} (${d.distanceAbidjan} d'Abidjan)`
-    : d.destination;
+  const etapes = d.destinationsDetail || [];
+  if (etapes.length === 1) {
+    return etapes[0].distance ? `${etapes[0].nom} (${etapes[0].distance} d'Abidjan)` : etapes[0].nom;
+  }
+  return etapes.map((e) => (e.distance ? `${e.nom} (${e.distance})` : e.nom)).join(', ');
 }
 
 export function reportData(m) {
@@ -51,10 +56,11 @@ export function reportData(m) {
   return {
     organisation: (DB.settings && DB.settings.organisation) || 'PDU',
     periode,
-    destination: m.destination || '',
-    // La distance vient de la liste des destinations : le rapport imprime
-    // annonce le meme chiffre que le tableau de suivi.
-    distanceAbidjan: libelleDistance(m.destination),
+    destination: texteDestinations(destinationsDe(m)),
+    // Les distances viennent de la liste des destinations : le rapport
+    // imprime annonce les memes chiffres que le tableau de suivi.
+    destinationsDetail: destinationsDe(m).map((nom) => ({ nom, distance: libelleDistance(nom) })),
+    distanceAbidjan: destinationsDe(m).length === 1 ? libelleDistance(destinationsDe(m)[0]) : '',
     chauffeur: m.conducteur || '',
     vehicule: m.vehicule || '',
     reference: m.ref || '',
