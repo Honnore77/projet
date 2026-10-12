@@ -99,6 +99,11 @@ export function emptyDB() {
     // dans le rapport de mission, donc porte par la mission elle-meme.
     missions: [],
     maintenance: [],
+    // Courriers deposes contre decharge, et les structures qui les recoivent.
+    // Une decharge ne retient que le nom du destinataire, comme une fiche
+    // vehicule retient celui de son utilisateur : c'est ce qui s'imprime.
+    decharges: [],
+    destinataires: [],
     settings: {
       organisation: 'PDU',
       // Ville portee par la mention « Fait à … le … » des documents exportes.
@@ -242,7 +247,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -1230,4 +1235,108 @@ export function computeAlerts() {
     out.push({ level: 'ok', icon: '✅', title: 'Aucune alerte', detail: 'Le parc est à jour.' });
   }
   return out;
+}
+
+/* =================================================================
+   DECHARGE — courriers deposes et structures destinataires.
+
+   Une decharge ne retient que le nom du destinataire : c'est ce qui
+   s'imprime et ce qu'on lit dans le tableau. Le nom doit donc suivre la
+   structure — renommee dans « Les destinataires », elle se met a jour sur
+   ses decharges, et un nom tape dans une decharge rejoint la liste.
+   ================================================================= */
+
+/**
+ * Reference proposee pour la prochaine decharge : D-001, D-002…
+ *
+ * On part du plus grand numero deja attribue, pas du nombre de decharges :
+ * apres une suppression, compter les lignes redonnerait une reference deja
+ * portee par une autre. Les references saisies a la main dans un autre
+ * format sont ignorees, elles ne bloquent pas la suite.
+ */
+export function prochaineRefDecharge(db = DB) {
+  const max = (db.decharges || []).reduce((m, d) => {
+    const r = /^D-(\d+)$/i.exec(String(d.ref || '').trim());
+    return r ? Math.max(m, Number(r[1])) : m;
+  }, 0);
+  return `D-${String(max + 1).padStart(3, '0')}`;
+}
+
+/** Une reference deja portee par une autre decharge que celle qu'on modifie. */
+export function refDechargeEnDouble(ref, exclureId, db = DB) {
+  const cle = norm(ref || '');
+  if (!cle) return false;
+  return (db.decharges || []).some((d) => d.id !== exclureId && norm(d.ref || '') === cle);
+}
+
+/** Noms des structures destinataires, dans l'ordre alphabetique. */
+export function nomsDestinataires(db = DB) {
+  return (db.destinataires || [])
+    .map((d) => String(d.nom || '').trim())
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/** La structure qui porte ce nom, casse et accents mis a part. */
+export function destinataireParNom(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return null;
+  return (db.destinataires || []).find((d) => norm(d.nom || '') === cle) || null;
+}
+
+/**
+ * Inscrit dans « Les destinataires » une structure tapee directement dans une
+ * decharge. Sans cela, on la retaperait a chaque courrier, et elle
+ * manquerait a la liste ou l'on cherche son contact.
+ *
+ * @returns {object|null} la fiche creee, ou null si elle existait deja
+ */
+export function assurerDestinataire(nom, db = DB) {
+  const propre = String(nom || '').trim();
+  if (!propre || destinataireParNom(propre, db)) return null;
+  const fiche = {
+    id: uid(),
+    nom: propre,
+    contacts: '',
+    localisation: '',
+    createdAt: new Date().toISOString()
+  };
+  db.destinataires.push(fiche);
+  if (db === DB) persist();
+  return fiche;
+}
+
+/** Reporte le nouveau nom d'une structure sur toutes ses decharges. */
+export function renommerDestinataire(ancien, nouveau, db = DB) {
+  const cle = norm(ancien || '');
+  const propre = String(nouveau || '').trim();
+  if (!cle || !propre || cle === norm(propre)) return 0;
+  let n = 0;
+  (db.decharges || []).forEach((d) => {
+    if (norm(d.destinataire || '') === cle) { d.destinataire = propre; n += 1; }
+  });
+  if (n && db === DB) persist();
+  return n;
+}
+
+/** Decharges adressees a une structure. */
+export function dechargesDuDestinataire(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return [];
+  return (db.decharges || []).filter((d) => norm(d.destinataire || '') === cle);
+}
+
+/**
+ * Lien Google Maps d'une localisation.
+ *
+ * Un lien colle tel quel (partage depuis Google Maps : maps.app.goo.gl,
+ * google.com/maps…) est rendu tel quel. Une adresse ou des coordonnees
+ * deviennent une recherche : Google Maps ouvre le lieu s'il le trouve, la
+ * liste des resultats sinon.
+ */
+export function lienCarte(localisation) {
+  const v = String(localisation || '').trim();
+  if (!v) return '';
+  if (/^https?:\/\//i.test(v)) return v;
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(v)}`;
 }

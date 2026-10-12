@@ -94,6 +94,30 @@ export function renderGlobalSearch(page) {
     });
   });
 
+  DB.decharges.forEach((d) => {
+    if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.immat}`).includes(q)) {
+      results.push({
+        type: 'DÉCHARGE',
+        color: '#8D6E63',
+        title: `${d.ref || 'Décharge'} — ${d.destinataire || '—'}`,
+        sub: `${dateFR(d.date)}${d.numeroCourrier ? ` · courrier ${d.numeroCourrier}` : ''}\n${d.objet || ''}`,
+        action: () => { state.sub.DECHARGE = 'decharges'; navigate('DECHARGE'); }
+      });
+    }
+  });
+
+  DB.destinataires.forEach((d) => {
+    if (norm(`${d.nom} ${d.contacts} ${d.localisation}`).includes(q)) {
+      results.push({
+        type: 'DESTINATAIRE',
+        color: '#4E342E',
+        title: d.nom || 'Destinataire',
+        sub: [d.contacts, d.localisation].filter(Boolean).join('\n') || '—',
+        action: () => { state.sub.DECHARGE = 'destinataires'; navigate('DECHARGE'); }
+      });
+    }
+  });
+
   if (!results.length) {
     page.appendChild(emptyState(`Aucun résultat pour « ${state.query} » dans l'application.`));
     return;

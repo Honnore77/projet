@@ -14,6 +14,7 @@ import { renderUsers } from './views/users.js';
 import { renderDotation } from './views/dotation.js';
 import { renderMissions } from './views/missions.js';
 import { renderMaintenance } from './views/maintenance.js';
+import { renderDecharges } from './views/decharges.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
@@ -21,7 +22,7 @@ import { renderGlobalSearch } from './views/globalSearch.js';
 
 /**
  * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
- * quand elle est ouverte. Huit teintes bien distinctes, pour qu'on repere la
+ * quand elle est ouverte. Neuf teintes bien distinctes, pour qu'on repere la
  * rubrique a la couleur avant meme d'avoir lu le libelle.
  */
 export const MODULES = [
@@ -31,6 +32,7 @@ export const MODULES = [
   { key: 'DOTATION', label: 'DOTATION', color: '#F47B20' },
   { key: 'MISSION', label: 'MISSION', color: '#C2185B' },
   { key: 'ENTRETIEN', label: 'ENTRETIEN', color: '#D32F2F' },
+  { key: 'DECHARGE', label: 'DÉCHARGE', color: '#8D6E63' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
 ];
@@ -48,6 +50,7 @@ const TITLES = {
   DOTATION: 'DOTATION',
   MISSION: 'MISSION',
   ENTRETIEN: 'ENTRETIEN',
+  DECHARGE: 'DÉCHARGE',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
@@ -57,7 +60,7 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges' },
   vehicleSheetImmat: null,
   query: '',
   filters: {
@@ -66,7 +69,8 @@ export const state = {
     missions: { conducteur: '', dateFrom: '', dateTo: '', paiement: '' },
     maintenance: { etat: '', immat: '' },
     dotationPool: { dateFrom: '', dateTo: '', immat: '' },
-    dotationMission: { dateFrom: '', dateTo: '', conducteur: '' }
+    dotationMission: { dateFrom: '', dateTo: '', conducteur: '' },
+    decharges: { dateFrom: '', dateTo: '', destinataire: '' }
   }
 };
 
@@ -316,6 +320,7 @@ const ROUTES = {
   DOTATION: renderDotation,
   MISSION: renderMissions,
   ENTRETIEN: renderMaintenance,
+  DECHARGE: renderDecharges,
   RAPPORTS: renderReports,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,

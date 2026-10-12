@@ -489,3 +489,49 @@ export function dsAll() {
     dsCoutParVehicule()
   ];
 }
+
+/** Decharges : memes colonnes que le tableau de la rubrique. */
+export function dsDecharges(list = DB.decharges) {
+  return {
+    title: 'Décharges',
+    columns: [
+      C('ref', 'Réf.', 10),
+      C('numeroCourrier', 'N° courrier', 16),
+      C('objet', 'Objet', 36),
+      C('destinataire', 'Destinataire', 26),
+      C('date', 'Date', 12),
+      C('recuperePar', 'Décharge récupérée par', 22),
+      C('conducteur', 'Conducteur', 22),
+      C('immat', 'Véhicule', 16)
+    ],
+    rows: list.map((d) => ({
+      ref: d.ref || '',
+      numeroCourrier: d.numeroCourrier || '',
+      objet: d.objet || '',
+      destinataire: d.destinataire || '',
+      date: dateFR(d.date),
+      recuperePar: d.recuperePar || '',
+      conducteur: d.conducteur || '',
+      immat: d.immat || ''
+    }))
+  };
+}
+
+/** Destinataires des decharges, avec le nombre de courriers recus. */
+export function dsDestinataires(list = DB.destinataires) {
+  return {
+    title: 'Destinataires',
+    columns: [
+      C('nom', 'Nom de la structure', 32),
+      C('contacts', 'Contacts', 32),
+      C('localisation', 'Localisation', 40),
+      C('decharges', 'Décharges', 11)
+    ],
+    rows: list.map((d) => ({
+      nom: d.nom || '',
+      contacts: d.contacts || '',
+      localisation: d.localisation || '',
+      decharges: (DB.decharges || []).filter((x) => norm(x.destinataire || '') === norm(d.nom || '')).length
+    }))
+  };
+}
