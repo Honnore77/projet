@@ -42,7 +42,9 @@ export function renderVehicleSheet(page) {
         `Immatriculation : ${vehicle.immatNouvelle || '—'}${vehicle.immatAncienne ? ` (anc. ${vehicle.immatAncienne})` : ''}\n` +
         `N° de châssis : ${vehicle.numeroChassis || '—'}\n` +
           `Statut : ${vehicle.statut} · Catégorie : ${String(cat).toUpperCase()} · Km : ${fmt(kmCourant(vehicle))}\n` +
-          `Énergie : ${vehicle.energie || '—'} · Couleur : ${vehicle.couleur || '—'}${vehicle.groupe ? ` · Groupe : ${vehicle.groupe}` : ''}` +
+          `Énergie : ${vehicle.energie || '—'}` +
+          `${vehicle.consommation !== '' && vehicle.consommation !== undefined ? ` · Consommation : ${String(vehicle.consommation).replace('.', ',')} L/100 km` : ''}` +
+          ` · Couleur : ${vehicle.couleur || '—'}${vehicle.groupe ? ` · Groupe : ${vehicle.groupe}` : ''}` +
           (vehicle.section ? `\nSection : ${vehicle.section}` : '') +
           (vehicle.utilisateur ? ` · Utilisateur : ${vehicle.utilisateur}` : '') +
           (vehicle.observations ? `\nObservations : ${vehicle.observations}` : ''),

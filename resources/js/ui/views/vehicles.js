@@ -75,6 +75,8 @@ function vehicleFields(v = {}, cat = 'pool') {
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
       options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
+    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', step: '0.1', value: v.consommation,
+      placeholder: 'Ex. 9,5', hint: 'Reprise par SIMULATION quand on choisit ce véhicule' },
     { key: 'statut', label: 'Statut', type: 'select', options: statuts, value: v.statut || 'Disponible' },
     ...(withSection
       ? [
@@ -180,7 +182,8 @@ export function renderVehicles(page) {
   }
 
   const headers = [
-    'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie', 'Statut',
+    'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie',
+    'Conso.<br>L/100 km', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
     'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'Observations', ''
   ];
@@ -196,6 +199,7 @@ export function renderVehicles(page) {
       `<span style="font-family:monospace;white-space:nowrap">${esc(v.numeroChassis || '')}</span>`,
       esc(v.couleur || ''),
       esc(v.energie || ''),
+      `<span style="display:block;text-align:right">${v.consommation === '' || v.consommation === undefined ? '—' : esc(String(v.consommation).replace('.', ','))}</span>`,
       `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
       ...(withSection ? [esc(v.section || ''), esc(v.utilisateur || '')] : []),
       `<span style="display:block;text-align:right">${fmt(kmCourant(v))}</span>`,
@@ -360,6 +364,7 @@ export function openVehicleForm(vehicle, cat) {
         numeroChassis: chassis,
         couleur: values.couleur,
         energie: values.energie,
+        consommation: values.consommation === '' ? '' : Math.max(0, Number(values.consommation)),
         section: values.section || '',
         utilisateur: values.utilisateur || '',
         statut: values.statut,

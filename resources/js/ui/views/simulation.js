@@ -209,8 +209,8 @@ function simulationFields(s = {}) {
       hint: 'Véhicules de la rubrique VÉHICULES ; ils remplissent les deux champs suivants' },
     { key: 'marqueModele', label: 'Véhicule utilisé (marque et modèle)', value: s.marqueModele },
     { key: 'energie', label: 'Véhicule utilisé — énergie', type: 'select', options: ENERGIES, value: s.energie || 'Essence' },
-    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', required: true, value: s.consommation,
-      hint: 'Reprise de la dernière simulation du véhicule' },
+    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', step: '0.1', required: true, value: s.consommation,
+      hint: 'Reprise de la fiche du véhicule (VÉHICULES), sinon de sa dernière simulation' },
     { key: 'prixL', label: 'Prix du litre (F)', type: 'selectAdd', required: true, value: s.prixL,
       options: prixLitreOptions(s.energie || 'Essence'), emptyLabel: '— choisir —', addLabel: 'Autre prix',
       hint: 'Réglé dans RÉGLAGES → Modifier les réglages' },
@@ -423,9 +423,10 @@ function openSimulationForm(sim) {
       }
 
       // L'immatriculation d'un vehicule du parc apporte sa marque, son
-      // modele et son energie — ceux de ce vehicule-la, meme si un autre
-      // avait ete choisi avant — et la consommation de sa derniere
-      // simulation, qui, elle, ne remplace jamais une valeur deja saisie.
+      // modele, son energie et sa consommation — ceux de ce vehicule-la,
+      // meme si un autre avait ete choisi avant. Sans consommation sur sa
+      // fiche, on reprend celle de sa derniere simulation, sans jamais
+      // remplacer une valeur deja saisie.
       if (values.vehicule !== dernierVehicule) {
         dernierVehicule = values.vehicule;
         const v = vehicleByImmat(values.vehicule);
@@ -437,7 +438,9 @@ function openSimulationForm(sim) {
         const en = scope.querySelector('[data-key="energie"]');
         if (v && v.energie && en && [...en.options].some((o) => o.value === v.energie)) en.value = v.energie;
         const conso = scope.querySelector('[data-key="consommation"]');
-        if (conso && conso.value === '') {
+        if (conso && v && v.consommation !== '' && v.consommation !== undefined && Number(v.consommation) > 0) {
+          conso.value = v.consommation;
+        } else if (conso && conso.value === '') {
           const c = derniereConsommation(values.vehicule);
           if (c) conso.value = c;
         }
