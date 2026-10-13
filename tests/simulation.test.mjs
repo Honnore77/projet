@@ -113,3 +113,22 @@ test('la liste des vehicules vient de la rubrique VÉHICULES, sans doublon ni pr
     { immat: 'D45 50 7777', marqueModele: 'TOYOTA HILUX', energie: 'Diesel' }
   ]);
 });
+
+test('la fiche d’une simulation : calcul, parcours avec retour, parcours en interne', async () => {
+  const ds = await import('../resources/js/export/datasets.js');
+  await charger();
+  const [resume, parcours, interne] = ds.dsFicheSimulation({
+    dateDepart: '2026-10-12', dateRetour: '2026-10-14', jours: 3,
+    destinations: ['Yamoussoukro', 'Bouaké'],
+    parcoursKm: 700, interneKm: 50, distanceTotale: 750, parcoursComplet: true,
+    interne: [{ nom: 'Yamoussoukro', jours: 1, km: 20 }, { nom: 'Bouaké', jours: 1, km: 30 }],
+    vehicule: 'D45 50 1', consommation: 10, prixL: 875, litres: 75, montantCarburant: 65625,
+    participants: 2, fraisOm: 2000, fraisOmUnitaire: 1000, fraisPeage: 1500, estimation: 69125
+  });
+  assert.equal(resume.rows[resume.rows.length - 1].valeur.replace(/\s/g, ' '), '69 125 F');
+  // Simulation d'avant l'enregistrement des etapes : elles sont recalculees.
+  assert.deepEqual(parcours.rows.map((r) => [r.etape, r.km]), [
+    ['Abidjan - Yamoussoukro', 240], ['Yamoussoukro - Bouaké', 110], ['Retour : Bouaké - Abidjan', 350]
+  ]);
+  assert.deepEqual(interne.rows.map((r) => r.km), [20, 30]);
+});

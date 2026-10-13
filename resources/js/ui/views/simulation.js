@@ -20,13 +20,13 @@ import {
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
-  card, toolbar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS
+  card, toolbar, subtabs, emptyState, openForm, openModal, confirmDialog, toast, statTile, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, moduleColor, navigate } from '../shell.js';
 import { cablerParcours, enregistrerParcours, openMissionForm } from './missions.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
-import { dsSimulations } from '../../export/datasets.js';
+import { dsSimulations, dsFicheSimulation } from '../../export/datasets.js';
 
 const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }];
 
@@ -91,16 +91,18 @@ function renderListe(page) {
     droite(`<b>${fmt(s.fraisPeage)} F</b>`),
     droite(`<b style="color:${COULEUR()};font-size:1.05em">${fmt(s.estimation)} F</b>`),
     celluleMission(s),
-    canWrite()
-      ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
-        `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
-      : ''
+    `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche</button>` +
+      (canWrite()
+        ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+        : '')
   ]);
 
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const s = list[i];
       tr.dataset.search = norm(`${texteDestinations(s.destinations)} ${s.vehicule} ${s.marqueModele || ''} ${s.dateDepart}`);
+      tr.querySelector('[data-fiche]').onclick = () => openFiche(s);
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openSimulationForm(s);
 
@@ -144,6 +146,71 @@ function vehiculeActuel(s) {
     marqueModele: `${v.marque || ''} ${v.modele || ''}`.trim() || s.marqueModele || '',
     energie: v.energie || s.energie || ''
   };
+}
+
+/* =============================== Fiche ============================== */
+
+/**
+ * Fiche d'une simulation : tout le calcul, du parcours au total, avec de
+ * quoi l'exporter. L'apercu et les fichiers lisent les memes tableaux
+ * (dsFicheSimulation), il n'y a donc qu'une version de la fiche.
+ */
+function openFiche(s) {
+  const [resume, parcours, interne] = dsFicheSimulation(s);
+  const ligne = (k, v, d) =>
+    `<div class="subEntryRow"><span>${esc(k)}${d ? `<br><small>${esc(d)}</small>` : ''}</span><b>${esc(v || '—')}</b></div>`;
+  const total = resume.rows[resume.rows.length - 1];
+  const corps = el(
+    '<div>' +
+      '<div class="subBlock"><h5>Mission simulée</h5>' +
+        resume.rows.slice(0, 9).map((r) => ligne(r.rubrique, r.valeur, r.detail)).join('') +
+      '</div>' +
+      '<div class="subBlock"><h5>Parcours</h5>' +
+        (parcours.rows.length
+          ? parcours.rows.map((r) => ligne(`${r.n ? `${r.n}. ` : '↩ '}${r.etape}`, r.km === '' ? '? km' : `${fmt(r.km)} km`, r.note)).join('') +
+            ligne('Total aller-retour', `${fmt(s.parcoursKm)} km`)
+          : '<div class="subEntryRow"><span><small>Aucune étape.</small></span></div>') +
+      '</div>' +
+      '<div class="subBlock"><h5>Parcours en interne</h5>' +
+        (interne.rows.length
+          ? interne.rows.map((r) => ligne(r.destination, `${fmt(r.km)} km`, r.jours === '' ? '' : `${r.jours} jour(s) sur place`)).join('') +
+            ligne('Total en interne', `${fmt(s.interneKm)} km`)
+          : '<div class="subEntryRow"><span><small>Aucun.</small></span></div>') +
+      '</div>' +
+      '<div class="subBlock"><h5>Estimation des frais de mission</h5>' +
+        resume.rows.slice(9, -1).map((r) => ligne(`${r.rubrique} =`, r.valeur, r.detail)).join('') +
+        '<div class="subEntryRow" style="border-top:2px solid currentColor">' +
+          `<span><b>TOTAL</b><br><small>${esc(total.detail)}</small></span>` +
+          `<b style="color:${COULEUR()};font-size:1.15em">${esc(total.valeur)}</b></div>` +
+      '</div>' +
+    '</div>'
+  );
+  // Nom de fichier sans accents : « Bouaké » donne « Bouake », pas « Bouak_ ».
+  const nom = `PDU_simulation_${(s.destinations || []).join('-')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^A-Za-z0-9-]+/g, '_').slice(0, 40) || 'mission'}`;
+  const exporter = async (kind) => {
+    try {
+      const datasets = dsFicheSimulation(s);
+      const res = kind === 'excel'
+        ? await exportExcel(datasets, nom)
+        : await exportPdf(datasets, nom, { title: 'Fiche de simulation de mission', orientation: 'p', enchaine: true });
+      toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
+    } catch (e) {
+      console.error(e);
+      toast("L'export a échoué.", 'err');
+    }
+  };
+  openModal({
+    title: `Simulation — ${texteDestinations(s.destinations) || 'mission'}`,
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
+      { label: '⬇ Excel', cls: 'ok', onClick: () => exporter('excel') },
+      { label: '⬇ PDF', cls: 'ok', onClick: () => exporter('pdf') },
+      ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openSimulationForm(s); } }] : [])
+    ]
+  });
 }
 
 /* ======================== Creer la mission ========================= */
@@ -496,6 +563,10 @@ function openSimulationForm(sim) {
         dateRetour: values.dateRetour,
         jours: jours === null ? '' : jours,
         destinations: noms,
+        // Les etapes telles qu'elles ont servi au calcul : la fiche les
+        // montrera meme si une distance est corrigee plus tard.
+        etapes: [...p.etapes, ...(p.retour ? [Object.assign({ retour: true }, p.retour)] : [])]
+          .map((e) => ({ de: e.de, vers: e.vers, km: e.km, estimee: !!e.estimee, retour: !!e.retour })),
         parcoursComplet: p.complet,
         interne: lignesInterne,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),

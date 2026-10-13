@@ -53,7 +53,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
   - **Carburant** = (parcours aller-retour + parcours en interne) × consommation ÷ 100 × prix du litre ;
   - **Estimation des frais de mission** = frais OM + frais de péage + carburant.
 
-  Les simulations enregistrées sont listées en tableau, modifiables, et s'exportent en Excel et PDF. Le bouton **« Créer la mission »** ouvre le formulaire de mission prérempli (dates, parcours, véhicule) ; le conducteur et les frais restent à saisir. Une fois la mission créée, la simulation affiche sa référence (« → M-006 »).
+  Les simulations enregistrées sont listées en tableau, modifiables, et s'exportent en Excel et PDF. Le bouton **« Fiche »** de chaque ligne ouvre la fiche complète de la simulation — calcul des frais, parcours étape par étape avec le retour, parcours en interne, estimation — exportable en **PDF** (une page) et en **Excel**. Le bouton **« Créer la mission »** ouvre le formulaire de mission prérempli (dates, parcours, véhicule) ; le conducteur et les frais restent à saisir. Une fois la mission créée, la simulation affiche sa référence (« → M-006 »).
 - **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage, et toutes les **photos et documents** qui la concernent, d'où qu'ils viennent.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 

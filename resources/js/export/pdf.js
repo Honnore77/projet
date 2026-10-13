@@ -36,7 +36,9 @@ function drawTable(doc, options) {
 /**
  * Construit le document sans l'ecrire.
  * @param {{title:string, columns:{key:string,label:string,width?:number}[], rows:object[], note?:string}[]} datasets
- * @param {{orientation?:'p'|'l', title?:string}} [opts]
+ * @param {{orientation?:'p'|'l', title?:string, enchaine?:boolean}} [opts]
+ *   enchaine : les tableaux se suivent sur la meme page, chacun sous son
+ *   titre, au lieu d'ouvrir chacun une page — pour une fiche courte.
  * @returns {Uint8Array}
  */
 export function buildPdf(datasets, opts = {}) {
@@ -52,23 +54,40 @@ export function buildPdf(datasets, opts = {}) {
   const org = (DB.settings && DB.settings.organisation) || 'PDU';
   const mention = mentionLieuDate(DB.settings && DB.settings.ville);
 
+  const pageH = doc.internal.pageSize.getHeight();
   let first = true;
+  let debut = 24;
   datasets.forEach((ds) => {
-    if (!first) doc.addPage();
+    if (opts.enchaine && !first) {
+      // A la suite du tableau precedent (et de sa note), sous un titre de
+      // section. Trop pres du bas, la section part sur la page suivante
+      // plutot que de laisser son titre seul en fin de page.
+      const fin = doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 24;
+      debut = fin + (datasets[datasets.indexOf(ds) - 1].note ? 16 : 10);
+      if (debut > pageH - 40) { doc.addPage(); debut = 16; }
+      doc.setTextColor(0, 138, 59);
+      doc.setFontSize(10);
+      doc.setFont('helvetica', 'bold');
+      doc.text(clean(ds.title), 10, debut);
+      doc.setFont('helvetica', 'normal');
+      debut += 3;
+    } else {
+      if (!first) doc.addPage();
+      doc.setFillColor(...GREEN);
+      doc.rect(0, 0, pageW, 18, 'F');
+      doc.setTextColor(255);
+      doc.setFontSize(13);
+      doc.setFont('helvetica', 'bold');
+      doc.text(clean(`${org} - ${opts.title || 'Gestion du parc automobile'}`), 10, 8);
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'normal');
+      doc.text(clean(ds.title), 10, 14);
+      debut = 24;
+    }
     first = false;
 
-    doc.setFillColor(...GREEN);
-    doc.rect(0, 0, pageW, 18, 'F');
-    doc.setTextColor(255);
-    doc.setFontSize(13);
-    doc.setFont('helvetica', 'bold');
-    doc.text(clean(`${org} - ${opts.title || 'Gestion du parc automobile'}`), 10, 8);
-    doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
-    doc.text(clean(ds.title), 10, 14);
-
     drawTable(doc, {
-      startY: 24,
+      startY: debut,
       head: [ds.columns.map((c) => clean(c.label))],
       body: ds.rows.map((r) => ds.columns.map((c) => text(r[c.key]))),
       styles: { fontSize: 7.5, cellPadding: 1.8, overflow: 'linebreak', textColor: [23, 49, 59] },
@@ -108,7 +127,7 @@ export function buildPdf(datasets, opts = {}) {
     });
 
     if (ds.note) {
-      const y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 24) + 6;
+      const y = (doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : debut) + 6;
       doc.setFontSize(8);
       doc.setTextColor(90);
       doc.text(doc.splitTextToSize(clean(ds.note), pageW - 20), 10, y);
