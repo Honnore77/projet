@@ -67,6 +67,11 @@ function vehicleFields(v = {}, cat = 'pool') {
       hint: 'Facultative — signalée en rouge tant qu’elle manque' },
     { key: 'immatAncienne', label: 'Ancienne immatriculation',
       value: v.immatAncienne === undefined ? PREFIXE_IMMAT_ANCIENNE : v.immatAncienne },
+    // Le numero de chassis (VIN) identifie le vehicule pour de bon : il ne
+    // change pas avec la plaque, et c'est lui que demandent l'assurance et
+    // le garage.
+    { key: 'numeroChassis', label: 'N° de châssis', value: v.numeroChassis,
+      placeholder: 'Ex. JTMHV05J604123456', hint: 'Inscrit sur la carte grise (rubrique E)' },
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
       options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
@@ -175,7 +180,7 @@ export function renderVehicles(page) {
   }
 
   const headers = [
-    'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'Couleur', 'Énergie', 'Statut',
+    'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
     'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'Observations', ''
   ];
@@ -188,6 +193,7 @@ export function renderVehicles(page) {
         ? esc(v.immatNouvelle)
         : '<span class="celluleManquante">non renseignée</span>',
       esc(v.immatAncienne || ''),
+      `<span style="font-family:monospace;white-space:nowrap">${esc(v.numeroChassis || '')}</span>`,
       esc(v.couleur || ''),
       esc(v.energie || ''),
       `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
@@ -208,7 +214,7 @@ export function renderVehicles(page) {
     dataTable(headers, rows, (tr, i) => {
       const v = list[i];
       tr.dataset.search = norm(
-        `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.statut} ${v.section} ${v.utilisateur}`
+        `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.numeroChassis || ''} ${v.statut} ${v.section} ${v.utilisateur}`
       );
       tr.querySelector('[data-sheet]').onclick = () => openVehicleSheet(immatOf(v));
 
@@ -326,6 +332,19 @@ export function openVehicleForm(vehicle, cat) {
         if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
       }
 
+      // Un numero de chassis ne designe qu'un vehicule : saisi deux fois,
+      // c'est une erreur de frappe ou un doublon de fiche.
+      const chassis = String(values.numeroChassis || '').replace(/\s+/g, '').toUpperCase();
+      if (chassis) {
+        const meme = DB.vehicles.pool
+          .concat(DB.vehicles.mission, DB.vehicles.service)
+          .find((x) => x.id !== (vehicle && vehicle.id) && String(x.numeroChassis || '').replace(/\s+/g, '').toUpperCase() === chassis);
+        if (meme) {
+          return `Le n° de châssis ${chassis} est déjà celui de ${`${meme.marque || ''} ${meme.modele || ''}`.trim() || 'un autre véhicule'}` +
+            `${meme.immatNouvelle || meme.immatAncienne ? ` (${meme.immatNouvelle || meme.immatAncienne})` : ''}.`;
+        }
+      }
+
       const ancienne = String(values.immatAncienne || '').trim();
       // Un nom saisi a la main rejoint UTILISATEURS : les deux rubriques ne
       // doivent pas connaitre des agents differents.
@@ -338,6 +357,7 @@ export function openVehicleForm(vehicle, cat) {
         modele: values.modele,
         immatNouvelle: immat,
         immatAncienne: ancienne.toUpperCase() === PREFIXE_IMMAT_ANCIENNE.trim().toUpperCase() ? '' : ancienne,
+        numeroChassis: chassis,
         couleur: values.couleur,
         energie: values.energie,
         section: values.section || '',

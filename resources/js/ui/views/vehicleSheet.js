@@ -40,6 +40,7 @@ export function renderVehicleSheet(page) {
       card(
         `${vehicle.marque || ''} ${vehicle.modele || ''}`.trim() || immat,
         `Immatriculation : ${vehicle.immatNouvelle || '—'}${vehicle.immatAncienne ? ` (anc. ${vehicle.immatAncienne})` : ''}\n` +
+        `N° de châssis : ${vehicle.numeroChassis || '—'}\n` +
           `Statut : ${vehicle.statut} · Catégorie : ${String(cat).toUpperCase()} · Km : ${fmt(kmCourant(vehicle))}\n` +
           `Énergie : ${vehicle.energie || '—'} · Couleur : ${vehicle.couleur || '—'}${vehicle.groupe ? ` · Groupe : ${vehicle.groupe}` : ''}` +
           (vehicle.section ? `\nSection : ${vehicle.section}` : '') +

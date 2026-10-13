@@ -21,7 +21,7 @@ export function renderGlobalSearch(page) {
   const results = [];
 
   allVehicles().forEach((v) => {
-    if (norm(`${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.statut} ${v.section} ${v.utilisateur} ${v.groupe}`).includes(q)) {
+    if (norm(`${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.numeroChassis || ''} ${v.statut} ${v.section} ${v.utilisateur} ${v.groupe}`).includes(q)) {
       results.push({
         type: 'VÉHICULE',
         color: COLORS.green,

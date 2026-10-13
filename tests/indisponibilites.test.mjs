@@ -119,3 +119,10 @@ test('une indisponibilite qui recouvre la mission est reperee, jours de depart e
   assert.equal(db.indisponibiliteSurMission('KONE Ali', '2026-10-20', '2026-10-22'), null);
   assert.equal(db.indisponibiliteSurMission('KONE Ali', '2026-10-01', '2026-10-09'), null);
 });
+
+test('l’export des vehicules contient le n° de chassis', async () => {
+  await charger({ vehicles: { pool: [{ id: 'v', immatNouvelle: 'D45 50 1', numeroChassis: 'JTMHV05J604123456' }], mission: [], service: [] } });
+  const d = ds.dsVehicles();
+  assert.ok(d.columns.some((c) => c.key === 'numeroChassis' && c.label === 'N° de châssis'));
+  assert.equal(d.rows[0].numeroChassis, 'JTMHV05J604123456');
+});
