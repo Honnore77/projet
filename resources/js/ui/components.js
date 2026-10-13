@@ -130,13 +130,16 @@ function fieldHtml(f) {
     // libre : on choisit dans la liste, ou on ajoute ce qui manque, sans
     // avoir a deviner qu'un champ texte cachait des suggestions.
     case 'selectAdd': {
-      const options = (f.options || []).map((o) => String(o));
-      const inconnu = val && !options.includes(val);
+      // Une option est une valeur, ou { value, label } quand le libelle
+      // affiche doit en dire plus que la valeur enregistree.
+      const options = (f.options || []).map((o) =>
+        (o && typeof o === 'object' ? { value: String(o.value), label: String(o.label) } : { value: String(o), label: String(o) }));
+      const inconnu = val && !options.some((o) => o.value === val);
       input =
         `<select id="${id}" data-key="${esc(f.key)}" data-add-label="${esc(f.addLabel || 'Ajouter…')}"${req}>` +
         `<option value="">${esc(f.emptyLabel || '—')}</option>` +
-        options.concat(inconnu ? [val] : [])
-          .map((o) => `<option value="${esc(o)}"${o === val ? ' selected' : ''}>${esc(o)}</option>`)
+        options.concat(inconnu ? [{ value: val, label: val }] : [])
+          .map((o) => `<option value="${esc(o.value)}"${o.value === val ? ' selected' : ''}>${esc(o.label)}</option>`)
           .join('') +
         `<option value="__ajout__">+ ${esc(f.addLabel || 'Ajouter…')}</option>` +
         '</select>';

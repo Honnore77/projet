@@ -1912,6 +1912,26 @@ export function interneEstime(jours, db = DB) {
   return Math.round(num(jours) * taux);
 }
 
+/**
+ * Les vehicules de la rubrique VÉHICULES, pour une liste de choix : chaque
+ * immatriculation une fois, avec sa marque et son modele. Une fiche qui ne
+ * porte que le prefixe pre-inscrit (« D45 50 ») n'a pas d'immatriculation.
+ */
+export function vehiculesDuParc(db = DB) {
+  const prefixes = [PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE].map((p) => p.trim().toUpperCase());
+  const vus = new Map();
+  allVehicles(db).forEach((v) => {
+    const immat = String(immatOf(v) || '').trim().toUpperCase();
+    if (!immat || prefixes.includes(immat) || vus.has(immat)) return;
+    vus.set(immat, {
+      immat,
+      marqueModele: `${v.marque || ''} ${v.modele || ''}`.trim(),
+      energie: v.energie || ''
+    });
+  });
+  return [...vus.values()].sort((a, b) => a.immat.localeCompare(b.immat, 'fr'));
+}
+
 /** Consommation retenue lors de la derniere simulation de ce vehicule. */
 export function derniereConsommation(immat, db = DB) {
   const cle = norm(immat || '');

@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -575,6 +575,16 @@ export function dsDestinationsMission(list = DB.destinationsMission) {
   };
 }
 
+/** Vehicule d'une simulation, lu dans VÉHICULES s'il y figure (voir simulation.js). */
+function vehiculeDeSimulation(s) {
+  const v = vehicleByImmat(s.vehicule);
+  if (!v) return { marqueModele: s.marqueModele || '', energie: s.energie || '' };
+  return {
+    marqueModele: `${v.marque || ''} ${v.modele || ''}`.trim() || s.marqueModele || '',
+    energie: v.energie || s.energie || ''
+  };
+}
+
 /** Simulations de mission : le detail du calcul, colonne par colonne. */
 export function dsSimulations(list = DB.simulations) {
   return {
@@ -605,8 +615,8 @@ export function dsSimulations(list = DB.simulations) {
       interneKm: num(s.interneKm),
       distanceTotale: num(s.distanceTotale),
       vehicule: s.vehicule || '',
-      marqueModele: s.marqueModele || '',
-      energie: s.energie || '',
+      marqueModele: vehiculeDeSimulation(s).marqueModele,
+      energie: vehiculeDeSimulation(s).energie,
       consommation: num(s.consommation),
       litres: num(s.litres),
       prixL: num(s.prixL),

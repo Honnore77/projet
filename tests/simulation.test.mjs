@@ -94,3 +94,22 @@ test('le parcours en interne propose = jours sur place x km par jour de RÉGLAGE
   assert.equal(db.interneEstime(1.5), 60);
   assert.equal(db.interneEstime(''), '');
 });
+
+test('la liste des vehicules vient de la rubrique VÉHICULES, sans doublon ni prefixe seul', async () => {
+  await charger({
+    vehicles: {
+      pool: [{ id: 'a', immatNouvelle: 'D45 50 7777', marque: 'TOYOTA', modele: 'HILUX', energie: 'Diesel' }],
+      mission: [{ id: 'b', immatNouvelle: 'D45 50 ', marque: 'NISSAN', modele: 'TERRA' }],
+      service: [
+        { id: 'c', immatNouvelle: 'd45 50 7777', marque: 'X' },
+        { id: 'd', immatAncienne: '1234 AB 01', marque: 'FORD', modele: 'RANGER', energie: 'Essence' }
+      ]
+    },
+    // une immatriculation vue seulement dans une dotation n'est pas un vehicule du parc
+    dotationPool: [{ id: 'x', immat: 'HORS PARC 1' }]
+  });
+  assert.deepEqual(db.vehiculesDuParc(), [
+    { immat: '1234 AB 01', marqueModele: 'FORD RANGER', energie: 'Essence' },
+    { immat: 'D45 50 7777', marqueModele: 'TOYOTA HILUX', energie: 'Diesel' }
+  ]);
+});

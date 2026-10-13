@@ -11,7 +11,7 @@
    =================================================================== */
 
 import {
-  DB, insert, update, remove, knownImmats, vehicleByImmat, joursMission, ENERGIES,
+  DB, insert, update, remove, vehiculesDuParc, vehicleByImmat, joursMission, ENERGIES,
   prixLitreOptions, nomsDestinationsMission, parcoursDe,
   calculerSimulation, derniereConsommation, fraisOmParParticipant,
   kmInterneParJour, interneEstime,
@@ -83,7 +83,9 @@ function renderListe(page) {
       (s.jours ? `<br><small>${s.jours} jour(s)</small>` : ''),
     esc(texteDestinations(s.destinations) || '—'),
     droite(`${fmt(s.parcoursKm)} km<br><small>+ ${fmt(s.interneKm)} km en interne</small><br><b>${fmt(s.distanceTotale)} km</b>`),
-    `${esc(s.vehicule || '—')}${s.marqueModele ? `<br>${esc(s.marqueModele)}` : ''}<br><small>${esc(s.energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
+    `${esc(s.vehicule || '—')}${vehiculeActuel(s).marqueModele ? `<br>${esc(vehiculeActuel(s).marqueModele)}` : ''}` +
+      `${s.vehicule && !vehicleByImmat(s.vehicule) ? ' <small style="color:#b26a00">(hors parc)</small>' : ''}` +
+      `<br><small>${esc(vehiculeActuel(s).energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
     droite(`${fmt(s.litres)} L<br><small>× ${fmt(s.prixL)} F</small><br><b>${fmt(s.montantCarburant)} F</b>`),
     droite(`${fmt(s.participants)}<br><b>${fmt(s.fraisOm)} F</b>`),
     droite(`<b>${fmt(s.fraisPeage)} F</b>`),
@@ -128,6 +130,20 @@ function renderListe(page) {
       }
     })
   );
+}
+
+/**
+ * Marque, modele et energie d'une simulation : ceux de la fiche VÉHICULES
+ * quand le vehicule y figure — une correction faite la-bas se voit ici —,
+ * sinon ceux enregistres avec la simulation.
+ */
+function vehiculeActuel(s) {
+  const v = vehicleByImmat(s.vehicule);
+  if (!v) return { marqueModele: s.marqueModele || '', energie: s.energie || '' };
+  return {
+    marqueModele: `${v.marque || ''} ${v.modele || ''}`.trim() || s.marqueModele || '',
+    energie: v.energie || s.energie || ''
+  };
 }
 
 /* ======================== Creer la mission ========================= */
@@ -184,8 +200,13 @@ function simulationFields(s = {}) {
       hint: 'Ajoutez les destinations dans l’ordre du parcours ; le retour à Abidjan est compté' },
     // L'immatriculation d'abord : elle remplit la marque, le modele et
     // l'energie d'un vehicule connu du parc.
-    { key: 'vehicule', label: 'Immatriculation', value: s.vehicule, list: knownImmats(),
-      hint: 'Un véhicule du parc remplit les deux champs suivants' },
+    // La liste est celle de la rubrique VÉHICULES, telle qu'elle est a
+    // l'ouverture du formulaire ; « Vehicule hors parc » reste ouvert pour
+    // un vehicule loue ou prete.
+    { key: 'vehicule', label: 'Immatriculation', type: 'selectAdd', value: s.vehicule,
+      options: vehiculesDuParc().map((v) => ({ value: v.immat, label: v.marqueModele ? `${v.immat} — ${v.marqueModele}` : v.immat })),
+      emptyLabel: '— choisir un véhicule du parc —', addLabel: 'Véhicule hors parc',
+      hint: 'Véhicules de la rubrique VÉHICULES ; ils remplissent les deux champs suivants' },
     { key: 'marqueModele', label: 'Véhicule utilisé (marque et modèle)', value: s.marqueModele },
     { key: 'energie', label: 'Véhicule utilisé — énergie', type: 'select', options: ENERGIES, value: s.energie || 'Essence' },
     { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', required: true, value: s.consommation,
