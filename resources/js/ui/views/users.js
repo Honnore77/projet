@@ -24,7 +24,7 @@ import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
   dataTable, openModal, subEmpty, subtabs, statTile, COLORS
 } from '../components.js';
-import { state, rerender } from '../shell.js';
+import { state, rerender, openUserSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsUsers, dsIncidents, dsIndisponibilites } from '../../export/datasets.js';
@@ -165,10 +165,11 @@ function renderListe(page) {
       esc(u.permis || ''),
       `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist>${hist.length} incident(s)</button>`,
       esc(u.observations || ''),
-      canWrite()
-        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
-          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
-        : ''
+      `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche</button>` +
+        (canWrite()
+          ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+            `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+          : '')
     ];
   });
 
@@ -178,6 +179,7 @@ function renderListe(page) {
       tr.dataset.search = norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''} ${u.email || ''}`);
 
       tr.querySelector('[data-hist]').onclick = () => openHistorique(u);
+      tr.querySelector('[data-fiche]').onclick = () => openUserSheet(u.id);
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openUserForm(u);

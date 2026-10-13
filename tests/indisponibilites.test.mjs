@@ -154,3 +154,38 @@ test('la fiche vehicule en PDF : carte d’identite et historiques, sans aucun m
   assert.ok(!ecrit.includes('36000'), 'montant de la dotation affiche');
   assert.ok(!ecrit.includes('25000'), 'cout du garage affiche');
 });
+
+test('la fiche utilisateur rassemble vehicules, missions, incidents, absences et interims', async () => {
+  const fu = await import('../resources/js/export/ficheUtilisateur.js');
+  const base = await charger({
+    users: [
+      { id: 'a', nom: 'KONE', prenoms: 'Ali', fonction: 'Conducteur', statut: 'Actif', poolConducteur: 'Oui',
+        telephone: '- FLOTTE PDU : 07 00\n- Tel Perso 1 :\n- Tel Perso 2 :', historique: [{ date: '2026-09-01', nature: 'Retard' }] }
+    ],
+    vehicles: { pool: [{ id: 'v', immatNouvelle: 'D45 50 1', utilisateur: 'KONE Ali' }], mission: [], service: [] },
+    missions: [{ id: 'm', conducteur: 'kone ali', destinations: ['Bouaké'], jours: 2 }],
+    indisponibilites: [
+      { id: 'i', conducteur: 'KONE Ali', motif: 'En congé', dateDepart: '2026-10-01', dateReprise: '2026-10-11', interimaire: 'YAO Koffi' },
+      { id: 'j', conducteur: 'YAO Koffi', motif: 'Repos maladie', dateDepart: '2026-11-01', dateReprise: '2026-11-03', interimaire: 'KONE Ali' }
+    ]
+  });
+  const u = base.users[0];
+  const d = fu.dossierAgent(u, '2026-10-05');
+  assert.equal(d.vehicules.length, 1);
+  assert.equal(d.missions.length, 1);
+  assert.equal(d.incidents.length, 1);
+  assert.equal(d.absences.length, 1);
+  assert.equal(d.interims.length, 1);
+  assert.equal(d.absenceEnCours.motif, 'En congé');
+  const infos = fu.infosAgent(u, d);
+  // Seuls les numeros renseignes sont repris.
+  assert.equal(infos.find((l) => l.libelle === 'Téléphone').valeur, 'FLOTTE PDU : 07 00');
+  assert.equal(infos.find((l) => l.libelle === 'Disponibilité').valeur, 'En congé — reprise le 11/10/2026');
+  assert.deepEqual(fu.activiteAgent(d).map((a) => a.valeur), ['1', '1', '1']);
+  assert.deepEqual(fu.historiquesAgent(d).map((h) => h.titre),
+    ['Véhicules attribués', 'Missions', 'Incidents', 'Congés et absences', 'Intérims assurés']);
+  const txt = Buffer.from(fu.buildFicheAgentPdf(u, null)).toString('latin1');
+  for (const m of ['Fiche utilisateur', 'KONE Ali', 'Aucune photo', 'Missions', 'Incidents']) {
+    assert.ok(txt.includes(m), m);
+  }
+});

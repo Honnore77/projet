@@ -19,6 +19,7 @@ import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
+import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
 
 /**
@@ -57,6 +58,7 @@ const TITLES = {
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
+  FICHE_UTILISATEUR: 'FICHE UTILISATEUR',
   RECHERCHE_GLOBALE: 'RECHERCHE GLOBALE'
 };
 
@@ -65,6 +67,7 @@ export const state = {
   module: 'TABLEAU DE BORD',
   sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste' },
   vehicleSheetImmat: null,
+  userSheetId: null,
   query: '',
   filters: {
     vehicules: { statut: '', section: '' },
@@ -180,13 +183,15 @@ function buildTabs() {
 export function navigate(moduleKey, params = {}) {
   state.module = moduleKey;
   if (params.immat !== undefined) state.vehicleSheetImmat = params.immat;
+  if (params.userId !== undefined) state.userSheetId = params.userId;
   if (moduleKey !== 'RECHERCHE_GLOBALE') {
     state.query = '';
     if (searchInput) searchInput.value = '';
     if (globalBtn) globalBtn.style.display = 'none';
   }
   titleEl.textContent = TITLES[moduleKey] || moduleKey;
-  [...tabsEl.children].forEach((b) => b.classList.toggle('active', b.dataset.mod === moduleKey));
+  const onglet = moduleKey === 'FICHE_UTILISATEUR' ? 'UTILISATEURS' : moduleKey;
+  [...tabsEl.children].forEach((b) => b.classList.toggle('active', b.dataset.mod === onglet));
   rerender();
   contentEl.scrollTop = 0;
 }
@@ -300,6 +305,12 @@ function rendreCompact(voyants) {
   });
 }
 
+/** Ouvre la fiche d'un agent (rubrique UTILISATEURS). */
+export function openUserSheet(id) {
+  if (!id) return;
+  navigate('FICHE_UTILISATEUR', { userId: id });
+}
+
 /** Ouvre la fiche unifiee d un vehicule. */
 export function openVehicleSheet(immat) {
   if (!immat) return;
@@ -329,6 +340,7 @@ const ROUTES = {
   RAPPORTS: renderReports,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,
+  FICHE_UTILISATEUR: renderUserSheet,
   RECHERCHE_GLOBALE: renderGlobalSearch
 };
 
