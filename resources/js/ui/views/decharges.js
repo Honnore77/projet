@@ -17,16 +17,18 @@ import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
-  statTile, dataTable
+  statTile, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsDecharges, dsDestinataires } from '../../export/datasets.js';
 
 const SUBS = [
   { key: 'decharges', label: 'LES DÉCHARGES' },
-  { key: 'destinataires', label: 'LES DESTINATAIRES' }
+  { key: 'destinataires', label: 'LES DESTINATAIRES' },
+  SOUS_RUBRIQUE_STATS
 ];
 
 /** Couleur de la rubrique, et une teinte plus sombre pour la seconde page. */
@@ -37,9 +39,10 @@ export function renderDecharges(page) {
   const sub = state.sub.DECHARGE || 'decharges';
   page.appendChild(
     subtabs(SUBS, sub, (k) => { state.sub.DECHARGE = k; rerender(); },
-      { decharges: COULEUR(), destinataires: COULEUR_DEST })
+      { decharges: COULEUR(), destinataires: COULEUR_DEST, stats: COLORS.grey })
   );
-  if (sub === 'destinataires') renderDestinataires(page);
+  if (sub === 'stats') renderStatistiques(page, 'DECHARGE');
+  else if (sub === 'destinataires') renderDestinataires(page);
   else renderListeDecharges(page);
 }
 

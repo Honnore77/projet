@@ -9,10 +9,11 @@ import {
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import {
-  card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
+  card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, sectionLabel, subEmpty, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
@@ -63,7 +64,12 @@ function retourFields(m = {}) {
   ];
 }
 
+const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, SOUS_RUBRIQUE_STATS];
+
 export function renderMaintenance(page) {
+  const sub = state.sub.ENTRETIEN || 'liste';
+  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); }, { liste: COLORS.red, stats: COLORS.grey }));
+  if (sub === 'stats') return renderStatistiques(page, 'ENTRETIEN');
   const f = state.filters.maintenance;
 
   page.appendChild(

@@ -21,6 +21,7 @@ import { renderSettings } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
+import { destroyCharts } from './charts.js';
 
 /**
  * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
@@ -65,7 +66,7 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste', ENTRETIEN: 'liste' },
   vehicleSheetImmat: null,
   userSheetId: null,
   query: '',
@@ -77,7 +78,9 @@ export const state = {
     dotationPool: { dateFrom: '', dateTo: '', immat: '' },
     dotationMission: { dateFrom: '', dateTo: '', conducteur: '' },
     decharges: { dateFrom: '', dateTo: '', destinataire: '' },
-    indisponibilites: { etat: '', motif: '', conducteur: '' }
+    indisponibilites: { etat: '', motif: '', conducteur: '' },
+    // annee affichee par les sous-rubriques STATISTIQUES (l'annee en cours d'abord)
+    statistiques: {}
   }
 };
 
@@ -320,6 +323,9 @@ export function openVehicleSheet(immat) {
 /** Redessine la rubrique courante. */
 export function rerender() {
   if (!contentEl) return;
+  // Les graphiques de la page precedente (tableau de bord, statistiques)
+  // ne survivent pas a son remplacement.
+  destroyCharts();
   const page = el('<div class="page"></div>');
   const renderer = ROUTES[state.module] || renderDashboard;
   renderer(page);

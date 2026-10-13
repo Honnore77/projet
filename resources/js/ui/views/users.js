@@ -25,6 +25,7 @@ import {
   dataTable, openModal, subEmpty, subtabs, statTile, COLORS
 } from '../components.js';
 import { state, rerender, openUserSheet } from '../shell.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsUsers, dsIncidents, dsIndisponibilites } from '../../export/datasets.js';
@@ -82,16 +83,18 @@ function incidentFields(h = {}) {
 
 const SUBS = [
   { key: 'liste', label: 'LISTE DES UTILISATEURS' },
-  { key: 'indisponibilites', label: 'CONGÉS ET ABSENCES AU POOL' }
+  { key: 'indisponibilites', label: 'CONGÉS ET ABSENCES AU POOL' },
+  SOUS_RUBRIQUE_STATS
 ];
 
 export function renderUsers(page) {
   const sub = state.sub.UTILISATEURS || 'liste';
   page.appendChild(
     subtabs(SUBS, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); },
-      { liste: COLORS.blue, indisponibilites: COLORS.purple })
+      { liste: COLORS.blue, indisponibilites: COLORS.purple, stats: COLORS.grey })
   );
-  if (sub === 'indisponibilites') renderIndisponibilites(page);
+  if (sub === 'stats') renderStatistiques(page, 'UTILISATEURS');
+  else if (sub === 'indisponibilites') renderIndisponibilites(page);
   else renderListe(page);
 }
 

@@ -17,12 +17,13 @@ import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   dataTable, COLORS
 } from '../components.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsVehicles } from '../../export/datasets.js';
 
-const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple };
+const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, stats: COLORS.grey };
 
 export function statutColor(s) {
   if (s === 'Disponible') return COLORS.green;
@@ -128,12 +129,13 @@ export function renderVehicles(page) {
 
   page.appendChild(
     subtabs(
-      CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })),
+      [...CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })), SOUS_RUBRIQUE_STATS],
       cat,
       (k) => { state.sub.VEHICULES = k; rerender(); },
       CAT_COLORS
     )
   );
+  if (cat === 'stats') return renderStatistiques(page, 'VEHICULES');
 
   page.appendChild(
     filterBar([

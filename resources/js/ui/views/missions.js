@@ -25,6 +25,7 @@ import {
   statTile, dataTable, groupHeader, subEmpty, COLORS
 } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsSuiviMissions, dsMissions, dsMissionsParConducteur, dsDestinationsMission } from '../../export/datasets.js';
@@ -33,16 +34,18 @@ import { exportMissionReport, printMissionReport, reportData } from '../../expor
 const SUBS = [
   { key: 'suivi', label: 'TABLEAU DE SUIVI' },
   { key: 'rapport', label: 'RAPPORT DE MISSION' },
-  { key: 'destinations', label: 'DESTINATIONS' }
+  { key: 'destinations', label: 'DESTINATIONS' },
+  SOUS_RUBRIQUE_STATS
 ];
 
 export function renderMissions(page) {
   const sub = state.sub.MISSION || 'suivi';
   page.appendChild(
     subtabs(SUBS, sub, (k) => { state.sub.MISSION = k; rerender(); },
-      { suivi: COLORS.purple, rapport: COLORS.purple, destinations: COLORS.purple })
+      { suivi: COLORS.purple, rapport: COLORS.purple, destinations: COLORS.purple, stats: COLORS.grey })
   );
-  if (sub === 'rapport') renderRapport(page);
+  if (sub === 'stats') renderStatistiques(page, 'MISSION');
+  else if (sub === 'rapport') renderRapport(page);
   else if (sub === 'destinations') renderDestinations(page);
   else renderSuivi(page);
 }

@@ -24,19 +24,21 @@ import {
 } from '../components.js';
 import { state, rerender, moduleColor, navigate } from '../shell.js';
 import { cablerParcours, enregistrerParcours, openMissionForm } from './missions.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsSimulations } from '../../export/datasets.js';
 import { modeleFicheSimulation, ficheHtml, exportFichePdf, exportFicheExcel } from '../../export/ficheSimulation.js';
 
-const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }];
+const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }, SOUS_RUBRIQUE_STATS];
 
 const COULEUR = () => moduleColor('SIMULATION');
 
 export function renderSimulation(page) {
   const sub = state.sub.SIMULATION || 'simulation';
-  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.SIMULATION = k; rerender(); }, { simulation: COULEUR() }));
-  renderListe(page);
+  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.SIMULATION = k; rerender(); }, { simulation: COULEUR(), stats: COLORS.grey }));
+  if (sub === 'stats') renderStatistiques(page, 'SIMULATION');
+  else renderListe(page);
 }
 
 /* ============================== Liste ============================== */

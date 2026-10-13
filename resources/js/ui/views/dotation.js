@@ -20,21 +20,24 @@ import {
   statTile, dataTable, COLORS
 } from '../components.js';
 import { state, navigate, rerender } from '../shell.js';
+import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsDotationPool, dsCarburantMissions, dsRavitaillementsMissions } from '../../export/datasets.js';
 
 const SUBS = [
   { key: 'pool', label: 'DOTATION EN CARBURANT POOL' },
-  { key: 'mission', label: 'DOTATION EN CARBURANT MISSION' }
+  { key: 'mission', label: 'DOTATION EN CARBURANT MISSION' },
+  SOUS_RUBRIQUE_STATS
 ];
 
 export function renderDotation(page) {
   const sub = state.sub.DOTATION || 'pool';
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.DOTATION = k; rerender(); }, { pool: COLORS.orange, mission: COLORS.purple })
+    subtabs(SUBS, sub, (k) => { state.sub.DOTATION = k; rerender(); }, { pool: COLORS.orange, mission: COLORS.purple, stats: COLORS.grey })
   );
-  if (sub === 'mission') renderMission(page);
+  if (sub === 'stats') renderStatistiques(page, 'DOTATION');
+  else if (sub === 'mission') renderMission(page);
   else renderPool(page);
 }
 
