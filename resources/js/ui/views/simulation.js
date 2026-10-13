@@ -83,7 +83,7 @@ function renderListe(page) {
       (s.jours ? `<br><small>${s.jours} jour(s)</small>` : ''),
     esc(texteDestinations(s.destinations) || '—'),
     droite(`${fmt(s.parcoursKm)} km<br><small>+ ${fmt(s.interneKm)} km en interne</small><br><b>${fmt(s.distanceTotale)} km</b>`),
-    `${esc(s.vehicule || '—')}<br><small>${esc(s.energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
+    `${esc(s.vehicule || '—')}${s.marqueModele ? `<br>${esc(s.marqueModele)}` : ''}<br><small>${esc(s.energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
     droite(`${fmt(s.litres)} L<br><small>× ${fmt(s.prixL)} F</small><br><b>${fmt(s.montantCarburant)} F</b>`),
     droite(`${fmt(s.participants)}<br><b>${fmt(s.fraisOm)} F</b>`),
     droite(`<b>${fmt(s.fraisPeage)} F</b>`),
@@ -98,7 +98,7 @@ function renderListe(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const s = list[i];
-      tr.dataset.search = norm(`${texteDestinations(s.destinations)} ${s.vehicule} ${s.dateDepart}`);
+      tr.dataset.search = norm(`${texteDestinations(s.destinations)} ${s.vehicule} ${s.marqueModele || ''} ${s.dateDepart}`);
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openSimulationForm(s);
 
@@ -182,7 +182,11 @@ function simulationFields(s = {}) {
     { key: 'destination', label: 'Destination — parcours aller et retour', type: 'selectAdd', full: true, value: '',
       options: nomsDestinationsMission(), emptyLabel: '— ajouter une destination —', addLabel: 'Nouvelle destination',
       hint: 'Ajoutez les destinations dans l’ordre du parcours ; le retour à Abidjan est compté' },
-    { key: 'vehicule', label: 'Véhicule utilisé — immatriculation', value: s.vehicule, list: knownImmats() },
+    // L'immatriculation d'abord : elle remplit la marque, le modele et
+    // l'energie d'un vehicule connu du parc.
+    { key: 'vehicule', label: 'Immatriculation', value: s.vehicule, list: knownImmats(),
+      hint: 'Un véhicule du parc remplit les deux champs suivants' },
+    { key: 'marqueModele', label: 'Véhicule utilisé (marque et modèle)', value: s.marqueModele },
     { key: 'energie', label: 'Véhicule utilisé — énergie', type: 'select', options: ENERGIES, value: s.energie || 'Essence' },
     { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', required: true, value: s.consommation,
       hint: 'Reprise de la dernière simulation du véhicule' },
@@ -373,11 +377,18 @@ function openSimulationForm(sim) {
         if (scope._redessinerParcours) scope._redessinerParcours();
       }
 
-      // Le vehicule apporte son energie et la consommation de sa derniere
-      // simulation ; on ne remplace jamais une valeur deja saisie.
+      // L'immatriculation d'un vehicule du parc apporte sa marque, son
+      // modele et son energie — ceux de ce vehicule-la, meme si un autre
+      // avait ete choisi avant — et la consommation de sa derniere
+      // simulation, qui, elle, ne remplace jamais une valeur deja saisie.
       if (values.vehicule !== dernierVehicule) {
         dernierVehicule = values.vehicule;
         const v = vehicleByImmat(values.vehicule);
+        const mm = scope.querySelector('[data-key="marqueModele"]');
+        if (v && mm) {
+          const libelle = `${v.marque || ''} ${v.modele || ''}`.trim();
+          if (libelle) mm.value = libelle;
+        }
         const en = scope.querySelector('[data-key="energie"]');
         if (v && v.energie && en && [...en.options].some((o) => o.value === v.energie)) en.value = v.energie;
         const conso = scope.querySelector('[data-key="consommation"]');
@@ -440,6 +451,7 @@ function openSimulationForm(sim) {
         parcoursComplet: p.complet,
         interne: lignesInterne,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
+        marqueModele: values.marqueModele,
         energie: values.energie,
         consommation: num(values.consommation),
         prixL: num(values.prixL)
