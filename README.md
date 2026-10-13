@@ -2,7 +2,7 @@
 
 Application Windows autonome de gestion du parc automobile du PDU.
 
-**Un seul fichier : `release/PDU-Parc-Auto-4.3.0.exe`** (99,7 Mo). Rien à installer, rien à configurer, aucun serveur ni connexion Internet. Copiez-le où vous voulez — disque local, clé USB — et double-cliquez.
+**Un seul fichier : `release/PDU-Parc-Auto-4.3.1.exe`** (99,7 Mo). Rien à installer, rien à configurer, aucun serveur ni connexion Internet. Copiez-le où vous voulez — disque local, clé USB — et double-cliquez.
 
 ---
 
