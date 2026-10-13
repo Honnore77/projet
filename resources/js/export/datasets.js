@@ -643,7 +643,7 @@ export function dsSimulations(list = DB.simulations) {
 /** Indisponibilites au pool : periode, duree, motif et interimaire. */
 export function dsIndisponibilites(list = DB.indisponibilites) {
   return {
-    title: 'Congés et absences',
+    title: 'Congés et absences au pool',
     columns: [
       C('conducteur', 'Conducteur', 24),
       C('motif', 'Motif', 16),
