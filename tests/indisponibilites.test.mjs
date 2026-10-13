@@ -126,3 +126,31 @@ test('l’export des vehicules contient le n° de chassis', async () => {
   assert.ok(d.columns.some((c) => c.key === 'numeroChassis' && c.label === 'N° de châssis'));
   assert.equal(d.rows[0].numeroChassis, 'JTMHV05J604123456');
 });
+
+test('la fiche vehicule en PDF : carte d’identite et historiques, sans aucun montant', async () => {
+  const fv = await import('../resources/js/export/ficheVehicule.js');
+  await charger();
+  const vehicle = { marque: 'TOYOTA', modele: 'HILUX', immatNouvelle: 'D45 50 1', numeroChassis: 'VIN123', energie: 'Diesel', consommation: 9.5, statut: 'Disponible' };
+  const infos = fv.infosVehicule(vehicle, 'pool');
+  assert.deepEqual(infos.slice(0, 1), [{ libelle: 'N° de châssis', valeur: 'VIN123' }]);
+  assert.ok(infos.some((l) => l.libelle === 'Consommation' && l.valeur === '9,5 L/100 km'));
+  const bytes = fv.buildFicheVehiculePdf({
+    vehicle, cat: 'pool', immat: 'D45 50 1', photo: null,
+    dots: [{ date: '2026-10-01', km: 1000, quantite: 40, montant: 36000, station: 'Total Plateau' }],
+    missionsCarburant: [],
+    missions: [{ ref: 'M-001', conducteur: 'KONE Ali', destination: 'Bouaké', dateDepart: '2026-10-02', dateRetour: '2026-10-03', jours: 2 }],
+    maint: [{ dateEntree: '2026-10-05', motif: 'Vidange', interventions: [{ garage: 'Garage X', cout: 25000 }] }]
+  });
+  const txt = Buffer.from(bytes).toString('latin1');
+  for (const m of ['Aucune photo', 'Dotations pool', 'Total Plateau', 'Missions', 'Historique entretien', 'Garage X']) {
+    assert.ok(txt.includes(m), m);
+  }
+  // Ni le montant de la dotation ni le cout du garage ne paraissent. On ne
+  // regarde que le texte ecrit sur la page — « (…) Tj » — et non les
+  // numeros internes du fichier, qui peuvent contenir n'importe quels
+  // chiffres.
+  const ecrit = (txt.match(/\((?:[^()\\]|\\.)*\) Tj/g) || []).join(' ').replace(/[\s\xa0 ]/g, '');
+  assert.ok(ecrit.includes('TotalPlateau'), 'le texte de la page est bien lu');
+  assert.ok(!ecrit.includes('36000'), 'montant de la dotation affiche');
+  assert.ok(!ecrit.includes('25000'), 'cout du garage affiche');
+});

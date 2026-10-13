@@ -54,7 +54,7 @@ Les données des versions précédentes de l'application (y compris le fichier H
   - **Estimation des frais de mission** = frais OM + frais de péage + carburant.
 
   Les simulations enregistrées sont listées en tableau, modifiables, et s'exportent en Excel et PDF. Le bouton **« Fiche »** de chaque ligne ouvre la fiche complète de la simulation — calcul des frais, parcours étape par étape avec le retour, parcours en interne, estimation — exportable en **PDF** (une page) et en **Excel**. Le bouton **« Créer la mission »** ouvre le formulaire de mission prérempli (dates, parcours, véhicule) ; le conducteur et les frais restent à saisir. Une fois la mission créée, la simulation affiche sa référence (« → M-006 »).
-- **Fiche véhicule** — pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage, et toutes les **photos et documents** qui la concernent, d'où qu'ils viennent.
+- **Fiche véhicule** — présentée comme une **carte d'identité** : la première photo du véhicule à gauche, ses informations à droite (immatriculation en grand, catégorie et statut, n° de châssis, énergie, consommation, couleur, utilisateur, kilométrage, prochaine vidange), puis l'activité et les historiques ; sur téléphone, la photo passe au-dessus. L'export PDF reprend la même carte, photo comprise, suivie des historiques ; l'Excel en donne une feuille rubrique / valeur et un onglet par historique — toujours sans montants. Pour une immatriculation : caractéristiques, litres consommés, dotations, missions, historique garage, et toutes les **photos et documents** qui la concernent, d'où qu'ils viennent.
 - **Rapports** — sept documents, en Excel, en PDF ou à imprimer directement.
 
 ### Carte carburant et soldes

@@ -5,14 +5,13 @@
 import { DB, vehicleByImmat, kmCourant, ravMontant } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, esc, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
-import { urlImage } from '../../core/images.js';
+import { urlImage, octetsImage } from '../../core/images.js';
 import { card, toolbar, statTile, sectionLabel, emptyState, toast, openModal, COLORS } from '../components.js';
 import { state, navigate } from '../shell.js';
 import { statutColor, openVehicleForm } from './vehicles.js';
 import { renderMaintenanceEntries, openFicheForm } from './maintenance.js';
 import { exportExcel } from '../../export/excel.js';
-import { exportPdf } from '../../export/pdf.js';
-import { dsDotationPool, dsMissions, dsMaintenance, dsVehicles } from '../../export/datasets.js';
+import { infosVehicule, activiteVehicule, exportFicheVehiculePdf } from '../../export/ficheVehicule.js';
 
 export function renderVehicleSheet(page) {
   const immat = state.vehicleSheetImmat;
@@ -30,45 +29,20 @@ export function renderVehicleSheet(page) {
       { label: '← Retour aux véhicules', color: COLORS.blue, onClick: () => navigate('VEHICULES') },
       canWrite() && vehicle && { label: '✎ Modifier le véhicule', color: COLORS.green, write: true, onClick: () => openVehicleForm(stripCat(vehicle), cat) },
       canWrite() && { label: '+ Fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', immat, vehicle, dots, missions, maint) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', immat, vehicle, dots, missions, maint) }
+      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) },
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) }
     ])
   );
 
-  if (vehicle) {
-    page.appendChild(
-      card(
-        `${vehicle.marque || ''} ${vehicle.modele || ''}`.trim() || immat,
-        `Immatriculation : ${vehicle.immatNouvelle || '—'}${vehicle.immatAncienne ? ` (anc. ${vehicle.immatAncienne})` : ''}\n` +
-        `N° de châssis : ${vehicle.numeroChassis || '—'}\n` +
-          `Statut : ${vehicle.statut} · Catégorie : ${String(cat).toUpperCase()} · Km : ${fmt(kmCourant(vehicle))}\n` +
-          `Énergie : ${vehicle.energie || '—'}` +
-          `${vehicle.consommation !== '' && vehicle.consommation !== undefined ? ` · Consommation : ${String(vehicle.consommation).replace('.', ',')} L/100 km` : ''}` +
-          ` · Couleur : ${vehicle.couleur || '—'}${vehicle.groupe ? ` · Groupe : ${vehicle.groupe}` : ''}` +
-          (vehicle.section ? `\nSection : ${vehicle.section}` : '') +
-          (vehicle.utilisateur ? ` · Utilisateur : ${vehicle.utilisateur}` : '') +
-          (vehicle.observations ? `\nObservations : ${vehicle.observations}` : ''),
-        statutColor(vehicle.statut)
-      )
-    );
-  } else {
-    page.appendChild(
-      card(
-        immat || 'Véhicule inconnu',
-        "Aucune fiche véhicule n'est enregistrée pour cette immatriculation dans la rubrique VÉHICULES. Les informations ci-dessous proviennent des autres rubriques.",
-        COLORS.orange
-      )
-    );
-  }
+  page.appendChild(carteIdentite(vehicle, cat, immat));
 
   // La fiche ne chiffre plus le carburant ni l'entretien : elle compte les
   // litres, les passages au garage et les missions. Les montants se lisent
   // dans le rapport « Coûts par véhicule », qui n'existe que pour cela.
-  const litresMission = sum(missionsCarburant, (m) => sum(m.ravitaillements || [], (r) => r.quantite));
+  const couleurs = [COLORS.orange, COLORS.red, COLORS.purple];
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Carburant', `${fmt(sum(dots, (d) => d.quantite) + litresMission)} L`, `${dots.length + missionsCarburant.length} prise(s)`, COLORS.orange));
-  grid.appendChild(statTile('Entretien', fmt(maint.length), 'passage(s) au garage', COLORS.red));
-  grid.appendChild(statTile('Missions', fmt(missions.length), `${fmt(sum(missions, (m) => m.jours))} jour(s) cumulés`, COLORS.purple));
+  activiteVehicule({ dots, missionsCarburant, missions, maint })
+    .forEach((a, i) => grid.appendChild(statTile(a.titre, a.valeur, a.detail, couleurs[i])));
   page.appendChild(grid);
 
   /* ---------------------------- Dotations ---------------------------- */
@@ -156,6 +130,61 @@ export function renderVehicleSheet(page) {
   }
 }
 
+/**
+ * La carte d'identite du vehicule : sa photo a gauche, ses informations a
+ * droite — comme une carte grise. Sur un ecran etroit, la photo passe
+ * au-dessus. La photo est la premiere de la fiche vehicule.
+ */
+function carteIdentite(vehicle, cat, immat) {
+  if (!vehicle) {
+    return card(
+      immat || 'Véhicule inconnu',
+      "Aucune fiche véhicule n'est enregistrée pour cette immatriculation dans la rubrique VÉHICULES. Les informations ci-dessous proviennent des autres rubriques.",
+      COLORS.orange
+    );
+  }
+  const couleur = statutColor(vehicle.statut);
+  const photos = vehicle.images || [];
+  const lignes = infosVehicule(vehicle, cat);
+  const carte = el(
+    `<div class="card" style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;border-left:5px solid ${couleur}">` +
+      '<div style="flex:0 0 240px;max-width:100%">' +
+        '<div data-photo style="width:240px;max-width:100%;aspect-ratio:4/3;border-radius:10px;overflow:hidden;' +
+          'background:#eef2f3;display:flex;align-items:center;justify-content:center;color:#8aa0a6;text-align:center;font-size:13px">' +
+          (photos.length ? 'chargement…' : '🚗<br>Aucune photo<br><small>« Modifier le véhicule » pour en ajouter</small>') +
+        '</div>' +
+        (photos.length > 1 ? `<small style="color:#8aa0a6">${photos.length} photos — les autres sont plus bas</small>` : '') +
+      '</div>' +
+      '<div style="flex:1 1 280px;min-width:0">' +
+        `<h3 style="margin:0;color:${COLORS.green}">${esc(`${vehicle.marque || ''} ${vehicle.modele || ''}`.trim() || 'Véhicule')}</h3>` +
+        `<div style="font-size:1.7em;font-weight:800;letter-spacing:1px;margin:2px 0 6px">${esc(vehicle.immatNouvelle || vehicle.immatAncienne || '—')}</div>` +
+        '<div style="margin-bottom:8px">' +
+          `<span class="badge" style="background:${COLORS.blue}">${esc(String(cat || '').toUpperCase())}</span> ` +
+          `<span class="badge" style="background:${couleur}">${esc(vehicle.statut || '')}</span>` +
+        '</div>' +
+        '<div style="display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:3px 14px;font-size:13.5px">' +
+          lignes
+            .filter((l) => !['Catégorie', 'Statut'].includes(l.libelle))
+            .map((l) => `<span style="color:#5b7178">${esc(l.libelle)}</span><b style="overflow-wrap:anywhere">${esc(l.valeur)}</b>`)
+            .join('') +
+        '</div>' +
+        (vehicle.observations ? `<p style="margin:10px 0 0"><span style="color:#5b7178">Observations : </span>${esc(vehicle.observations)}</p>` : '') +
+      '</div>' +
+    '</div>'
+  );
+  if (photos.length) {
+    const cadre = carte.querySelector('[data-photo]');
+    urlImage(photos[0].id).then((url) => {
+      if (!url) { cadre.textContent = 'photo introuvable'; return; }
+      const img = el(`<img src="${url}" alt="${esc(photos[0].nom || '')}" style="width:100%;height:100%;object-fit:cover;cursor:zoom-in">`);
+      img.onclick = () => ouvrirGrand(photos[0], url);
+      cadre.innerHTML = '';
+      cadre.appendChild(img);
+    });
+  }
+  return carte;
+}
+
 function same(a, b) {
   return String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
 }
@@ -166,25 +195,54 @@ function stripCat(v) {
   return copy;
 }
 
-async function doExport(kind, immat, vehicle, dots, missions, maint) {
+async function doExport(kind, f) {
   try {
-    const datasets = [];
-    if (vehicle) {
-      const ds = dsVehicles([vehicle]);
-      ds.title = `Fiche ${immat}`;
-      datasets.push(ds);
+    const safe = String(f.immat || 'vehicule').replace(/[^A-Za-z0-9_-]+/g, '_');
+    if (kind === 'pdf') {
+      // La premiere photo de la fiche, comme a l'ecran.
+      const premiere = f.vehicle && (f.vehicle.images || [])[0];
+      const photo = premiere ? await octetsImage(premiere.id) : null;
+      const res = await exportFicheVehiculePdf(Object.assign({ photo }, f), `PDU_fiche_${safe}`);
+      toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
+      return;
     }
-    if (dots.length) datasets.push(dsDotationPool(dots));
-    if (missions.length) datasets.push(dsMissions(missions));
-    if (maint.length) datasets.push(dsMaintenance(maint));
+    // Le classeur : la carte d'identite en rubrique / valeur, puis un onglet
+    // par historique — sans montants, comme la fiche.
+    const datasets = [];
+    if (f.vehicle) {
+      datasets.push({
+        title: `Fiche ${f.immat}`,
+        columns: [{ key: 'libelle', label: 'Rubrique', width: 28 }, { key: 'valeur', label: 'Valeur', width: 40 }],
+        rows: [
+          { libelle: 'Véhicule', valeur: `${f.vehicle.marque || ''} ${f.vehicle.modele || ''}`.trim() },
+          { libelle: 'Immatriculation', valeur: f.vehicle.immatNouvelle || f.vehicle.immatAncienne || '' },
+          ...infosVehicule(f.vehicle, f.cat),
+          ...activiteVehicule(f).map((a) => ({ libelle: a.titre, valeur: `${a.valeur} — ${a.detail}` })),
+          ...(f.vehicle.observations ? [{ libelle: 'Observations', valeur: f.vehicle.observations }] : [])
+        ]
+      });
+    }
+    const col = (key, label, width) => ({ key, label, width });
+    if (f.dots.length) {
+      datasets.push({ title: 'Dotations pool',
+        columns: [col('date', 'Date', 12), col('km', 'Kilométrage', 12), col('quantite', 'Quantité (L)', 12), col('station', 'Station-service', 24), col('vidange', 'État vidange', 13)],
+        rows: f.dots.map((d) => ({ date: dateFR(d.date), km: num(d.km), quantite: num(d.quantite), station: d.station || '', vidange: d.vidange || '' })) });
+    }
+    if (f.missions.length) {
+      datasets.push({ title: 'Missions',
+        columns: [col('ref', 'Réf.', 10), col('conducteur', 'Conducteur', 22), col('destination', 'Destination', 26), col('depart', 'Départ', 12), col('retour', 'Retour', 12), col('jours', 'Jours', 8), col('paiement', 'Paiement', 12)],
+        rows: f.missions.map((m) => ({ ref: m.ref || '', conducteur: m.conducteur || '', destination: m.destination || '', depart: dateFR(m.dateDepart), retour: dateFR(m.dateRetour), jours: m.jours || '', paiement: m.paye ? 'payée' : 'en attente' })) });
+    }
+    if (f.maint.length) {
+      datasets.push({ title: 'Entretien',
+        columns: [col('entree', 'Entrée', 12), col('motif', 'Motif', 30), col('garages', 'Garage(s)', 22), col('sortie', 'Sortie', 12), col('etat', 'État', 12)],
+        rows: f.maint.map((m) => ({ entree: dateFR(m.dateEntree), motif: m.motif || '', garages: [...new Set((m.interventions || []).map((i) => i.garage).filter(Boolean))].join(', '), sortie: dateFR(m.dateRetour), etat: m.dateRetour ? 'sorti' : 'au garage' })) });
+    }
     if (!datasets.length) {
       toast('Rien à exporter pour ce véhicule.', 'info');
       return;
     }
-    const safe = String(immat || 'vehicule').replace(/[^A-Za-z0-9_-]+/g, '_');
-    const res = kind === 'excel'
-      ? await exportExcel(datasets, `PDU_fiche_${safe}`)
-      : await exportPdf(datasets, `PDU_fiche_${safe}`, { title: `Fiche véhicule ${immat}` });
+    const res = await exportExcel(datasets, `PDU_fiche_${safe}`);
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);
