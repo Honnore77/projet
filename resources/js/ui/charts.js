@@ -63,3 +63,49 @@ export function colorAt(i) {
 export function colorsFor(n) {
   return Array.from({ length: n }, (_, i) => PALETTE[i % PALETTE.length]);
 }
+
+/**
+ * Carte de graphique dont on choisit la forme : une liste au-dessus du
+ * graphique le redessine dans la forme choisie.
+ *
+ * @param {string} title                titre (deja echappe)
+ * @param {Function} buildConfig        (type) => configuration Chart.js
+ * @param {{value:string,label:string}[]} types  formes proposees
+ * @param {string} initial              forme de depart
+ * @param {Function} [onChange]         (type) => void, pour retenir le choix
+ */
+export function chartCardTypes(title, buildConfig, types, initial, onChange) {
+  const card = el(
+    '<div class="chartCard">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">' +
+        `<h3 style="margin:0">${title}</h3>` +
+        '<select title="Forme du graphique" style="width:auto;padding:3px 6px;font-size:12px"></select>' +
+      '</div>' +
+      '<div class="chartBox"><canvas></canvas></div>' +
+    '</div>'
+  );
+  const select = card.querySelector('select');
+  types.forEach((t) => {
+    const o = el(`<option value="${t.value}">${t.label}</option>`);
+    select.appendChild(o);
+  });
+  select.value = types.some((t) => t.value === initial) ? initial : types[0].value;
+
+  const canvas = card.querySelector('canvas');
+  let chart = null;
+  const dessiner = () => {
+    if (!canvas.isConnected) return;
+    if (chart) {
+      try { chart.destroy(); } catch (e) { /* ignore */ }
+      instances = instances.filter((c) => c !== chart);
+    }
+    chart = new Chart(canvas, withDefaults(buildConfig(select.value)));
+    instances.push(chart);
+  };
+  select.onchange = () => {
+    dessiner();
+    if (onChange) onChange(select.value);
+  };
+  requestAnimationFrame(dessiner);
+  return card;
+}

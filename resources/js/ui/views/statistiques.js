@@ -10,7 +10,7 @@ import { STATISTIQUES, anneesDisponibles } from '../../core/statistiques.js';
 import { el, esc } from '../../core/utils.js';
 import { card, toolbar, filterBar, statTile, dataTable, sectionLabel, emptyState, toast, COLORS } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
-import { chartCard, destroyCharts, colorsFor } from '../charts.js';
+import { chartCardTypes, destroyCharts, colorsFor } from '../charts.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 
@@ -75,9 +75,21 @@ export function renderStatistiques(page, cle) {
     return;
   }
 
-  // Les graphiques d'abord, deux par ligne sur un grand ecran.
+  // Les graphiques d'abord, deux par ligne sur un grand ecran. Chacun a sa
+  // liste de formes ; le choix est retenu, graphique par graphique.
   const graphiques = el('<div class="chartGrid"></div>');
-  pleins.filter((b) => b.graphique).forEach((b) => graphiques.appendChild(chartCard(esc(b.titre), configGraphique(b.graphique))));
+  pleins.filter((b) => b.graphique).forEach((b) => {
+    const g = b.graphique;
+    const cleForme = `${cle}|${b.titre}`;
+    const formes = formesPossibles(g);
+    graphiques.appendChild(chartCardTypes(
+      esc(b.titre),
+      (forme) => configGraphique(g, forme),
+      formes,
+      formesRetenues()[cleForme] || g.type,
+      (forme) => retenirForme(cleForme, forme)
+    ));
+  });
   if (graphiques.children.length) page.appendChild(graphiques);
 
   // Puis le detail chiffre de chaque bloc.
@@ -92,31 +104,125 @@ export function renderStatistiques(page, cle) {
   }
 }
 
-/** Configuration Chart.js d'un graphique de bloc. */
-function configGraphique(g) {
-  if (g.type === 'doughnut') {
+/* ------------------------- Formes de graphique ------------------------- */
+
+const FORMES = {
+  bar: 'Barres verticales',
+  barH: 'Barres horizontales',
+  stacked: 'Barres empilées',
+  line: 'Courbe',
+  area: 'Aires',
+  pie: 'Camembert',
+  doughnut: 'Anneau',
+  polarArea: 'Polaire',
+  radar: 'Radar'
+};
+
+/**
+ * Formes qui ont un sens pour ce graphique : une serie se montre de toutes
+ * les facons ; plusieurs series (litres pool et missions, missions et jours)
+ * ne se mettent pas en camembert, mais peuvent s'empiler.
+ */
+function formesPossibles(g) {
+  const cles = g.series.length > 1
+    ? ['bar', 'stacked', 'barH', 'line', 'area', 'radar']
+    : ['bar', 'barH', 'line', 'area', 'pie', 'doughnut', 'polarArea', 'radar'];
+  // Un radar a moins de trois branches n'est qu'un trait.
+  return cles.filter((k) => k !== 'radar' || g.libelles.length >= 3).map((k) => ({ value: k, label: FORMES[k] }));
+}
+
+/** Les formes choisies, retenues sur ce poste (simple confort d'affichage). */
+const CLE_FORMES = 'pdu_formes_graphiques';
+function formesRetenues() {
+  try { return JSON.parse(localStorage.getItem(CLE_FORMES) || '{}') || {}; } catch (e) { return {}; }
+}
+function retenirForme(cle, forme) {
+  try {
+    const f = formesRetenues();
+    f[cle] = forme;
+    localStorage.setItem(CLE_FORMES, JSON.stringify(f));
+  } catch (e) { /* stockage indisponible : le choix vaut pour cette page */ }
+}
+
+/** Couleur avec transparence, pour les aires et le radar. */
+function voile(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+
+/** Configuration Chart.js d'un graphique de bloc, dans la forme demandee. */
+function configGraphique(g, forme = g.type) {
+  const entiers = g.series.every((s) => s.valeurs.every((v) => Number.isInteger(v)));
+  // Des comptages (missions, passages) ne se lisent pas en demi-unites.
+  const ticks = entiers ? { precision: 0 } : {};
+
+  if (forme === 'pie' || forme === 'doughnut' || forme === 'polarArea') {
+    const couleurs = colorsFor(g.libelles.length);
     return {
-      type: 'doughnut',
-      data: { labels: g.libelles, datasets: [{ data: g.series[0].valeurs, backgroundColor: colorsFor(g.libelles.length) }] },
-      options: { plugins: { legend: { position: 'right' } } }
+      type: forme,
+      data: {
+        labels: g.libelles,
+        datasets: [{
+          data: g.series[0].valeurs,
+          backgroundColor: forme === 'polarArea' ? couleurs.map((c) => voile(c, 0.7)) : couleurs
+        }]
+      },
+      options: {
+        plugins: { legend: { position: 'right' } },
+        ...(forme === 'polarArea' ? { scales: { r: { beginAtZero: true, ticks } } } : {})
+      }
     };
   }
+
   const couleurs = colorsFor(g.series.length);
+  if (forme === 'radar') {
+    return {
+      type: 'radar',
+      data: {
+        labels: g.libelles,
+        datasets: g.series.map((s, i) => ({
+          label: s.nom, data: s.valeurs, borderColor: couleurs[i], backgroundColor: voile(couleurs[i], 0.25), pointRadius: 3
+        }))
+      },
+      options: { plugins: { legend: { display: g.series.length > 1 } }, scales: { r: { beginAtZero: true, ticks } } }
+    };
+  }
+
+  if (forme === 'line' || forme === 'area') {
+    return {
+      type: 'line',
+      data: {
+        labels: g.libelles,
+        datasets: g.series.map((s, i) => ({
+          label: s.nom, data: s.valeurs, borderColor: couleurs[i], backgroundColor: voile(couleurs[i], 0.2),
+          fill: forme === 'area', tension: 0.3, pointRadius: 3
+        }))
+      },
+      options: { plugins: { legend: { display: g.series.length > 1 } }, scales: { y: { beginAtZero: true, ticks } } }
+    };
+  }
+
+  // Barres : verticales, horizontales ou empilees.
+  const horizontal = forme === 'barH';
+  const empile = forme === 'stacked';
+  // Une seule serie de categories : une couleur par barre, comme le camembert.
+  const uneSerie = g.series.length === 1;
   return {
     type: 'bar',
     data: {
       labels: g.libelles,
-      datasets: g.series.map((s, i) => ({ label: s.nom, data: s.valeurs, backgroundColor: couleurs[i] }))
+      datasets: g.series.map((s, i) => ({
+        label: s.nom,
+        data: s.valeurs,
+        backgroundColor: uneSerie && g.type === 'doughnut' ? colorsFor(g.libelles.length) : couleurs[i]
+      }))
     },
     options: {
+      indexAxis: horizontal ? 'y' : 'x',
       plugins: { legend: { display: g.series.length > 1 } },
-      // Des comptages (missions, passages) ne se lisent pas en demi-unites.
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: g.series.every((s) => s.valeurs.every((v) => Number.isInteger(v))) ? { precision: 0 } : {}
-        }
-      }
+      scales: horizontal
+        ? { x: { beginAtZero: true, ticks } }
+        : { x: { stacked: empile }, y: { beginAtZero: true, stacked: empile, ticks } }
     }
   };
 }
