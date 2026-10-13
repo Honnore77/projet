@@ -10,7 +10,7 @@ import {
 } from '../../core/auth.js';
 import {
   platformName, dataLocation, saveFile, openBinaryFile,
-  backupEtat, backupChoisirDossier, backupListe, backupHebdo
+  backupEtat, backupChoisirDossier, backupListe
 } from '../../core/storage.js';
 import { esc, el, num, francSup } from '../../core/utils.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
@@ -50,42 +50,6 @@ function renderAutoBackupSection(page) {
 
   const bloc = el('<div class="card"><h3 style="color:#1976D2">COPIES DATÉES</h3><p>Chargement…</p></div>');
   page.appendChild(bloc);
-
-  // La copie du vendredi 18 h 30, en plus des copies quotidiennes.
-  const hebdo = el('<div class="card"><h3 style="color:#1976D2">SAUVEGARDE HEBDOMADAIRE — VENDREDI 18 H 30</h3><p>Chargement…</p></div>');
-  page.appendChild(hebdo);
-  const dessinerHebdo = async () => {
-    const h = await backupHebdo();
-    const p = hebdo.querySelector('p');
-    const quand = (iso) => new Date(iso).toLocaleString('fr-FR', {
-      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit'
-    });
-    if (h.indisponible) {
-      p.textContent = 'Comme les copies datées, elle n’existe que dans l’application de bureau.';
-      return;
-    }
-    if (!h.dossier) {
-      p.textContent =
-        'Elle se fera dans le sous-dossier « SAUVEGADE AUTOMATIQUE HEBDO » du dossier de sauvegarde : ' +
-        'choisissez d’abord ce dossier ci-dessous.';
-      return;
-    }
-    p.textContent =
-      `Dossier : ${h.dossier}
-` +
-      `Copies conservées : 52 au plus (un an) — ${(h.liste || []).length} présente(s)
-` +
-      (h.erreur
-        ? `⚠ Dernière tentative en échec : ${h.erreur}
-   Le dossier est-il accessible ?
-`
-        : h.fait ? `Copie de la semaine : ${h.fichier} — écrite le ${quand(h.fait)}
-` : '') +
-      `Prochaine sauvegarde : ${quand(h.prochaine)}
-` +
-      'L’application doit être ouverte à cette heure-là ; sinon, la sauvegarde se fait à son lancement suivant.';
-  };
-  dessinerHebdo();
 
   const dessiner = async () => {
     const etat = await backupEtat();

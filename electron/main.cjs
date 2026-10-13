@@ -9,7 +9,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { sauvegardeDatee, listerSauvegardes, miroirImages, sauvegardeHebdo, listerHebdo } = require('./sauvegarde.cjs');
+const { sauvegardeDatee, listerSauvegardes, miroirImages } = require('./sauvegarde.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -71,36 +71,6 @@ function copierSelonReglages(raw) {
     const im = miroirImages(imagesDir(), etatSauvegarde.dossier);
     etatSauvegarde.images = im.copiees;
     if (im.erreur) etatSauvegarde.erreur = `images : ${im.erreur}`;
-  }
-}
-
-/* ---------------------- Sauvegarde hebdomadaire --------------------- */
-
-let etatHebdo = { ecrite: false, fait: null, dossier: '', fichier: '', erreur: '', conservees: 0 };
-
-/**
- * Chaque vendredi a 18 h 30, une copie dans « SAUVEGADE AUTOMATIQUE HEBDO ».
- *
- * Verifiee au lancement puis chaque minute : la semaine manquee parce que
- * l'application etait fermee le vendredi soir se rattrape au lancement
- * suivant. La copie part du fichier de la base tel qu'il est sur le disque.
- */
-function verifierSauvegardeHebdo() {
-  try {
-    const file = dataFile();
-    if (!fs.existsSync(file)) return;
-    const raw = fs.readFileSync(file, 'utf8');
-    let reglages = {};
-    try { reglages = (JSON.parse(raw) || {}).settings || {}; } catch (e) { return; }
-    etatHebdo = sauvegardeHebdo(raw, reglages.dossierSauvegarde);
-    // Les photos aussi : la copie de la semaine doit se suffire a elle-meme.
-    if (etatHebdo.ecrite && etatHebdo.dossier) {
-      const im = miroirImages(imagesDir(), etatHebdo.dossier);
-      etatHebdo.images = im.copiees;
-      if (im.erreur) etatHebdo.erreur = `images : ${im.erreur}`;
-    }
-  } catch (e) {
-    etatHebdo = Object.assign({}, etatHebdo, { erreur: String((e && e.message) || e) });
   }
 }
 
@@ -257,14 +227,6 @@ ipcMain.handle('db:path', () => dataFile());
 /** Etat de la derniere copie datee, pour l'affichage dans REGLAGES. */
 ipcMain.handle('backup:etat', () => etatSauvegarde);
 
-/** Etat de la sauvegarde hebdomadaire, verifiee a la demande. */
-ipcMain.handle('backup:hebdo', () => {
-  verifierSauvegardeHebdo();
-  return Object.assign({}, etatHebdo, {
-    liste: etatHebdo.dossier ? listerHebdo(path.dirname(etatHebdo.dossier)).slice().reverse() : []
-  });
-});
-
 /** Choix du dossier de sauvegarde. @returns {Promise<string|null>} */
 ipcMain.handle('backup:dossier', async () => {
   const res = await dialog.showOpenDialog(win, {
@@ -391,10 +353,6 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     buildMenu();
     createWindow();
-    // Laisse a l'application le temps de charger (et de reprendre une base
-    // ancienne) avant la premiere verification ; ensuite, chaque minute.
-    setTimeout(verifierSauvegardeHebdo, 15000);
-    setInterval(verifierSauvegardeHebdo, 60 * 1000);
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });

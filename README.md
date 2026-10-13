@@ -28,9 +28,7 @@ Une copie de la version précédente (`pdu-parc-auto.backup.json`) est conservé
 
 Le menu **Fichier → Ouvrir le dossier des données** l'ouvre dans l'explorateur ; le chemin exact est aussi rappelé dans **Réglages → Informations techniques**.
 
-**Les données ne quittent jamais ce poste.** Deux postes ne partagent rien : pour transporter les données, passez par **Réglages → Exporter une sauvegarde**, puis **Restaurer une sauvegarde** sur l'autre poste. **Sauvegarde hebdomadaire** : chaque **vendredi à 18 h 30**, une copie est écrite dans le sous-dossier **« SAUVEGADE AUTOMATIQUE HEBDO »** du dossier de sauvegarde choisi dans RÉGLAGES (`pdu-parc-auto-hebdo-AAAA-MM-JJ.json`, photos comprises, 52 semaines conservées). Elle s'ajoute aux copies quotidiennes. Si l'application est fermée le vendredi soir, la copie de la semaine se fait à son lancement suivant. RÉGLAGES affiche la dernière copie et la prochaine échéance.
-
-Sauvegardez régulièrement — c'est le seul filet en cas de panne du disque.
+**Les données ne quittent jamais ce poste.** Deux postes ne partagent rien : pour transporter les données, passez par **Réglages → Exporter une sauvegarde**, puis **Restaurer une sauvegarde** sur l'autre poste. Sauvegardez régulièrement — c'est le seul filet en cas de panne du disque.
 
 Les données des versions précédentes de l'application (y compris le fichier HTML d'origine) sont reprises automatiquement au premier lancement.
 
