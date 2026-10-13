@@ -10,7 +10,9 @@
   --bg:#F5F7F8; --text:#17313B; --muted:#5b7178; --line:#dbe3e4;
   --white:#ffffff; --shadow:0 1px 3px rgba(0,0,0,.08);
   --shadow-lg:0 10px 40px rgba(0,0,0,.18);
-  --radius:14px; --maxw:1180px;
+  /* Le contenu occupe toute la largeur de la fenetre : agrandie, elle
+     donne plus de place aux tableaux au lieu de laisser des marges vides. */
+  --radius:14px; --maxw:100%;
 }
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 html,body{margin:0;padding:0;height:100%;background:var(--bg);
@@ -276,6 +278,10 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 .chartGrid > .chartCard{margin-left:0;margin-right:0;}
 @container (min-width:640px){
   .chartGrid{grid-template-columns:1fr 1fr;}
+}
+/* Sur un tres grand ecran, trois graphiques par ligne. */
+@container (min-width:1500px){
+  .chartGrid{grid-template-columns:1fr 1fr 1fr;}
 }
 
 .alertList{margin:8px 2px;}
