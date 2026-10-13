@@ -224,7 +224,7 @@ function simulationFields(s = {}) {
     { key: 'carburant', label: 'Carburant', type: 'static', full: true, value: '',
       hint: '(Parcours + parcours en interne) × consommation ÷ 100 × prix du litre ; parcours en interne = jours sur place × km par jour (RÉGLAGES)' },
     { key: 'estimation', label: 'ESTIMATION DES FRAIS DE MISSION', type: 'static', full: true, value: '',
-      hint: 'Frais OM + frais de péage + carburant' }
+      hint: 'Total : frais OM + frais de péage + carburant' }
   ];
 }
 
@@ -288,6 +288,24 @@ function openSimulationForm(sim) {
     est.style.fontWeight = '700';
     est.style.fontSize = '1.15em';
     est.style.color = COULEUR();
+
+    // Le detail de l'estimation, poste par poste, au-dessus du total : on
+    // voit d'ou vient le chiffre sans remonter le formulaire.
+    const detail = scopeForm.querySelector('[data-detail-estimation]');
+    if (detail) {
+      const ligne = (libelle, montant, precision) =>
+        '<div class="subEntryRow" style="align-items:baseline">' +
+          `<span>${libelle}${precision ? `<br><small>${precision}</small>` : ''}</span>` +
+          `<b style="white-space:nowrap">${fmt(montant)} F</b></div>`;
+      detail.innerHTML =
+        ligne('Frais OM =', r.fraisOm, `${fmt(r.participants)} participant(s) × ${fmt(r.fraisOmUnitaire)} F`) +
+        ligne('Frais de péage =', r.fraisPeage, 'montant saisi') +
+        ligne('Carburant =', r.montantCarburant,
+          `${fmt(r.litres)} L × ${fmt(valeur('prixL') === '__ajout__' ? 0 : valeur('prixL'))} F — ${fmt(r.distanceTotale)} km`) +
+        '<div class="subEntryRow" style="border-top:2px solid currentColor;border-bottom:none;align-items:baseline">' +
+          '<span><b>TOTAL = Frais OM + Frais de péage + Carburant</b></span>' +
+          `<b style="white-space:nowrap;color:${COULEUR()};font-size:1.15em">${fmt(r.estimation)} F</b></div>`;
+    }
     return r;
   };
 
@@ -386,6 +404,12 @@ function openSimulationForm(sim) {
       ligneDest.appendChild(blocInterne);
       dessinerInterne(blocInterne);
       scope._redessinerParcours = redessinerParcours;
+      // Le detail se place entre le libelle et le total de l'estimation.
+      const champEstimation = scope.querySelector('[data-key="estimation"]');
+      champEstimation.parentNode.insertBefore(
+        el('<div class="subBlock" style="margin:4px 0 6px" data-detail-estimation></div>'),
+        champEstimation
+      );
       recalculer();
     },
     onInput: (values, scope) => {
