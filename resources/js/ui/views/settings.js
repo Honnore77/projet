@@ -67,7 +67,7 @@ function renderAutoBackupSection(page) {
     if (!dossier) {
       p.textContent =
         'Aucun dossier choisi : aucune copie datée n’est faite.\n\n' +
-        'Une copie par jour serait écrite dans le dossier que vous désignez — clé USB, ' +
+        'Une copie par jour serait écrite dans le sous-dossier « SAUVEGARDE AUTOMATIQUE HEBDO » du dossier que vous désignez — clé USB, ' +
         'disque réseau ou dossier synchronisé. Le fichier du jour est réécrit tant que ' +
         'la journée dure ; celui de la veille reste intact, ce qui permet de rattraper ' +
         'une erreur remarquée le lendemain.';
@@ -76,7 +76,7 @@ function renderAutoBackupSection(page) {
 
     const liste = await backupListe(dossier);
     p.textContent =
-      `Dossier : ${dossier}\n` +
+      `Dossier : ${etat.dossier || `${dossier}\\SAUVEGARDE AUTOMATIQUE HEBDO`}\n` +
       `Copies conservées : ${DB.settings.sauvegardesConservees} au plus — ${liste.length} présente(s)\n` +
       (etat.erreur
         ? `⚠ Dernière tentative en échec : ${etat.erreur}\n` +

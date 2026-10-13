@@ -158,3 +158,15 @@ test('un dossier d’images absent ne fait pas echouer la sauvegarde', () => {
   assert.equal(r.copiees, 0);
   assert.equal(r.erreur, '');
 });
+
+test('les copies quotidiennes vont dans le sous-dossier « SAUVEGARDE AUTOMATIQUE HEBDO »', () => {
+  const { dossierCopies, SOUS_DOSSIER } = require('../electron/sauvegarde.cjs');
+  assert.equal(SOUS_DOSSIER, 'SAUVEGARDE AUTOMATIQUE HEBDO');
+  const d = dossierTemporaire();
+  const etat = sauvegardeDatee(CONTENU, dossierCopies(d), 30, '2026-10-13');
+  assert.ok(fs.existsSync(path.join(d, 'SAUVEGARDE AUTOMATIQUE HEBDO', 'pdu-parc-auto-2026-10-13.json')));
+  assert.equal(etat.dossier, path.join(d, 'SAUVEGARDE AUTOMATIQUE HEBDO'));
+  // Sans dossier choisi, pas de sous-dossier invente : rien n'est ecrit.
+  assert.equal(dossierCopies(''), '');
+  assert.equal(dossierCopies('   '), '');
+});

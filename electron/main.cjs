@@ -9,7 +9,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const path = require('node:path');
 const fs = require('node:fs');
-const { sauvegardeDatee, listerSauvegardes, miroirImages } = require('./sauvegarde.cjs');
+const { sauvegardeDatee, listerSauvegardes, miroirImages, dossierCopies } = require('./sauvegarde.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -59,9 +59,11 @@ function copierSelonReglages(raw) {
   } catch (e) {
     return; // base illisible : rien a copier
   }
+  // Les copies vont dans le sous-dossier « SAUVEGARDE AUTOMATIQUE HEBDO »
+  // du dossier choisi ; les photos suivent, dans son sous-dossier images.
   etatSauvegarde = sauvegardeDatee(
     raw,
-    reglages.dossierSauvegarde,
+    dossierCopies(reglages.dossierSauvegarde),
     reglages.sauvegardesConservees
   );
 
@@ -239,7 +241,7 @@ ipcMain.handle('backup:dossier', async () => {
 
 /** Liste des sauvegardes presentes dans un dossier, la plus recente en tete. */
 ipcMain.handle('backup:liste', (_evt, dossier) =>
-  listerSauvegardes(dossier).slice().reverse());
+  listerSauvegardes(dossierCopies(dossier)).slice().reverse());
 
 /* ---------------------------- Images ------------------------------- */
 

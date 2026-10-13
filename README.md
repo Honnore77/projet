@@ -261,7 +261,7 @@ Une image est écrite dès qu'on la choisit, avant même de valider le formulair
 
 La copie `pdu-parc-auto.backup.json` du poste est **écrasée à chaque enregistrement** : elle protège d'une écriture interrompue, pas d'une erreur remarquée le lendemain, et elle est sur le même disque que l'original.
 
-**Réglages → Sauvegarde automatique** ouvre un second filet : une **copie datée par jour** dans le dossier que vous désignez — clé USB, disque réseau, dossier synchronisé.
+**Réglages → Sauvegarde automatique** ouvre un second filet : une **copie datée par jour** dans le sous-dossier **« SAUVEGARDE AUTOMATIQUE HEBDO »** du dossier que vous désignez — clé USB, disque réseau, dossier synchronisé. Les photos y sont recopiées dans `images`. Les copies écrites par les versions précédentes, directement dans le dossier choisi, y restent : elles ne sont ni déplacées ni effacées.
 
 - Le fichier du jour est réécrit tant que la journée dure ; **celui de la veille reste intact**.
 - Au-delà du nombre conservé (30 par défaut), la plus ancienne s'en va.

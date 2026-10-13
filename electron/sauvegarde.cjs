@@ -9,6 +9,19 @@
 const fs = require('node:fs');
 const path = require('node:path');
 
+/**
+ * Sous-dossier ou vont les copies datees, a l'interieur du dossier choisi
+ * dans REGLAGES : elles y sont rangees a part, sans se meler aux autres
+ * fichiers du dossier.
+ */
+const SOUS_DOSSIER = 'SAUVEGARDE AUTOMATIQUE HEBDO';
+
+/** Dossier des copies datees pour un dossier de sauvegarde choisi ; vide s'il n'y en a pas. */
+function dossierCopies(dossier) {
+  const d = String(dossier || '').trim();
+  return d ? path.join(d, SOUS_DOSSIER) : '';
+}
+
 /** Nom d'une copie datee : pdu-parc-auto-AAAA-MM-JJ.json */
 const NOM_SAUVEGARDE = /^pdu-parc-auto-(\d{4}-\d{2}-\d{2})\.json$/;
 
@@ -126,4 +139,4 @@ function miroirImages(sourceDir, dossier) {
   }
 }
 
-module.exports = { sauvegardeDatee, listerSauvegardes, miroirImages, NOM_SAUVEGARDE };
+module.exports = { sauvegardeDatee, listerSauvegardes, miroirImages, dossierCopies, NOM_SAUVEGARDE, SOUS_DOSSIER };
