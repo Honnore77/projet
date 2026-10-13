@@ -14,6 +14,7 @@ import {
   DB, insert, update, remove, knownImmats, vehicleByImmat, joursMission, ENERGIES,
   prixLitreOptions, nomsDestinationsMission, parcoursDe,
   calculerSimulation, peagesConnus, derniereConsommation, fraisOmParParticipant,
+  kmInterneParJour, interneEstime,
   destinationsDe, texteDestinations
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
@@ -195,7 +196,7 @@ function simulationFields(s = {}) {
     { key: 'fraisPeage', label: 'Frais de péage', type: 'static', full: true, value: '',
       hint: 'Somme des péages ci-dessous' },
     { key: 'carburant', label: 'Carburant', type: 'static', full: true, value: '',
-      hint: '(Parcours + parcours en interne) × consommation ÷ 100 × prix du litre' },
+      hint: '(Parcours + parcours en interne) × consommation ÷ 100 × prix du litre ; parcours en interne = jours sur place × km par jour (RÉGLAGES)' },
     { key: 'estimation', label: 'ESTIMATION DES FRAIS DE MISSION', type: 'static', full: true, value: '',
       hint: 'Frais OM + frais de péage + carburant' }
   ];
@@ -205,8 +206,24 @@ function openSimulationForm(sim) {
   const isEdit = !!sim;
   const parcours = destinationsDe(sim || {}).map((nom) => ({ nom }));
   const saisies = new Map();
-  // Distance parcourue a l'interieur de chaque destination, par nom.
-  const interne = new Map((sim && sim.interne ? sim.interne : []).map((x) => [norm(x.nom), x.km]));
+  // Parcours a l'interieur de chaque destination, par nom : jours sur place,
+  // et km — calcules (jours x km par jour de RÉGLAGES) tant qu'on ne les a
+  // pas corriges a la main. Une simulation d'avant le reglage n'a que des
+  // km : ils sont tenus pour saisis a la main.
+  const interne = new Map((sim && sim.interne ? sim.interne : []).map((x) => [norm(x.nom), {
+    jours: x.jours === undefined ? '' : x.jours,
+    km: x.km,
+    manuel: x.manuel !== undefined ? !!x.manuel : x.jours === undefined
+  }]));
+  const ligneInterne = (nom) => {
+    if (!interne.has(norm(nom))) interne.set(norm(nom), { jours: '', km: '', manuel: false });
+    return interne.get(norm(nom));
+  };
+  /** Km retenus pour une destination : la correction, sinon le calcul. */
+  const kmInterne = (nom) => {
+    const x = ligneInterne(nom);
+    return x.manuel ? x.km : interneEstime(x.jours);
+  };
   const peages = ((sim && sim.peages) || []).map((p) => Object.assign({}, p));
   let parcoursCalcule = parcoursDe(parcours.map((e) => e.nom));
   let dernierVehicule = sim ? sim.vehicule : '';
@@ -222,7 +239,7 @@ function openSimulationForm(sim) {
     if (!scopeForm) return null;
     const r = calculerSimulation({
       parcoursKm: parcoursCalcule.total,
-      interne: parcours.map((e) => ({ km: interne.get(norm(e.nom)) || 0 })),
+      interne: parcours.map((e) => ({ km: kmInterne(e.nom) || 0 })),
       consommation: valeur('consommation'),
       prixL: valeur('prixL') === '__ajout__' ? '' : valeur('prixL'),
       participants: valeur('participants'),
@@ -230,6 +247,11 @@ function openSimulationForm(sim) {
     });
     const j = joursMission(valeur('dateDepart'), valeur('dateRetour'));
     champ('jours').value = j === null || j < 1 ? '—' : `${j} j`;
+    const jSurPlace = scopeForm.querySelector('[data-interne-jours]');
+    if (jSurPlace) {
+      const surPlace = parcours.reduce((s2, e) => s2 + num(ligneInterne(e.nom).jours), 0);
+      jSurPlace.textContent = `${fmt(surPlace)} jour(s) sur place` + (j !== null && j > 0 ? ` — la mission dure ${j} jour(s)` : '');
+    }
     champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(r.fraisOmUnitaire)} F)`;
     champ('fraisPeage').value = `${fmt(r.fraisPeage)} F${peages.length ? `  (${peages.length} péage(s))` : ''}`;
     const incomplet = parcoursCalcule.etapes.length && !parcoursCalcule.complet;
@@ -245,31 +267,83 @@ function openSimulationForm(sim) {
     return r;
   };
 
-  /** Une ligne par destination du parcours : les km parcourus sur place. */
+  /**
+   * Une ligne par destination du parcours : jours sur place x km par jour
+   * = km en interne. Le resultat est propose, et reste modifiable ; une
+   * valeur corrigee se remet au calcul par « ↺ ».
+   */
   const dessinerInterne = (bloc) => {
-    bloc.innerHTML = '<h5>Parcours en interne — distance estimée à l’intérieur de chaque destination</h5>' +
+    const taux = kmInterneParJour();
+    bloc.innerHTML =
+      '<h5>Parcours en interne — distance estimée à l’intérieur de chaque destination</h5>' +
+      (taux
+        ? `<div class="subEntryRow" style="border:none"><span><small>Réglage : <b>${fmt(taux)} km par jour</b> sur place (RÉGLAGES)</small></span></div>`
+        : '<div class="subEntryRow" style="border:none"><span><small style="color:#b26a00">Km par jour non réglés : ' +
+          'fixez-les dans RÉGLAGES → Modifier les réglages, ou saisissez les km à la main.</small></span></div>') +
       (parcours.length
-        ? parcours.map((e, i) =>
-            '<div class="subEntryRow" style="align-items:center;gap:6px">' +
-              `<span>${i + 1}. ${esc(e.nom)}</span>` +
-              '<span style="display:flex;gap:4px;align-items:center">' +
-                `<input type="number" min="0" step="any" data-interne="${i}" value="${esc(interne.get(norm(e.nom)) ?? '')}" placeholder="0" style="width:80px">` +
-                '<small>km</small></span>' +
-            '</div>').join('') +
-          `<div class="subEntryRow" style="border:none"><span><b>Total en interne</b></span><b data-interne-total></b></div>`
+        ? parcours.map((e, i) => {
+            const x = ligneInterne(e.nom);
+            const km = kmInterne(e.nom);
+            return '<div class="subEntryRow" style="align-items:center;gap:6px;flex-wrap:wrap">' +
+              `<span style="flex:1 1 140px">${i + 1}. ${esc(e.nom)}</span>` +
+              '<span style="display:flex;gap:4px;align-items:center;flex-wrap:wrap">' +
+                `<input type="number" min="0" step="any" data-jours="${i}" value="${esc(x.jours)}" placeholder="0" ` +
+                  'title="Jours passés sur place" style="width:64px"><small>j ×</small>' +
+                `<small>${taux ? fmt(taux) : '?'} km =</small>` +
+                `<input type="number" min="0" step="any" data-interne="${i}" value="${esc(km)}" placeholder="0" ` +
+                  `title="Km parcourus à l’intérieur de ${esc(e.nom)}" style="width:80px${x.manuel ? ';border-color:#F47B20' : ''}"><small>km</small>` +
+                (x.manuel
+                  ? `<button type="button" class="miniBtn" style="background:${COLORS.grey};padding:4px 7px" data-recalcul="${i}" ` +
+                    'title="Revenir au calcul jours × km par jour">↺</button>'
+                  : '') +
+              '</span></div>';
+          }).join('') +
+          '<div class="subEntryRow" style="border:none"><span><b>Total en interne</b><br><small data-interne-jours></small></span>' +
+          '<b data-interne-total></b></div>'
         : '<div class="subEntryRow"><span><small>Ajoutez d’abord les destinations.</small></span></div>');
-    const total = () => {
+
+    const totaux = () => {
       const t = bloc.querySelector('[data-interne-total]');
-      if (t) t.textContent = `${fmt(parcours.reduce((s, e) => s + num(interne.get(norm(e.nom))), 0))} km`;
+      if (t) t.textContent = `${fmt(parcours.reduce((s2, e) => s2 + num(kmInterne(e.nom)), 0))} km`;
+      const j = bloc.querySelector('[data-interne-jours]');
+      if (j) {
+        const surPlace = parcours.reduce((s2, e) => s2 + num(ligneInterne(e.nom).jours), 0);
+        const mission = joursMission(valeur('dateDepart'), valeur('dateRetour'));
+        j.textContent = `${fmt(surPlace)} jour(s) sur place` +
+          (mission !== null && mission > 0 ? ` — la mission dure ${mission} jour(s)` : '');
+      }
     };
-    bloc.querySelectorAll('[data-interne]').forEach((n) => {
+    bloc.querySelectorAll('[data-jours]').forEach((n) => {
       n.oninput = () => {
-        interne.set(norm(parcours[Number(n.dataset.interne)].nom), n.value === '' ? '' : Number(n.value));
-        total();
+        const nom = parcours[Number(n.dataset.jours)].nom;
+        ligneInterne(nom).jours = n.value === '' ? '' : Number(n.value);
+        // Les km suivent les jours, sauf s'ils ont ete corriges a la main.
+        const champKm = bloc.querySelector(`[data-interne="${n.dataset.jours}"]`);
+        if (champKm && !ligneInterne(nom).manuel) champKm.value = kmInterne(nom);
+        totaux();
         recalculer();
       };
     });
-    total();
+    bloc.querySelectorAll('[data-interne]').forEach((n) => {
+      n.oninput = () => {
+        const x = ligneInterne(parcours[Number(n.dataset.interne)].nom);
+        x.km = n.value === '' ? '' : Number(n.value);
+        x.manuel = true;
+        n.style.borderColor = '#F47B20';
+        totaux();
+        recalculer();
+      };
+      // Le bouton « ↺ » n'apparait qu'au redessin : on le fait en quittant le champ.
+      n.onchange = () => dessinerInterne(bloc);
+    });
+    bloc.querySelectorAll('[data-recalcul]').forEach((b) => {
+      b.onclick = () => {
+        ligneInterne(parcours[Number(b.dataset.recalcul)].nom).manuel = false;
+        dessinerInterne(bloc);
+        recalculer();
+      };
+    });
+    totaux();
   };
 
   /** Les peages du trajet : libelle et prix, avec ceux deja connus proposes. */
@@ -393,17 +467,22 @@ function openSimulationForm(sim) {
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
       if (num(values.consommation) <= 0) return 'La consommation doit être supérieure à zéro.';
       if (num(values.participants) < 0) return 'Le nombre de participants ne peut pas être négatif.';
-      if ([...interne.values()].some((km) => km !== '' && num(km) < 0)) return 'Une distance ne peut pas être négative.';
+      if ([...interne.values()].some((x) => (x.km !== '' && num(x.km) < 0) || (x.jours !== '' && num(x.jours) < 0))) {
+        return 'Une distance ou un nombre de jours ne peut pas être négatif.';
+      }
 
       const noms = enregistrerParcours(parcours, saisies, values.destination);
       if (!noms.length) return 'Ajoutez au moins une destination.';
       const p = parcoursDe(noms);
       // Les corrections de distance viennent d'etre enregistrees : le
       // parcours relu ici est celui que le formulaire affichait.
-      const kmInterne = noms.map((nom) => ({ nom, km: num(interne.get(norm(nom))) }));
+      const lignesInterne = noms.map((nom) => {
+        const x = ligneInterne(nom);
+        return { nom, jours: x.jours, km: num(kmInterne(nom)), manuel: x.manuel };
+      });
       const r = calculerSimulation({
         parcoursKm: p.total,
-        interne: kmInterne,
+        interne: lignesInterne,
         consommation: values.consommation,
         prixL: values.prixL,
         participants: values.participants,
@@ -416,7 +495,7 @@ function openSimulationForm(sim) {
         jours: jours === null ? '' : jours,
         destinations: noms,
         parcoursComplet: p.complet,
-        interne: kmInterne,
+        interne: lignesInterne,
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
         energie: values.energie,
         consommation: num(values.consommation),

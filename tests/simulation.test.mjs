@@ -87,3 +87,14 @@ test('un montant de frais OM vide revient a 1 000 F, zero reste possible', async
   base.settings.fraisOmParParticipant = 0;
   assert.equal(calculerSimulation({ participants: 3 }).fraisOm, 0);
 });
+
+test('le parcours en interne propose = jours sur place x km par jour de RÉGLAGES', async () => {
+  const base = await charger();
+  // Non regle : rien n'est propose (zero se lirait « aucun deplacement »).
+  assert.equal(db.interneEstime(3), '');
+  base.settings.parcoursInterneKmParJour = 40;
+  assert.equal(db.kmInterneParJour(), 40);
+  assert.equal(db.interneEstime(3), 120);
+  assert.equal(db.interneEstime(1.5), 60);
+  assert.equal(db.interneEstime(''), '');
+});

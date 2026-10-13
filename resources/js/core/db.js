@@ -125,6 +125,10 @@ export function emptyDB() {
       prixLitreDiesel: 0,
       // Frais d'ordre de mission par participant, pour les simulations.
       fraisOmParParticipant: 1000,
+      // Kilometres parcourus chaque jour a l'interieur d'une destination,
+      // pour les simulations. Zero vaut « pas encore regle » : rien n'est
+      // alors propose, on saisit les km a la main.
+      parcoursInterneKmParJour: 0,
       // Dossier des copies datees, hors du poste de preference : cle USB,
       // disque reseau, dossier synchronise. Vide, la sauvegarde automatique
       // ne se fait pas — c'est un choix explicite, pas un defaut silencieux.
@@ -1890,6 +1894,22 @@ export function calculerSimulation(s) {
     fraisPeage,
     estimation: fraisOm + fraisPeage + montantCarburant
   };
+}
+
+/** Km parcourus par jour a l'interieur d'une destination (RÉGLAGES), 0 si non regle. */
+export function kmInterneParJour(db = DB) {
+  return num(db.settings && db.settings.parcoursInterneKmParJour);
+}
+
+/**
+ * Parcours en interne propose pour une destination : jours sur place x km
+ * par jour. Vide tant que les jours ou le reglage manquent — on ne propose
+ * pas zero, qui se lirait comme « aucun deplacement ».
+ */
+export function interneEstime(jours, db = DB) {
+  const taux = kmInterneParJour(db);
+  if (jours === '' || jours === undefined || jours === null || !taux) return '';
+  return Math.round(num(jours) * taux);
 }
 
 /** Peages deja saisis dans les simulations, avec leur dernier prix. */
