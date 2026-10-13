@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { db, charger } from './aide.mjs';
 
-const { calculerSimulation, FRAIS_OM_PAR_PARTICIPANT, peagesConnus, derniereConsommation, parcoursDe } = db;
+const { calculerSimulation, FRAIS_OM_PAR_PARTICIPANT, derniereConsommation, parcoursDe } = db;
 
 test('les frais OM valent 1 000 F par participant', () => {
   assert.equal(FRAIS_OM_PAR_PARTICIPANT, 1000);
@@ -18,7 +18,7 @@ test('estimation = frais OM + peages + (parcours + interne) x consommation / 100
     consommation: 10,
     prixL: 875,
     participants: 4,
-    peages: [{ prix: 1500 }, { prix: 1500 }]
+    fraisPeage: 3000
   });
   assert.equal(r.interneKm, 65);
   assert.equal(r.distanceTotale, 1800);
@@ -49,14 +49,10 @@ test('la simulation compte le meme parcours aller-retour qu’une mission', asyn
   assert.equal(p.total, 700);
 });
 
-test('un peage deja saisi est propose avec son dernier prix', async () => {
-  await charger({
-    simulations: [
-      { id: 'a', createdAt: '2026-01-01', peages: [{ libelle: 'Attinguié', prix: 1000 }] },
-      { id: 'b', createdAt: '2026-02-01', peages: [{ libelle: 'attinguié', prix: 1500 }, { libelle: 'Singrobo', prix: 2000 }] }
-    ]
-  });
-  assert.deepEqual(peagesConnus().map((p) => [p.libelle, p.prix]), [['attinguié', 1500], ['Singrobo', 2000]]);
+test('les frais de peage se saisissent tels quels', () => {
+  assert.equal(calculerSimulation({ fraisPeage: 2500 }).fraisPeage, 2500);
+  assert.equal(calculerSimulation({ fraisPeage: '' }).fraisPeage, 0);
+  assert.equal(calculerSimulation({ fraisPeage: 2500, participants: 2 }).estimation, 2500 + 2000);
 });
 
 test('la consommation reprise est celle de la derniere simulation du vehicule', async () => {

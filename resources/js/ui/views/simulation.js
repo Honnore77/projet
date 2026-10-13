@@ -13,7 +13,7 @@
 import {
   DB, insert, update, remove, knownImmats, vehicleByImmat, joursMission, ENERGIES,
   prixLitreOptions, nomsDestinationsMission, parcoursDe,
-  calculerSimulation, peagesConnus, derniereConsommation, fraisOmParParticipant,
+  calculerSimulation, derniereConsommation, fraisOmParParticipant,
   kmInterneParJour, interneEstime,
   destinationsDe, texteDestinations
 } from '../../core/db.js';
@@ -86,7 +86,7 @@ function renderListe(page) {
     `${esc(s.vehicule || '—')}<br><small>${esc(s.energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
     droite(`${fmt(s.litres)} L<br><small>× ${fmt(s.prixL)} F</small><br><b>${fmt(s.montantCarburant)} F</b>`),
     droite(`${fmt(s.participants)}<br><b>${fmt(s.fraisOm)} F</b>`),
-    droite(`<b>${fmt(s.fraisPeage)} F</b>${(s.peages || []).length ? `<br><small>${s.peages.length} péage(s)</small>` : ''}`),
+    droite(`<b>${fmt(s.fraisPeage)} F</b>`),
     droite(`<b style="color:${COULEUR()};font-size:1.05em">${fmt(s.estimation)} F</b>`),
     celluleMission(s),
     canWrite()
@@ -193,8 +193,9 @@ function simulationFields(s = {}) {
       hint: 'Nombre total de personnes qui prennent part à la mission' },
     { key: 'fraisOm', label: 'Frais OM', type: 'static', value: '',
       hint: `Participants × ${fmt(fraisOmParParticipant())} F — réglable dans RÉGLAGES` },
-    { key: 'fraisPeage', label: 'Frais de péage', type: 'static', full: true, value: '',
-      hint: 'Somme des péages ci-dessous' },
+    // Saisis tels quels : le montant total des peages du trajet.
+    { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'number', value: s.fraisPeage,
+      hint: 'Montant total des péages, aller et retour' },
     { key: 'carburant', label: 'Carburant', type: 'static', full: true, value: '',
       hint: '(Parcours + parcours en interne) × consommation ÷ 100 × prix du litre ; parcours en interne = jours sur place × km par jour (RÉGLAGES)' },
     { key: 'estimation', label: 'ESTIMATION DES FRAIS DE MISSION', type: 'static', full: true, value: '',
@@ -224,7 +225,6 @@ function openSimulationForm(sim) {
     const x = ligneInterne(nom);
     return x.manuel ? x.km : interneEstime(x.jours);
   };
-  const peages = ((sim && sim.peages) || []).map((p) => Object.assign({}, p));
   let parcoursCalcule = parcoursDe(parcours.map((e) => e.nom));
   let dernierVehicule = sim ? sim.vehicule : '';
   let derniereEnergie = sim ? sim.energie : 'Essence';
@@ -243,7 +243,7 @@ function openSimulationForm(sim) {
       consommation: valeur('consommation'),
       prixL: valeur('prixL') === '__ajout__' ? '' : valeur('prixL'),
       participants: valeur('participants'),
-      peages
+      fraisPeage: valeur('fraisPeage')
     });
     const j = joursMission(valeur('dateDepart'), valeur('dateRetour'));
     champ('jours').value = j === null || j < 1 ? '—' : `${j} j`;
@@ -253,7 +253,6 @@ function openSimulationForm(sim) {
       jSurPlace.textContent = `${fmt(surPlace)} jour(s) sur place` + (j !== null && j > 0 ? ` — la mission dure ${j} jour(s)` : '');
     }
     champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(r.fraisOmUnitaire)} F)`;
-    champ('fraisPeage').value = `${fmt(r.fraisPeage)} F${peages.length ? `  (${peages.length} péage(s))` : ''}`;
     const incomplet = parcoursCalcule.etapes.length && !parcoursCalcule.complet;
     champ('carburant').value =
       `${fmt(r.montantCarburant)} F  —  ${fmt(r.litres)} L pour ${fmt(r.distanceTotale)} km ` +
@@ -346,62 +345,6 @@ function openSimulationForm(sim) {
     totaux();
   };
 
-  /** Les peages du trajet : libelle et prix, avec ceux deja connus proposes. */
-  const cablerPeages = (scope) => {
-    const ligne = scope.querySelector('[data-key="fraisPeage"]').closest('.fRow');
-    const connus = peagesConnus();
-    const bloc = el(
-      '<div class="subBlock" style="margin-top:8px"><h5>Péages</h5>' +
-        '<div data-peages></div>' +
-        '<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:6px">' +
-          '<input data-peage-libelle placeholder="Péage (ex. Attinguié)" list="sim_peages" style="flex:1 1 160px">' +
-          `<datalist id="sim_peages">${connus.map((p) => `<option value="${esc(p.libelle)}"></option>`).join('')}</datalist>` +
-          '<input type="number" min="0" step="any" data-peage-prix placeholder="Prix (F)" style="width:110px">' +
-          `<button type="button" class="miniBtn" style="background:${COULEUR()}" data-peage-ajout>+ Ajouter ce péage</button>` +
-        '</div></div>'
-    );
-    ligne.appendChild(bloc);
-    const liste = bloc.querySelector('[data-peages]');
-    const libelle = bloc.querySelector('[data-peage-libelle]');
-    const prix = bloc.querySelector('[data-peage-prix]');
-
-    const dessiner = () => {
-      liste.innerHTML = peages.length
-        ? peages.map((p, i) =>
-            `<div class="subEntryRow"><span>${esc(p.libelle || 'Péage')}</span>` +
-            `<span style="display:flex;gap:6px;align-items:center"><b>${fmt(p.prix)} F</b>` +
-            `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 8px" data-peage-retire="${i}">✕</button></span></div>`
-          ).join('')
-        : '<div class="subEntryRow"><span><small>Aucun péage.</small></span></div>';
-      liste.querySelectorAll('[data-peage-retire]').forEach((b) => {
-        b.onclick = () => { peages.splice(Number(b.dataset.peageRetire), 1); dessiner(); recalculer(); };
-      });
-    };
-
-    // Un peage deja connu reprend son dernier prix.
-    libelle.addEventListener('change', () => {
-      const k = connus.find((p) => norm(p.libelle) === norm(libelle.value));
-      if (k && prix.value === '') prix.value = k.prix;
-    });
-    const ajouter = () => {
-      if (!libelle.value.trim() || prix.value === '' || num(prix.value) < 0) {
-        return toast('Renseignez le nom du péage et son prix.', 'err');
-      }
-      peages.push({ libelle: libelle.value.trim(), prix: num(prix.value) });
-      libelle.value = '';
-      prix.value = '';
-      dessiner();
-      recalculer();
-      libelle.focus();
-    };
-    bloc.querySelector('[data-peage-ajout]').onclick = ajouter;
-    // Entree dans ces deux champs ajoute le peage au lieu d'enregistrer.
-    [libelle, prix].forEach((n) => n.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); ajouter(); }
-    }));
-    dessiner();
-  };
-
   openForm({
     title: isEdit ? 'Modifier la simulation' : 'Nouvelle simulation de mission',
     fields: simulationFields(sim || {}),
@@ -417,7 +360,6 @@ function openSimulationForm(sim) {
       });
       ligneDest.appendChild(blocInterne);
       dessinerInterne(blocInterne);
-      cablerPeages(scope);
       scope._redessinerParcours = redessinerParcours;
       recalculer();
     },
@@ -467,6 +409,7 @@ function openSimulationForm(sim) {
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
       if (num(values.consommation) <= 0) return 'La consommation doit être supérieure à zéro.';
       if (num(values.participants) < 0) return 'Le nombre de participants ne peut pas être négatif.';
+      if (values.fraisPeage !== '' && num(values.fraisPeage) < 0) return 'Les frais de péage ne peuvent pas être négatifs.';
       if ([...interne.values()].some((x) => (x.km !== '' && num(x.km) < 0) || (x.jours !== '' && num(x.jours) < 0))) {
         return 'Une distance ou un nombre de jours ne peut pas être négatif.';
       }
@@ -486,7 +429,7 @@ function openSimulationForm(sim) {
         consommation: values.consommation,
         prixL: values.prixL,
         participants: values.participants,
-        peages
+        fraisPeage: values.fraisPeage
       });
 
       const payload = Object.assign({
@@ -499,8 +442,7 @@ function openSimulationForm(sim) {
         vehicule: String(values.vehicule || '').trim().toUpperCase(),
         energie: values.energie,
         consommation: num(values.consommation),
-        prixL: num(values.prixL),
-        peages
+        prixL: num(values.prixL)
       }, r);
 
       if (isEdit) update('simulations', sim.id, payload);

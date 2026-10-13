@@ -1867,7 +1867,7 @@ export function fraisOmParParticipant(db = DB) {
  * @param {number} s.consommation  litres aux 100 km
  * @param {number} s.prixL  prix du litre
  * @param {number} s.participants
- * @param {Array<{prix:number}>} s.peages
+ * @param {number} s.fraisPeage  montant total des peages, saisi tel quel
  * @param {number} [s.fraisOmUnitaire]  frais OM par participant (RÉGLAGES par defaut)
  */
 export function calculerSimulation(s) {
@@ -1881,7 +1881,7 @@ export function calculerSimulation(s) {
     ? fraisOmParParticipant()
     : num(s.fraisOmUnitaire);
   const fraisOm = participants * fraisOmUnitaire;
-  const fraisPeage = francSup((s.peages || []).reduce((t, p) => t + num(p.prix), 0));
+  const fraisPeage = francSup(s.fraisPeage);
   return {
     parcoursKm,
     interneKm,
@@ -1910,16 +1910,6 @@ export function interneEstime(jours, db = DB) {
   const taux = kmInterneParJour(db);
   if (jours === '' || jours === undefined || jours === null || !taux) return '';
   return Math.round(num(jours) * taux);
-}
-
-/** Peages deja saisis dans les simulations, avec leur dernier prix. */
-export function peagesConnus(db = DB) {
-  const vus = new Map();
-  (db.simulations || []).forEach((s) => (s.peages || []).forEach((p) => {
-    const nom = String(p.libelle || '').trim();
-    if (nom) vus.set(norm(nom), { libelle: nom, prix: num(p.prix) });
-  }));
-  return [...vus.values()].sort((a, b) => a.libelle.localeCompare(b.libelle, 'fr'));
 }
 
 /** Consommation retenue lors de la derniere simulation de ce vehicule. */
