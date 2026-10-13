@@ -18,6 +18,7 @@ import {
   card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
 import { rerender } from '../shell.js';
+import { renderSynchroSection } from './synchroUI.js';
 
 export function renderSettings(page) {
   if (!canAdmin()) {
@@ -31,6 +32,7 @@ export function renderSettings(page) {
 
   renderAccountsSection(page);
   renderThresholdsSection(page);
+  renderSynchroSection(page);
   renderAutoBackupSection(page);
   renderBackupSection(page);
 }

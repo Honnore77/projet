@@ -10,6 +10,8 @@ const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron')
 const path = require('node:path');
 const fs = require('node:fs');
 const { sauvegardeDatee, listerSauvegardes, miroirImages, dossierCopies } = require('./sauvegarde.cjs');
+const { creerServeurSynchro } = require('./synchro-serveur.cjs');
+const os = require('node:os');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 const isDev = !app.isPackaged && process.env.PDU_DEV !== '0';
@@ -229,6 +231,42 @@ ipcMain.handle('db:path', () => dataFile());
 /** Etat de la derniere copie datee, pour l'affichage dans REGLAGES. */
 ipcMain.handle('backup:etat', () => etatSauvegarde);
 
+/* ------------------- Synchronisation avec le telephone ------------------- */
+
+// La base du PC vit dans la fenetre : c'est elle qui fusionne. Le serveur lui
+// transmet chaque demande et attend sa reponse.
+let demandesEnCours = new Map();
+let numeroDemande = 0;
+function demanderFusion(payload) {
+  return new Promise((resolve, reject) => {
+    if (!win) return reject(new Error('application fermée'));
+    numeroDemande += 1;
+    const id = numeroDemande;
+    const delai = setTimeout(() => { demandesEnCours.delete(id); reject(new Error('pas de réponse de l’application')); }, 60000);
+    demandesEnCours.set(id, { resolve, reject, delai });
+    win.webContents.send('synchro:demande', { id, payload });
+  });
+}
+ipcMain.on('synchro:reponse', (_evt, { id, resultat, erreur }) => {
+  const d = demandesEnCours.get(id);
+  if (!d) return;
+  clearTimeout(d.delai);
+  demandesEnCours.delete(id);
+  if (erreur) d.reject(new Error(erreur)); else d.resolve(resultat);
+});
+
+const serveurSynchro = creerServeurSynchro({
+  imagesDir,
+  imageFile,
+  demanderFusion,
+  surEtat: (etat) => { if (win) win.webContents.send('synchro:etat', etat); },
+  nom: `PC ${os.hostname()}`
+});
+
+/** Affiche le code QR : ouvre le serveur et rend son adresse et son jeton. */
+ipcMain.handle('synchro:demarrer', async () => serveurSynchro.demarrer());
+ipcMain.handle('synchro:arreter', () => { serveurSynchro.arreter(); return true; });
+
 /** Choix du dossier de sauvegarde. @returns {Promise<string|null>} */
 ipcMain.handle('backup:dossier', async () => {
   const res = await dialog.showOpenDialog(win, {
@@ -359,6 +397,8 @@ if (!app.requestSingleInstanceLock()) {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
   });
+
+  app.on('before-quit', () => serveurSynchro.arreter());
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

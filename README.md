@@ -16,6 +16,21 @@ Double-cliquez sur l'exécutable.
 
 Le bouton **« Continuer en visiteur »** ouvre une session de consultation sans compte : tout est visible et exportable, rien n'est modifiable.
 
+## Synchronisation PC ↔ téléphone (code QR)
+
+**Réglages → Synchronisation PC ↔ téléphone.** Sur le PC, « Afficher le code QR » ; sur le téléphone, « Scanner le code QR du PC ». Les deux appareils doivent être sur le **même Wi-Fi** : le code QR ne transporte pas les données, il donne au téléphone l'adresse du PC sur le réseau local et un jeton à usage unique, valable dix minutes. Rien ne passe par Internet.
+
+- Chaque appareil reçoit ce que l'autre a de nouveau — fiches et photos — et les suppressions sont reportées.
+- Une même fiche modifiée des deux côtés depuis la dernière synchronisation garde **la version la plus récente** ; le compte rendu affiché à la fin la signale. À date égale, le PC fait foi.
+- Les fiches de référence saisies des deux côtés avant la première synchronisation (même agent, même véhicule, même destination…) sont reconnues par leur nom ou leur immatriculation et ne sont pas dédoublées.
+- Le dossier de sauvegarde du PC reste propre au PC.
+- Au premier usage, Windows peut demander d'autoriser PDU Parc Auto sur le réseau : acceptez pour les **réseaux privés**.
+- Si la caméra n'est pas disponible, le texte du code peut être saisi à la main.
+
+Chaque fiche porte la date de sa dernière modification, posée automatiquement à l'enregistrement ; une restauration de sauvegarde ne date rien.
+
+**Signature Android.** L'APK est signé avec la clé du projet (`android/cles/`, hors de git ; copie dans `D:\MES PROJETS\CLE SIGNATURE ANDROID - NE PAS SUPPRIMER`). Sans elle, une mise à jour ne s'installe pas par-dessus la version précédente.
+
 ## 2. Où sont les données
 
 Dans un fichier JSON du dossier de l'utilisateur Windows :

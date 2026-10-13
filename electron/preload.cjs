@@ -30,6 +30,28 @@ contextBridge.exposeInMainWorld('pduDesktop', {
   /** @returns {Promise<{fait:string|null,dossier:string,fichier:string,erreur:string,conservees:number}>} */
   backupEtat: () => ipcRenderer.invoke('backup:etat'),
 
+  /* --- Synchronisation avec le telephone (code QR) --- */
+
+  /** Ouvre le serveur local. @returns {Promise<{adresses:string[],port:number,jeton:string,expire:number,nom:string}>} */
+  synchroDemarrer: () => ipcRenderer.invoke('synchro:demarrer'),
+  synchroArreter: () => ipcRenderer.invoke('synchro:arreter'),
+  /** Avancement : connexion du telephone, fusion, fin. Rend de quoi se desabonner. */
+  surEtatSynchro: (cb) => {
+    const f = (_e, etat) => cb(etat);
+    ipcRenderer.on('synchro:etat', f);
+    return () => ipcRenderer.removeListener('synchro:etat', f);
+  },
+  /** La fenetre fusionne la base du telephone avec la sienne et rend le resultat. */
+  traiterDemandesSynchro: (traiter) => {
+    ipcRenderer.on('synchro:demande', async (_e, { id, payload }) => {
+      try {
+        ipcRenderer.send('synchro:reponse', { id, resultat: await traiter(payload) });
+      } catch (err) {
+        ipcRenderer.send('synchro:reponse', { id, erreur: String((err && err.message) || err) });
+      }
+    });
+  },
+
   /** Ouvre le selecteur de dossier. @returns {Promise<string|null>} */
   backupChoisirDossier: () => ipcRenderer.invoke('backup:dossier'),
 

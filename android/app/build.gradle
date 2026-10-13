@@ -7,8 +7,8 @@ android {
         applicationId "ci.pdu.parcauto"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 400
-        versionName "4.0.0"
+        versionCode 430
+        versionName "4.3.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -20,16 +20,35 @@ android {
     // Le v1 est demande ici mais Gradle l'ignore : il le juge inutile des que
     // minSdk atteint 24, le v2 existant depuis Android 7.0. La demande reste
     // ecrite pour dire l'intention si minSdk venait a baisser.
+    // La cle du projet (android/cles, hors de git) signe la version
+    // distribuee : la meme cle d'une version a l'autre, c'est ce qui permet a
+    // Android d'installer une mise a jour par-dessus la precedente.
+    def proprietesCle = new Properties()
+    def fichierCle = rootProject.file('keystore.properties')
+    if (fichierCle.exists()) proprietesCle.load(new FileInputStream(fichierCle))
+
     signingConfigs {
         debug {
             enableV1Signing true
             enableV2Signing true
             enableV3Signing true
         }
+        if (fichierCle.exists()) {
+            release {
+                storeFile file(proprietesCle['storeFile'])
+                storePassword proprietesCle['storePassword']
+                keyAlias proprietesCle['keyAlias']
+                keyPassword proprietesCle['keyPassword']
+                enableV1Signing true
+                enableV2Signing true
+                enableV3Signing true
+            }
+        }
     }
 
     buildTypes {
         release {
+            if (fichierCle.exists()) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }

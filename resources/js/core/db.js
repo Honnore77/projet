@@ -7,7 +7,8 @@
    et les sauvegardes.
    =================================================================== */
 
-import { readDB, writeDB, readLegacy } from './storage.js';
+import { readDB, writeDB, readLegacy, platformName } from './storage.js';
+import { empreintesDe, estampiller } from './synchro.js';
 import { uid, num, norm, sum, daysBetween, francSup, todayISO } from './utils.js';
 import { hashPassword } from './crypto.js';
 
@@ -159,8 +160,32 @@ function emit() {
   });
 }
 
+/* ------------------------- Datation des fiches ----------------------- */
+
+/**
+ * Empreintes des fiches au dernier enregistrement. Chaque enregistrement
+ * compare la base a ces empreintes : une fiche qui a change recoit sa date
+ * de modification, une fiche disparue laisse une trace de suppression. C'est
+ * ce qui permet a la synchronisation de savoir quelle version est la plus
+ * recente (voir synchro.js) — sans qu'aucune rubrique ait a s'en occuper.
+ *
+ * Nulles tant que la base n'est pas chargee : rien n'est date avant.
+ */
+let empreintes = null;
+
+function dater() {
+  if (!empreintes || !DB.synchro) return;
+  empreintes = estampiller(DB, empreintes, new Date().toISOString(), DB.synchro.appareil);
+}
+
+/** Repart des fiches telles qu'elles sont, sans rien dater (chargement, restauration). */
+function reprendreEmpreintes() {
+  empreintes = empreintesDe(DB);
+}
+
 /** Persiste la base (ecriture groupee pour ne pas saturer le disque). */
 export function persist({ silent = false } = {}) {
+  dater();
   DB.meta.updatedAt = new Date().toISOString();
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => { writeDB(DB); }, 120);
@@ -170,6 +195,7 @@ export function persist({ silent = false } = {}) {
 /** Force une ecriture immediate (fermeture de l'application, sauvegarde manuelle). */
 export async function persistNow() {
   clearTimeout(saveTimer);
+  dater();
   DB.meta.updatedAt = new Date().toISOString();
   return writeDB(DB);
 }
@@ -241,6 +267,7 @@ export async function initDB() {
   }
 
   await persistNow();
+  reprendreEmpreintes();
   return { firstRun, migrated };
 }
 
@@ -299,6 +326,14 @@ export function normalize(raw) {
   // serait malvenu de laisser trainer un jeton d'acces sur le disque.
   delete db.sync;
   delete db.credentials;
+
+  // Synchronisation : identite de cet appareil, traces de suppression, et
+  // date de la derniere synchronisation avec chaque autre appareil.
+  db.synchro = Object.assign({ appareil: '', nom: '', suppressions: [], appareils: {} }, raw && raw.synchro);
+  if (!db.synchro.appareil) db.synchro.appareil = uid();
+  if (!db.synchro.nom) db.synchro.nom = platformName;
+  if (!Array.isArray(db.synchro.suppressions)) db.synchro.suppressions = [];
+  if (!db.synchro.appareils || typeof db.synchro.appareils !== 'object') db.synchro.appareils = {};
 
   return db;
 }
@@ -513,7 +548,17 @@ export async function replaceDB(raw) {
     // ne jamais se retrouver sans aucun moyen de se connecter
     next.accounts = DB.accounts;
   }
+  // Une sauvegarde venue d'un autre appareil ne lui prend pas son identite.
+  if (DB.synchro && DB.synchro.appareil) {
+    next.synchro.appareil = DB.synchro.appareil;
+    next.synchro.nom = DB.synchro.nom;
+    next.synchro.appareils = Object.assign({}, next.synchro.appareils, DB.synchro.appareils);
+  }
   DB = next;
+  // Une restauration n'est pas une modification : rien n'est date, aucune
+  // trace de suppression. A la synchronisation suivante, les fiches que
+  // l'autre appareil a en plus reviennent donc plutot que de disparaitre.
+  reprendreEmpreintes();
   await persistNow();
   emit();
   return DB;
@@ -2040,4 +2085,45 @@ export function renommerAgentDansIndisponibilites(ancien, nouveau, db = DB) {
   });
   if (n && db === DB) persist();
   return n;
+}
+
+/* =================================================================
+   SYNCHRONISATION — ce que la base offre au module de synchronisation.
+   ================================================================= */
+
+/** Identite de cet appareil. */
+export function appareilSynchro() {
+  return { id: DB.synchro.appareil, nom: DB.synchro.nom || platformName };
+}
+
+/** Date de la derniere synchronisation avec un autre appareil ('' : jamais). */
+export function derniereSynchroAvec(idAppareil) {
+  const a = (DB.synchro.appareils || {})[idAppareil];
+  return (a && a.derniere) || '';
+}
+
+/** Les appareils deja synchronises, le plus recent d'abord. */
+export function appareilsSynchronises() {
+  return Object.entries(DB.synchro.appareils || {})
+    .map(([id, a]) => Object.assign({ id }, a))
+    .sort((a, b) => String(b.derniere || '').localeCompare(String(a.derniere || '')));
+}
+
+/**
+ * Installe la base fusionnee. Elle est deja a jour des deux cotes : rien
+ * n'est date, et la synchronisation avec l'autre appareil est notee.
+ */
+export async function appliquerSynchro(fusion, autre, quand = new Date().toISOString()) {
+  const moi = DB.synchro;
+  const next = normalize(fusion);
+  next.synchro.appareil = moi.appareil;
+  next.synchro.nom = moi.nom;
+  next.synchro.appareils = Object.assign({}, moi.appareils, {
+    [autre.id]: { nom: autre.nom || 'Autre appareil', derniere: quand }
+  });
+  DB = next;
+  reprendreEmpreintes();
+  await persistNow();
+  emit();
+  return DB;
 }

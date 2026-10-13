@@ -10,6 +10,7 @@ import { renderLogin } from './ui/login.js';
 import { mountShell } from './ui/shell.js';
 import { destroyCharts } from './ui/charts.js';
 import { toast } from './ui/components.js';
+import { traiterDemandePC } from './core/synchroClient.js';
 
 const root = document.getElementById('app');
 
@@ -29,6 +30,12 @@ async function boot() {
   // base connue. Sans attendre : le menage ne bloque pas l'ouverture, et
   // rater un tour ne coute que quelques kilo-octets jusqu'au prochain.
   menageImages(imagesCitees()).catch((e) => console.error('Ménage des images', e));
+
+  // Sur le PC, la fenetre repond aux demandes de synchronisation du
+  // telephone (voir electron/synchro-serveur.cjs).
+  if (window.pduDesktop && window.pduDesktop.traiterDemandesSynchro) {
+    window.pduDesktop.traiterDemandesSynchro(traiterDemandePC);
+  }
 
   // Une session ouverte dans le meme onglet survit a un rafraichissement.
   if (restoreSession() && isLogged()) {

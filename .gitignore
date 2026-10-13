@@ -40,6 +40,9 @@ Thumbs.db
 /android/app/build
 /android/.gradle
 /android/local.properties
+# Cle de signature Android et son mot de passe : jamais dans git
+/android/cles/
+/android/keystore.properties
 /android/capacitor-cordova-android-plugins
 
 # Dossier portable : livrables et bundle, regeneres a la demande
