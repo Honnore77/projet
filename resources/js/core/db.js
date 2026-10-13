@@ -688,6 +688,14 @@ export function derniereLectureKm(immat) {
     ajouter(m.dateEntree, m.kmEntree, 'entrée au garage');
     ajouter(m.dateRetour, m.kmRetour, 'retour du garage');
   });
+  // Le rapport de mission releve le compteur au depart et au retour. Sans
+  // date de retour, le kilometrage d'arrivee compte au jour du depart : il
+  // reste plus recent que le kilometrage de depart, grace au tri ci-dessous.
+  DB.missions.forEach((m) => {
+    if (!memeImmat(m.vehicule)) return;
+    ajouter(m.dateDepart, m.kmDepart, 'départ en mission');
+    ajouter(m.dateRetour || m.dateDepart, m.kmArrivee, 'retour de mission');
+  });
 
   // A date egale, la lecture la plus elevee : un compteur ne revient pas en
   // arriere, et une sortie de garage se saisit le jour de l'entree.

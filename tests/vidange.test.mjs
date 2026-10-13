@@ -132,3 +132,31 @@ test('un vehicule marque « Immobilisé » sans passage au garage figure quand m
   assert.equal(l.length, 1);
   assert.equal(l[0].origine, 'statut');
 });
+
+test('le kilometrage d’arrivee du rapport de mission met a jour le kilometrage du vehicule', async () => {
+  await charger({
+    vehicles: { pool: [], mission: [vehicule({ id: 'v1', immatNouvelle: IMMAT, km: 10000 })], service: [] },
+    dotationPool: [{ id: 'd', immat: IMMAT, date: '2026-10-01', km: 12000 }],
+    missions: [{ id: 'm', vehicule: IMMAT, dateDepart: '2026-10-05', dateRetour: '2026-10-08', kmDepart: 12100, kmArrivee: 13950 }]
+  });
+  const v = db.vehicleByImmat(IMMAT);
+  assert.equal(db.kmCourant(v), 13950);
+  assert.equal(db.derniereLectureKm(IMMAT).source, 'retour de mission');
+});
+
+test('sans date de retour, le km d’arrivee compte au jour du depart, apres le km de depart', async () => {
+  await charger({
+    vehicles: { pool: [], mission: [vehicule({ id: 'v1', immatNouvelle: IMMAT })], service: [] },
+    missions: [{ id: 'm', vehicule: IMMAT, dateDepart: '2026-10-05', kmDepart: 12100, kmArrivee: 12900 }]
+  });
+  assert.equal(db.kmCourant(db.vehicleByImmat(IMMAT)), 12900);
+});
+
+test('un releve plus recent ailleurs l’emporte sur une mission plus ancienne', async () => {
+  await charger({
+    vehicles: { pool: [], mission: [vehicule({ id: 'v1', immatNouvelle: IMMAT })], service: [] },
+    missions: [{ id: 'm', vehicule: IMMAT, dateDepart: '2026-09-01', dateRetour: '2026-09-03', kmDepart: 9000, kmArrivee: 9800 }],
+    dotationPool: [{ id: 'd', immat: IMMAT, date: '2026-10-01', km: 10200 }]
+  });
+  assert.equal(db.kmCourant(db.vehicleByImmat(IMMAT)), 10200);
+});

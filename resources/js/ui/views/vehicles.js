@@ -106,7 +106,7 @@ function vehicleFields(v = {}, cat = 'pool') {
         ]
       : []),
     { key: 'km', label: 'Kilométrage', type: 'number', value: v.km,
-      hint: 'Repris du dernier relevé du compteur : dotation carburant, entrée ou retour de garage' },
+      hint: 'Repris du dernier relevé du compteur : dotation carburant, entrée ou retour de garage, rapport de mission' },
     { key: 'sourceKm', label: 'Origine du kilométrage', type: 'static', value: '' },
     { key: 'kmVidange', label: 'Kilométrage de vidange', type: 'number', value: v.kmVidange,
       hint: 'Kilométrage auquel la vidange devra être faite' },
