@@ -59,7 +59,7 @@ function copierSelonReglages(raw) {
   } catch (e) {
     return; // base illisible : rien a copier
   }
-  // Les copies vont dans le sous-dossier « SAUVEGARDE AUTOMATIQUE HEBDO »
+  // Les copies vont dans le sous-dossier « SAUVEGARDE AUTOMATIQUE QUOTIDIENNE »
   // du dossier choisi ; les photos suivent, dans son sous-dossier images.
   etatSauvegarde = sauvegardeDatee(
     raw,

@@ -14,7 +14,7 @@ const path = require('node:path');
  * dans REGLAGES : elles y sont rangees a part, sans se meler aux autres
  * fichiers du dossier.
  */
-const SOUS_DOSSIER = 'SAUVEGARDE AUTOMATIQUE HEBDO';
+const SOUS_DOSSIER = 'SAUVEGARDE AUTOMATIQUE QUOTIDIENNE';
 
 /** Dossier des copies datees pour un dossier de sauvegarde choisi ; vide s'il n'y en a pas. */
 function dossierCopies(dossier) {
