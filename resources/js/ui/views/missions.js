@@ -197,7 +197,7 @@ function renderRotation(page) {
     '<div class="fields"><small>Seuls les conducteurs du pool figurent ici : ils sont les seuls ' +
     'autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur ' +
     'du pool » de sa fiche, dans UTILISATEURS. Un conducteur en congé, en permission ou en repos ' +
-    'maladie (UTILISATEURS → Indisponibilités au pool) passe en fin de liste jusqu’à sa reprise.</small></div>';
+    'maladie (UTILISATEURS → Congés et absences) passe en fin de liste jusqu’à sa reprise.</small></div>';
   page.appendChild(wrap);
 }
 

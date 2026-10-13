@@ -1956,7 +1956,7 @@ export function derniereConsommation(immat, db = DB) {
 }
 
 /* =================================================================
-   INDISPONIBILITES AU POOL — conges, permissions, repos maladie des
+   CONGES ET ABSENCES — conges, permissions, repos maladie des
    conducteurs du pool, et l'interimaire qui les remplace.
 
    La date de reprise est le jour du retour au poste : l'indisponibilite

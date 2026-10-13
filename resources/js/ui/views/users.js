@@ -2,7 +2,7 @@
    UTILISATEURS — deux sous-rubriques :
 
      LISTE DES UTILISATEURS     agents du PDU et historique des incidents
-     INDISPONIBILITES AU POOL   conges, permissions et repos maladie des
+     CONGES ET ABSENCES         conges, permissions et repos maladie des
                                 conducteurs du pool, avec leur interimaire
 
    La liste s'affiche en tableau des l'ouverture, avec les informations
@@ -82,7 +82,7 @@ function incidentFields(h = {}) {
 
 const SUBS = [
   { key: 'liste', label: 'LISTE DES UTILISATEURS' },
-  { key: 'indisponibilites', label: 'INDISPONIBILITÉS AU POOL' }
+  { key: 'indisponibilites', label: 'CONGÉS ET ABSENCES' }
 ];
 
 export function renderUsers(page) {
@@ -314,7 +314,7 @@ function openIncidentForm(u, incident, onDone) {
   });
 }
 
-/* ===================== INDISPONIBILITES AU POOL ===================== */
+/* ======================== CONGES ET ABSENCES ======================== */
 
 const COULEUR_ETAT = { 'en cours': COLORS.red, 'à venir': COLORS.orange, terminée: COLORS.grey };
 const COULEUR_MOTIF = { 'En congé': COLORS.blue, Permissionnaire: COLORS.purple, 'Repos maladie': COLORS.red };
@@ -325,7 +325,7 @@ function renderIndisponibilites(page) {
 
   page.appendChild(
     card(
-      'INDISPONIBILITÉS AU POOL',
+      'CONGÉS ET ABSENCES',
       'Congés, permissions et repos maladie des conducteurs du pool, avec l’intérimaire qui les remplace. La date de reprise est le jour du retour au poste : partir le 5 et reprendre le 8 fait 3 jours d’absence.',
       COLORS.purple
     )
@@ -490,8 +490,8 @@ async function exportIndisponibilites(kind, list) {
   try {
     const datasets = [dsIndisponibilites(list)];
     const res = kind === 'excel'
-      ? await exportExcel(datasets, 'PDU_indisponibilites_pool')
-      : await exportPdf(datasets, 'PDU_indisponibilites_pool', { title: 'Indisponibilités au pool' });
+      ? await exportExcel(datasets, 'PDU_conges_et_absences')
+      : await exportPdf(datasets, 'PDU_conges_et_absences', { title: 'Congés et absences des conducteurs du pool' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);
