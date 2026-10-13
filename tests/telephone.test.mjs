@@ -8,7 +8,7 @@ const { lignesTelephone, LIGNES_TELEPHONE } = db;
 const MODELE = LIGNES_TELEPHONE.join('\n');
 
 test('les trois etiquettes sont celles attendues', () => {
-  assert.deepEqual(LIGNES_TELEPHONE, ['- FLOTTE PDU :', '- Tel Perso 1 :', '- Tel Perso 2 :']);
+  assert.deepEqual(LIGNES_TELEPHONE, ['- FLOTTE PDU :', '- Tel Perso 1 :', '- N° de Poste :']);
 });
 
 test('un champ vide donne les trois lignes pre-inscrites', () => {
@@ -20,7 +20,7 @@ test('l’ancienne etiquette « Tel Pers 1 » garde son numero', () => {
   const avant = '- FLOTTE PDU : 07 00 00 01\n- Tel Pers 1 : 05 11 11 11\n- Tel Perso 2 : 01 22 22 22';
   assert.equal(
     lignesTelephone(avant),
-    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- Tel Perso 2 : 01 22 22 22'
+    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- N° de Poste : 01 22 22 22'
   );
 });
 
@@ -46,14 +46,14 @@ test('deux lignes visant la meme etiquette : celle qui porte un numero gagne', (
   const abime = '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 :\n- Tel Perso 2 :\n- Tel Pers 1 : 05 11 11 11';
   assert.equal(
     lignesTelephone(abime),
-    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- Tel Perso 2 :'
+    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- N° de Poste :'
   );
 });
 
 test('une etiquette recollee derriere un numero est detachee', () => {
   assert.equal(
     lignesTelephone('- FLOTTE PDU : 07 00 00 01 - Tel Pers 1 : 05 11 11 11\n- Tel Perso 2 :'),
-    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- Tel Perso 2 :'
+    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- N° de Poste :'
   );
 });
 
@@ -73,9 +73,23 @@ test('au chargement, chaque agent recoit ses trois lignes et un champ email', as
   for (const u of base.users) {
     assert.ok(u.telephone.includes('- FLOTTE PDU :'));
     assert.ok(u.telephone.includes('- Tel Perso 1 :'));
-    assert.ok(u.telephone.includes('- Tel Perso 2 :'));
+    assert.ok(u.telephone.includes('- N° de Poste :'));
     assert.ok(!u.telephone.includes('Tel Pers 1 :'), 'ancienne etiquette residuelle');
     assert.equal(typeof u.email, 'string');
   }
   assert.ok(base.users[0].telephone.includes('05 11 11 11'), 'numero perdu');
+});
+
+test('« Tel Perso 2 » devient « N° de Poste » sans perdre le numero', () => {
+  assert.equal(
+    lignesTelephone('- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- Tel Perso 2 : 20 21 22 23'),
+    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- N° de Poste : 20 21 22 23'
+  );
+});
+
+test('« Tel Perso 2 » devient « N° de Poste » sans perdre le numero', () => {
+  assert.equal(
+    lignesTelephone('- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- Tel Perso 2 : 20 21 22 23'),
+    '- FLOTTE PDU : 07 00 00 01\n- Tel Perso 1 : 05 11 11 11\n- N° de Poste : 20 21 22 23'
+  );
 });

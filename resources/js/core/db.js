@@ -698,11 +698,11 @@ export function knownImmats() {
 
 /**
  * Lignes du champ « Telephone » d'un agent. Le PDU en tient trois : le numero
- * de la flotte, puis les deux personnels. Elles sont pre-inscrites pour que
+ * de la flotte, le personnel, puis le numero de poste. Elles sont pre-inscrites pour que
  * chacun sache lequel il renseigne, et qu'un tableau se lise pareil d'une
  * fiche a l'autre.
  */
-export const LIGNES_TELEPHONE = ['- FLOTTE PDU :', '- Tel Perso 1 :', '- Tel Perso 2 :'];
+export const LIGNES_TELEPHONE = ['- FLOTTE PDU :', '- Tel Perso 1 :', '- N° de Poste :'];
 
 /**
  * Etiquettes renommees : ancien prefixe -> prefixe courant. Sans cette
@@ -710,7 +710,8 @@ export const LIGNES_TELEPHONE = ['- FLOTTE PDU :', '- Tel Perso 1 :', '- Tel Per
  * reconnue : son numero se retrouverait relegue en quatrieme ligne, sous une
  * ligne « Tel Perso 1 » restee vide.
  */
-const PREFIXES_TELEPHONE_RENOMMES = { 'tel pers 1': 'tel perso 1' };
+// « Tel Perso 2 » est devenu « N° de Poste » : le numero saisi suit.
+const PREFIXES_TELEPHONE_RENOMMES = { 'tel pers 1': 'tel perso 1', 'tel perso 2': 'n° de poste' };
 
 /** Prefixe d'une ligne (« - FLOTTE PDU : » pour « - FLOTTE PDU : 07 ... »). */
 function prefixeLigne(l) {

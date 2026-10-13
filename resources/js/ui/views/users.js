@@ -52,9 +52,9 @@ function userFields(u = {}) {
       value: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
       hint: 'Entre dans le tour de rôle des missions'
     },
-    // Trois lignes pre-inscrites : le numero de la flotte et les deux
-    // personnels. Chacun sait ainsi lequel il renseigne, et un tableau se lit
-    // de la meme facon d'une fiche a l'autre.
+    // Trois lignes pre-inscrites : le numero de la flotte, le personnel et le
+    // numero de poste. Chacun sait ainsi lequel il renseigne, et un tableau se
+    // lit de la meme facon d'une fiche a l'autre.
     { key: 'telephone', label: 'Téléphone', type: 'textarea', full: true, rows: 3,
       value: lignesTelephone(u.telephone),
       hint: 'Une ligne par numéro — complétez après les deux-points' },
