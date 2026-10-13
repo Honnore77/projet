@@ -30,6 +30,9 @@ contextBridge.exposeInMainWorld('pduDesktop', {
   /** @returns {Promise<{fait:string|null,dossier:string,fichier:string,erreur:string,conservees:number}>} */
   backupEtat: () => ipcRenderer.invoke('backup:etat'),
 
+  /** Sauvegarde du vendredi 18 h 30 : etat, prochaine echeance, copies presentes. */
+  backupHebdo: () => ipcRenderer.invoke('backup:hebdo'),
+
   /** Ouvre le selecteur de dossier. @returns {Promise<string|null>} */
   backupChoisirDossier: () => ipcRenderer.invoke('backup:dossier'),
 

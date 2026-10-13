@@ -180,6 +180,12 @@ export async function backupEtat() {
   return { fait: null, dossier: '', fichier: '', erreur: '', conservees: 0, indisponible: true };
 }
 
+/** Etat de la sauvegarde hebdomadaire du vendredi 18 h 30 (bureau uniquement). */
+export async function backupHebdo() {
+  if (isDesktop && window.pduDesktop.backupHebdo) return window.pduDesktop.backupHebdo();
+  return { indisponible: true };
+}
+
 /** Choix du dossier de sauvegarde (bureau uniquement). */
 export async function backupChoisirDossier() {
   if (isDesktop && window.pduDesktop.backupChoisirDossier) return window.pduDesktop.backupChoisirDossier();
