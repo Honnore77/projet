@@ -9,7 +9,7 @@
    =================================================================== */
 
 import {
-  DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs,
+  DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, indisponibiliteSurMission,
   ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist,
   nomsDestinationsMission, destinationMissionParNom, assurerDestinationMission,
   renommerDestinationMission, missionsVersDestination, libelleDistance,
@@ -161,8 +161,16 @@ function renderRotation(page) {
     return;
   }
 
+  // Le prochain est le premier conducteur disponible : les absents sont
+  // ranges en fin de liste (voir rotationConducteurs).
+  const prochain = rot.find((r) => !r.indisponible);
+  const absents = rot.filter((r) => r.indisponible).length;
   page.appendChild(
-    groupHeader(`🔁 TOUR DE RÔLE — prochain : ${rot[0].nom || '—'}`, `${rot.length} conducteur(s) du pool`, COLORS.purple)
+    groupHeader(
+      `🔁 TOUR DE RÔLE — prochain : ${prochain ? prochain.nom : 'aucun conducteur disponible'}`,
+      `${rot.length} conducteur(s) du pool${absents ? ` · ${absents} indisponible(s)` : ''}`,
+      COLORS.purple
+    )
   );
 
   const wrap = el('<div class="entry"></div>');
@@ -172,16 +180,24 @@ function renderRotation(page) {
     rot
       .map(
         (r, i) =>
-          `<div class="subEntryRow"><span>${i === 0 ? '➡ ' : `${i + 1}. `}<b>${esc(r.nom)}</b>` +
+          `<div class="subEntryRow"${r.indisponible ? ' style="opacity:.75"' : ''}>` +
+          `<span>${r === prochain ? '➡ ' : `${i + 1}. `}<b>${esc(r.nom)}</b>` +
           `${r.section ? ` <small>· ${esc(r.section)}</small>` : ''}` +
-          `<br><small>${r.derniereMission ? `dernière mission le ${esc(dateFR(r.derniereMission))}` : 'jamais parti en mission'}</small></span>` +
+          `<br><small>${r.derniereMission ? `dernière mission le ${esc(dateFR(r.derniereMission))}` : 'jamais parti en mission'}</small>` +
+          (r.indisponible
+            ? `<br><span class="badge" style="background:${COLORS.red}">⛔ ${esc(r.indisponible.motif || 'Indisponible')}` +
+              ` — reprise le ${esc(dateFR(r.indisponible.dateReprise) || '…')}</span>` +
+              (r.indisponible.interimaire ? ` <small>intérimaire : <b>${esc(r.indisponible.interimaire)}</b></small>` : '')
+            : '') +
+          '</span>' +
           `<b>${r.nbMissions} mission(s)<br><small style="font-weight:normal">${fmt(r.totalJours)} jour(s)</small></b></div>`
       )
       .join('') +
     '</div>' +
     '<div class="fields"><small>Seuls les conducteurs du pool figurent ici : ils sont les seuls ' +
     'autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur ' +
-    'du pool » de sa fiche, dans UTILISATEURS.</small></div>';
+    'du pool » de sa fiche, dans UTILISATEURS. Un conducteur en congé, en permission ou en repos ' +
+    'maladie (UTILISATEURS → Indisponibilités au pool) passe en fin de liste jusqu’à sa reprise.</small></div>';
   page.appendChild(wrap);
 }
 
@@ -602,6 +618,9 @@ export function openMissionForm(m, options = {}) {
   const isEdit = !!m;
   const depart = m || options.preset || {};
   const rot = rotationConducteurs();
+  // Une mission deja enregistree sur une periode d'absence a deja ete
+  // confirmee : on ne repose pas la question a chaque modification.
+  const dejaSignalee = isEdit ? indisponibiliteSurMission(m.conducteur, m.dateDepart, m.dateRetour) : null;
   // Le parcours en cours de saisie, et les distances d'etape tapees a la
   // main, par trajet : deplacer une ville ne fait pas perdre ce qu'on a
   // saisi pour un trajet qui existe toujours.
@@ -610,7 +629,7 @@ export function openMissionForm(m, options = {}) {
   let redessinerParcours = () => {};
   openForm({
     title: isEdit ? `Modifier la mission ${m.ref}` : options.titre || 'Nouvelle mission',
-    intro: !isEdit && rot.length ? `Tour de rôle : c’est au tour de ${rot[0].nom}.` : undefined,
+    intro: !isEdit && rot.length ? introTourDeRole(rot) : undefined,
     fields: missionFields(depart),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la mission',
     extra: (scope) => { redessinerParcours = cablerParcours(scope, parcours, saisies); },
@@ -634,10 +653,26 @@ export function openMissionForm(m, options = {}) {
       const ref = scope.querySelector('[data-key="ref"]');
       if (ref) ref.value = refPrevue(values.dateDepart, m);
     },
-    onSubmit: (values) => {
+    onSubmit: async (values) => {
       const jours = joursMission(values.dateDepart, values.dateRetour);
       if (jours !== null && jours < 1) return 'La date de retour est antérieure à la date de départ.';
       if ([...saisies.values()].some((km) => km !== '' && num(km) < 0)) return 'Une distance ne peut pas être négative.';
+
+      // Un conducteur absent pendant la mission : on previent, sans bloquer
+      // — un conge peut avoir ete ecourte sans que la fiche le dise encore.
+      const absence = indisponibiliteSurMission(values.conducteur, values.dateDepart, values.dateRetour);
+      if (absence && !(isEdit && absence === dejaSignalee)) {
+        const ok = await confirmDialog({
+          title: 'Conducteur indisponible',
+          message:
+            `${values.conducteur} est indisponible (${absence.motif || '—'}) du ${dateFR(absence.dateDepart)} ` +
+            `à sa reprise le ${dateFR(absence.dateReprise) || '…'}, ce qui recouvre la mission.` +
+            `${absence.interimaire ? `\n\nIntérimaire : ${absence.interimaire}.` : ''}` +
+            '\n\nEnregistrer la mission quand même ?',
+          okLabel: 'Enregistrer quand même'
+        });
+        if (!ok) return false;
+      }
 
       const noms = enregistrerParcours(parcours, saisies, values.destination);
 
@@ -669,6 +704,16 @@ export function openMissionForm(m, options = {}) {
       return null;
     }
   });
+}
+
+/** « Tour de role : c'est au tour de X », et qui est absent. */
+function introTourDeRole(rot) {
+  const prochain = rot.find((r) => !r.indisponible);
+  const absents = rot.filter((r) => r.indisponible);
+  return (prochain ? `Tour de rôle : c’est au tour de ${prochain.nom}.` : 'Tour de rôle : aucun conducteur du pool n’est disponible.') +
+    (absents.length
+      ? ` Indisponible(s) : ${absents.map((r) => `${r.nom} (${r.indisponible.motif || 'absent'}, reprise le ${dateFR(r.indisponible.dateReprise) || '…'})`).join(', ')}.`
+      : '');
 }
 
 /**

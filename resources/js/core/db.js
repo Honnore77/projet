@@ -948,9 +948,17 @@ export function knownDrivers() {
  * les seuls habilites a conduire les vehicules de mission. Tant qu'aucun ne
  * l'est, la liste est vide et le dit — y verser tous les agents actifs
  * reviendrait a proposer au depart des gens qui n'ont pas le droit de partir.
+ *
+ * Un conducteur indisponible ce jour-la (conge, permission, repos maladie)
+ * passe en fin de liste, avec son indisponibilite : le tour revient au
+ * suivant. Il garde son rang parmi les absents, et retrouve sa place des
+ * sa reprise — son anciennete de mission n'a pas bouge.
+ *
+ * @param {string} [jour] date ISO (aujourd'hui par defaut)
  */
-export function rotationConducteurs() {
+export function rotationConducteurs(jour = todayISO()) {
   const pool = DB.users.filter((u) => u.statut === 'Actif' && u.poolConducteur === 'Oui');
+  const absents = indisponibilitesEnCours(jour);
 
   return pool
     .map((u) => {
@@ -963,10 +971,12 @@ export function rotationConducteurs() {
         section: u.section || '',
         nbMissions: missions.length,
         totalJours: sum(missions, (m) => m.jours),
-        derniereMission: derniere
+        derniereMission: derniere,
+        indisponible: absents.find((i) => norm(i.conducteur || '') === norm(nom)) || null
       };
     })
     .sort((a, b) => {
+      if (!a.indisponible !== !b.indisponible) return a.indisponible ? 1 : -1;
       if (!a.derniereMission !== !b.derniereMission) return a.derniereMission ? 1 : -1;
       if (a.derniereMission !== b.derniereMission) {
         return String(a.derniereMission).localeCompare(String(b.derniereMission));
@@ -1994,6 +2004,21 @@ export function chevauchementIndisponibilite(conducteur, dateDepart, dateReprise
     i.id !== exclureId &&
     norm(i.conducteur || '') === cle &&
     i.dateDepart < fin &&
+    dateDepart < (i.dateReprise || '9999-12-31')) || null;
+}
+
+/**
+ * Une indisponibilite du conducteur pendant une mission. La mission compte
+ * ses jours de depart et de retour ; l'indisponibilite s'arrete la veille
+ * de la reprise.
+ */
+export function indisponibiliteSurMission(conducteur, dateDepart, dateRetour, db = DB) {
+  const cle = norm(conducteur || '');
+  if (!cle || !dateDepart) return null;
+  const fin = dateRetour || dateDepart;
+  return (db.indisponibilites || []).find((i) =>
+    norm(i.conducteur || '') === cle &&
+    i.dateDepart && i.dateDepart <= fin &&
     dateDepart < (i.dateReprise || '9999-12-31')) || null;
 }
 

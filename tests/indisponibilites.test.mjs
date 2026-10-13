@@ -86,3 +86,36 @@ test('l’export des utilisateurs contient les vehicules attribues', async () =>
   assert.ok(d.columns.some((c) => c.key === 'vehicules' && /Véhicule\(s\) attribué\(s\)/.test(c.label)));
   assert.equal(d.rows[0].vehicules, 'D45 50 1234 (pool), 9876 AB 01 (service)');
 });
+
+/* ------------------ Tour de role et indisponibilites ------------------ */
+
+const POOL = [
+  { id: 'a', nom: 'KONE', prenoms: 'Ali', statut: 'Actif', poolConducteur: 'Oui' },
+  { id: 'b', nom: 'YAO', prenoms: 'Koffi', statut: 'Actif', poolConducteur: 'Oui' },
+  { id: 'c', nom: 'DOSSO', prenoms: 'Yaya', statut: 'Actif', poolConducteur: 'Oui' }
+];
+
+test('un conducteur indisponible passe en fin de tour de role, le suivant devient prochain', async () => {
+  await charger({
+    users: POOL,
+    // KONE n'est jamais parti : il serait prochain s'il etait la.
+    missions: [{ id: 'm1', conducteur: 'YAO Koffi', dateDepart: '2026-09-01' }, { id: 'm2', conducteur: 'DOSSO Yaya', dateDepart: '2026-09-10' }],
+    indisponibilites: [{ id: 'i', conducteur: 'KONE Ali', motif: 'En congé', dateDepart: '2026-10-10', dateReprise: '2026-10-20', interimaire: 'X' }]
+  });
+  const pendant = db.rotationConducteurs('2026-10-13');
+  assert.deepEqual(pendant.map((r) => r.nom), ['YAO Koffi', 'DOSSO Yaya', 'KONE Ali']);
+  assert.equal(pendant[2].indisponible.motif, 'En congé');
+  // Des sa reprise, il retrouve sa place en tete.
+  const apres = db.rotationConducteurs('2026-10-20');
+  assert.equal(apres[0].nom, 'KONE Ali');
+  assert.equal(apres[0].indisponible, null);
+});
+
+test('une indisponibilite qui recouvre la mission est reperee, jours de depart et de retour compris', async () => {
+  await charger({ indisponibilites: [{ id: 'i', conducteur: 'KONE Ali', dateDepart: '2026-10-10', dateReprise: '2026-10-20' }] });
+  assert.ok(db.indisponibiliteSurMission('kone ali', '2026-10-05', '2026-10-10'));
+  assert.ok(db.indisponibiliteSurMission('KONE Ali', '2026-10-19', '2026-10-22'));
+  // repris le 20 : une mission qui part le 20 ne recouvre rien
+  assert.equal(db.indisponibiliteSurMission('KONE Ali', '2026-10-20', '2026-10-22'), null);
+  assert.equal(db.indisponibiliteSurMission('KONE Ali', '2026-10-01', '2026-10-09'), null);
+});
