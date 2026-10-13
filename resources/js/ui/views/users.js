@@ -1,5 +1,9 @@
 /* ===================================================================
-   UTILISATEURS — agents du PDU et historique des incidents.
+   UTILISATEURS — deux sous-rubriques :
+
+     LISTE DES UTILISATEURS     agents du PDU et historique des incidents
+     INDISPONIBILITES AU POOL   conges, permissions et repos maladie des
+                                conducteurs du pool, avec leur interimaire
 
    La liste s'affiche en tableau des l'ouverture, avec les informations
    du formulaire. Les sections sont celles de la liste commune, et les
@@ -10,18 +14,20 @@
 import {
   DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats,
   nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules,
-  lignesTelephone
+  lignesTelephone, MOTIFS_INDISPONIBILITE, dureeIndisponibilite, etatIndisponibilite,
+  conducteursDuPool, chevauchementIndisponibilite, indisponibilitesEnCours,
+  renommerAgentDansIndisponibilites, nomsUtilisateurs
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, escLignes, el, norm, dateFR, todayISO } from '../../core/utils.js';
+import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
-  dataTable, openModal, subEmpty, COLORS
+  dataTable, openModal, subEmpty, subtabs, statTile, COLORS
 } from '../components.js';
 import { state, rerender } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
-import { dsUsers, dsIncidents } from '../../export/datasets.js';
+import { dsUsers, dsIncidents, dsIndisponibilites } from '../../export/datasets.js';
 
 function userFields(u = {}) {
   return [
@@ -74,7 +80,22 @@ function incidentFields(h = {}) {
   ];
 }
 
+const SUBS = [
+  { key: 'liste', label: 'LISTE DES UTILISATEURS' },
+  { key: 'indisponibilites', label: 'INDISPONIBILITÉS AU POOL' }
+];
+
 export function renderUsers(page) {
+  const sub = state.sub.UTILISATEURS || 'liste';
+  page.appendChild(
+    subtabs(SUBS, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); },
+      { liste: COLORS.blue, indisponibilites: COLORS.purple })
+  );
+  if (sub === 'indisponibilites') renderIndisponibilites(page);
+  else renderListe(page);
+}
+
+function renderListe(page) {
   const f = state.filters.users;
 
   page.appendChild(
@@ -255,6 +276,7 @@ export function openUserForm(u) {
         const ancien = nomComplet(u);
         update('users', u.id, values);
         const suivis = renommerAgentSurVehicules(ancien, nomComplet(u));
+        renommerAgentDansIndisponibilites(ancien, nomComplet(u));
         toast(
           suivis
             ? `Utilisateur mis à jour — ${suivis} fiche(s) véhicule suivies.`
@@ -290,6 +312,191 @@ function openIncidentForm(u, incident, onDone) {
       return null;
     }
   });
+}
+
+/* ===================== INDISPONIBILITES AU POOL ===================== */
+
+const COULEUR_ETAT = { 'en cours': COLORS.red, 'à venir': COLORS.orange, terminée: COLORS.grey };
+const COULEUR_MOTIF = { 'En congé': COLORS.blue, Permissionnaire: COLORS.purple, 'Repos maladie': COLORS.red };
+
+function renderIndisponibilites(page) {
+  const f = state.filters.indisponibilites;
+  const jour = todayISO();
+
+  page.appendChild(
+    card(
+      'INDISPONIBILITÉS AU POOL',
+      'Congés, permissions et repos maladie des conducteurs du pool, avec l’intérimaire qui les remplace. La date de reprise est le jour du retour au poste : partir le 5 et reprendre le 8 fait 3 jours d’absence.',
+      COLORS.purple
+    )
+  );
+
+  page.appendChild(
+    filterBar([
+      {
+        type: 'select', value: f.etat,
+        options: [{ value: '', label: 'Toutes' }, { value: 'en cours', label: 'En cours' },
+          { value: 'à venir', label: 'À venir' }, { value: 'terminée', label: 'Terminées' }],
+        onChange: (v) => { f.etat = v; rerender(); }
+      },
+      {
+        type: 'select', value: f.motif,
+        options: [{ value: '', label: 'Tous les motifs' }, ...MOTIFS_INDISPONIBILITE],
+        onChange: (v) => { f.motif = v; rerender(); }
+      },
+      { type: 'text', placeholder: 'Conducteur', value: f.conducteur, onChange: (v) => { f.conducteur = v; rerender(); } }
+    ])
+  );
+
+  let list = DB.indisponibilites.slice();
+  if (f.etat) list = list.filter((i) => etatIndisponibilite(i, jour) === f.etat);
+  if (f.motif) list = list.filter((i) => i.motif === f.motif);
+  if (f.conducteur) list = list.filter((i) => norm(i.conducteur || '').includes(norm(f.conducteur)));
+  // Les plus recentes en tete.
+  list.sort((a, b) => String(b.dateDepart || '').localeCompare(String(a.dateDepart || '')));
+
+  const enCours = indisponibilitesEnCours(jour);
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('En cours', fmt(enCours.length),
+    enCours.length ? enCours.map((i) => i.conducteur).join(', ') : 'aucun conducteur absent', COLORS.red));
+  grid.appendChild(statTile('À venir', fmt(DB.indisponibilites.filter((i) => etatIndisponibilite(i, jour) === 'à venir').length),
+    'départs programmés', COLORS.orange));
+  grid.appendChild(statTile('Indisponibilités', fmt(list.length), 'dans la liste filtrée', COLORS.purple));
+  page.appendChild(grid);
+
+  page.appendChild(
+    toolbar([
+      canWrite() && { label: '+ Ajout d’indisponibilité', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openIndisponibiliteForm(null) },
+      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportIndisponibilites('excel', list) },
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportIndisponibilites('pdf', list) }
+    ])
+  );
+
+  if (!list.length) {
+    page.appendChild(emptyState(DB.indisponibilites.length ? 'Aucune indisponibilité ne correspond aux filtres.' : 'Aucune indisponibilité enregistrée.'));
+    return;
+  }
+
+  const headers = ['Conducteur', 'Motif', 'Date de départ', 'Date de reprise', 'Durée', 'Intérimaire', 'État', 'Justificatif', ''];
+  const rows = list.map((i) => {
+    const d = dureeIndisponibilite(i.dateDepart, i.dateReprise);
+    const etat = etatIndisponibilite(i, jour);
+    return [
+      `<b>${esc(i.conducteur || '')}</b>`,
+      `<span class="badge" style="background:${COULEUR_MOTIF[i.motif] || COLORS.grey}">${esc(i.motif || '')}</span>`,
+      esc(dateFR(i.dateDepart)),
+      esc(dateFR(i.dateReprise)),
+      `<span style="display:block;text-align:right;white-space:nowrap">${d === null ? '—' : `${fmt(d)} j`}</span>`,
+      esc(i.interimaire || '—'),
+      etat ? `<span class="badge" style="background:${COULEUR_ETAT[etat]}">${esc(etat)}</span>` : '',
+      (i.images || []).length
+        ? `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-photo>📎 ${(i.images || []).length}</button>`
+        : '<span style="color:#8aa0a6">—</span>',
+      canWrite()
+        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+        : ''
+    ];
+  });
+
+  page.appendChild(
+    dataTable(headers, rows, (tr, k) => {
+      const i = list[k];
+      tr.dataset.search = norm(`${i.conducteur} ${i.motif} ${i.interimaire} ${i.dateDepart} ${i.dateReprise}`);
+      const ed = tr.querySelector('[data-edit]');
+      if (ed) ed.onclick = () => openIndisponibiliteForm(i);
+      const ph = tr.querySelector('[data-photo]');
+      if (ph) ph.onclick = () => openIndisponibiliteForm(i);
+      const del = tr.querySelector('[data-del]');
+      if (del) {
+        del.onclick = async () => {
+          if (!(await confirmDialog({
+            title: 'Supprimer l’indisponibilité',
+            message: `Supprimer l’indisponibilité de ${i.conducteur} (${i.motif || '—'}, du ${dateFR(i.dateDepart)} au ${dateFR(i.dateReprise) || '…'}) ?`,
+            okLabel: 'Supprimer', danger: true
+          }))) return;
+          remove('indisponibilites', i.id);
+          toast('Indisponibilité supprimée.', 'ok');
+          rerender();
+        };
+      }
+    })
+  );
+}
+
+function indisponibiliteFields(i = {}) {
+  const conducteurs = conducteursDuPool();
+  return [
+    // Les conducteurs du pool d'abord ; un autre agent reste possible.
+    { key: 'conducteur', label: 'Nom du conducteur', type: 'selectAdd', required: true, value: i.conducteur,
+      options: conducteurs, emptyLabel: '— choisir un conducteur du pool —', addLabel: 'Autre agent',
+      hint: 'Conducteurs marqués « conducteur du pool » dans la liste des utilisateurs' },
+    { key: 'motif', label: 'Motif', type: 'select', required: true, options: MOTIFS_INDISPONIBILITE,
+      allowEmpty: true, emptyLabel: '— choisir —', value: i.motif },
+    { key: 'dateDepart', label: 'Date de départ', type: 'date', required: true, value: i.dateDepart || todayISO() },
+    { key: 'dateReprise', label: 'Date de reprise', type: 'date', required: true, value: i.dateReprise,
+      hint: 'Jour du retour au poste' },
+    { key: 'duree', label: 'Durée de l’indisponibilité', type: 'static', value: '',
+      hint: 'Du départ à la veille de la reprise' },
+    { key: 'interimaire', label: 'Nom de l’intérimaire', type: 'selectAdd', value: i.interimaire,
+      options: nomsUtilisateurs().slice().sort((a, b) => a.localeCompare(b, 'fr')),
+      emptyLabel: '— aucun —', addLabel: 'Autre personne',
+      hint: 'Agent qui assure le remplacement pendant l’absence' },
+    { key: 'images', label: 'Ajout d’image', type: 'images', full: true, value: i.images,
+      hint: 'Titre de congé, autorisation de permission, certificat médical (JPEG ou PNG)' }
+  ];
+}
+
+function openIndisponibiliteForm(i) {
+  const isEdit = !!i;
+  openForm({
+    title: isEdit ? `Modifier l’indisponibilité — ${i.conducteur}` : 'Ajout d’indisponibilité',
+    fields: indisponibiliteFields(i || {}),
+    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer l’indisponibilité',
+    onInput: (values, scope) => {
+      const d = dureeIndisponibilite(values.dateDepart, values.dateReprise);
+      const n = scope.querySelector('[data-key="duree"]');
+      if (n) n.value = d === null ? '—' : d < 1 ? 'reprise à corriger' : `${d} jour(s)`;
+    },
+    onSubmit: (values) => {
+      const conducteur = String(values.conducteur || '').trim();
+      const interimaire = String(values.interimaire || '').trim();
+      const d = dureeIndisponibilite(values.dateDepart, values.dateReprise);
+      if (d === null || d < 1) return 'La date de reprise doit être postérieure à la date de départ.';
+      if (interimaire && norm(interimaire) === norm(conducteur)) return 'L’intérimaire ne peut pas être le conducteur absent.';
+      const autre = chevauchementIndisponibilite(conducteur, values.dateDepart, values.dateReprise, i && i.id);
+      if (autre) {
+        return `${conducteur} est déjà indisponible du ${dateFR(autre.dateDepart)} au ${dateFR(autre.dateReprise) || '…'} (${autre.motif || '—'}).`;
+      }
+      const payload = {
+        conducteur,
+        motif: values.motif,
+        dateDepart: values.dateDepart,
+        dateReprise: values.dateReprise,
+        duree: d,
+        interimaire,
+        images: values.images
+      };
+      if (isEdit) update('indisponibilites', i.id, payload);
+      else insert('indisponibilites', Object.assign({ createdAt: new Date().toISOString() }, payload));
+      toast(isEdit ? 'Indisponibilité mise à jour.' : 'Indisponibilité enregistrée.', 'ok');
+      rerender();
+      return null;
+    }
+  });
+}
+
+async function exportIndisponibilites(kind, list) {
+  try {
+    const datasets = [dsIndisponibilites(list)];
+    const res = kind === 'excel'
+      ? await exportExcel(datasets, 'PDU_indisponibilites_pool')
+      : await exportPdf(datasets, 'PDU_indisponibilites_pool', { title: 'Indisponibilités au pool' });
+    toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
+  } catch (e) {
+    console.error(e);
+    toast("L'export a échoué.", 'err');
+  }
 }
 
 async function doExport(kind, list) {

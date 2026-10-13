@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -87,6 +87,7 @@ export function dsUsers(list = DB.users) {
       C('section', 'Section', 20),
       C('statut', 'Statut', 12),
       C('poolConducteur', 'Conducteur du pool', 14),
+      C('vehicules', 'Véhicule(s) attribué(s)', 22),
       C('telephone', 'Téléphone', 22),
       C('email', 'Adresse email', 24),
       C('permis', 'N° de permis', 14),
@@ -104,6 +105,11 @@ export function dsUsers(list = DB.users) {
         section: u.section || '',
         statut: u.statut || '',
         poolConducteur: u.poolConducteur === 'Oui' ? 'Oui' : 'Non',
+        // La meme colonne qu'a l'ecran : les vehicules de pool et de service
+        // dont l'agent est l'utilisateur.
+        vehicules: vehiculesDeLAgent(nomComplet(u))
+          .map((v) => `${v.immatNouvelle || v.immatAncienne || '?'} (${v._cat})`)
+          .join(', '),
         telephone: u.telephone || '',
         email: u.email || '',
         permis: u.permis || '',
@@ -627,5 +633,35 @@ export function dsSimulations(list = DB.simulations) {
       fraisPeage: num(s.fraisPeage),
       estimation: num(s.estimation)
     }))
+  };
+}
+
+/** Indisponibilites au pool : periode, duree, motif et interimaire. */
+export function dsIndisponibilites(list = DB.indisponibilites) {
+  return {
+    title: 'Indisponibilités au pool',
+    columns: [
+      C('conducteur', 'Conducteur', 24),
+      C('motif', 'Motif', 16),
+      C('dateDepart', 'Date de départ', 13),
+      C('dateReprise', 'Date de reprise', 13),
+      C('duree', 'Durée (jours)', 11),
+      C('interimaire', 'Intérimaire', 24),
+      C('etat', 'État', 11),
+      C('justificatif', 'Justificatif', 12)
+    ],
+    rows: list.map((i) => {
+      const d = dureeIndisponibilite(i.dateDepart, i.dateReprise);
+      return {
+        conducteur: i.conducteur || '',
+        motif: i.motif || '',
+        dateDepart: dateFR(i.dateDepart),
+        dateReprise: dateFR(i.dateReprise),
+        duree: d === null ? '' : d,
+        interimaire: i.interimaire || '',
+        etat: etatIndisponibilite(i),
+        justificatif: (i.images || []).length ? 'joint' : ''
+      };
+    })
   };
 }

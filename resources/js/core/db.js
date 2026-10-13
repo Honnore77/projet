@@ -8,7 +8,7 @@
    =================================================================== */
 
 import { readDB, writeDB, readLegacy } from './storage.js';
-import { uid, num, norm, sum, daysBetween, francSup } from './utils.js';
+import { uid, num, norm, sum, daysBetween, francSup, todayISO } from './utils.js';
 import { hashPassword } from './crypto.js';
 
 export const SCHEMA_VERSION = 4;
@@ -253,7 +253,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -383,6 +383,8 @@ export function fichesAImages(db = DB) {
     ...db.dotationPool,
     // La decharge signee, photographiee ou scannee.
     ...(db.decharges || []),
+    // Le justificatif d'une indisponibilite : titre de conge, certificat.
+    ...(db.indisponibilites || []),
     // Les sous-fiches comptent autant que les autres : une image citee par
     // une intervention ou un incident, mais absente d'ici, serait tenue pour
     // orpheline et effacee au demarrage suivant — et elle manquerait a
@@ -1941,4 +1943,75 @@ export function derniereConsommation(immat, db = DB) {
     .sort((a, b) => String(a.createdAt || '').localeCompare(String(b.createdAt || '')))
     .pop();
   return s ? num(s.consommation) : '';
+}
+
+/* =================================================================
+   INDISPONIBILITES AU POOL — conges, permissions, repos maladie des
+   conducteurs du pool, et l'interimaire qui les remplace.
+
+   La date de reprise est le jour du retour au poste : l'indisponibilite
+   couvre les jours du depart a la veille de la reprise. Partir le 5 et
+   reprendre le 8 fait trois jours d'absence.
+   ================================================================= */
+
+export const MOTIFS_INDISPONIBILITE = ['En congé', 'Permissionnaire', 'Repos maladie'];
+
+/** Nombre de jours d'absence, ou null tant qu'une date manque. */
+export function dureeIndisponibilite(dateDepart, dateReprise) {
+  return daysBetween(dateDepart, dateReprise);
+}
+
+/**
+ * Ou en est une indisponibilite a une date donnee.
+ * @returns {'à venir'|'en cours'|'terminée'|''}
+ */
+export function etatIndisponibilite(i, jour = todayISO()) {
+  if (!i || !i.dateDepart) return '';
+  if (jour < i.dateDepart) return 'à venir';
+  if (!i.dateReprise || jour < i.dateReprise) return 'en cours';
+  return 'terminée';
+}
+
+/** Les conducteurs du pool, tels qu'ils s'ecrivent dans UTILISATEURS. */
+export function conducteursDuPool(db = DB) {
+  return (db.users || [])
+    .filter((u) => u.poolConducteur === 'Oui')
+    .map(nomComplet)
+    .filter(Boolean)
+    .sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/**
+ * Une autre indisponibilite du meme conducteur qui recouvre la periode.
+ * Deux periodes se recouvrent si chacune commence avant la reprise de
+ * l'autre ; une reprise le jour d'un nouveau depart ne recouvre rien.
+ */
+export function chevauchementIndisponibilite(conducteur, dateDepart, dateReprise, exclureId, db = DB) {
+  const cle = norm(conducteur || '');
+  if (!cle || !dateDepart) return null;
+  const fin = dateReprise || '9999-12-31';
+  return (db.indisponibilites || []).find((i) =>
+    i.id !== exclureId &&
+    norm(i.conducteur || '') === cle &&
+    i.dateDepart < fin &&
+    dateDepart < (i.dateReprise || '9999-12-31')) || null;
+}
+
+/** Les indisponibilites en cours a une date donnee. */
+export function indisponibilitesEnCours(jour = todayISO(), db = DB) {
+  return (db.indisponibilites || []).filter((i) => etatIndisponibilite(i, jour) === 'en cours');
+}
+
+/** Reporte le nouveau nom d'un agent sur ses indisponibilites et ses interims. */
+export function renommerAgentDansIndisponibilites(ancien, nouveau, db = DB) {
+  const cle = norm(ancien || '');
+  const propre = String(nouveau || '').trim();
+  if (!cle || !propre) return 0;
+  let n = 0;
+  (db.indisponibilites || []).forEach((i) => {
+    if (norm(i.conducteur || '') === cle && i.conducteur !== propre) { i.conducteur = propre; n += 1; }
+    if (norm(i.interimaire || '') === cle && i.interimaire !== propre) { i.interimaire = propre; n += 1; }
+  });
+  if (n && db === DB) persist();
+  return n;
 }

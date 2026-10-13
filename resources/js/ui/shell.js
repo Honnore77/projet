@@ -63,7 +63,7 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste' },
   vehicleSheetImmat: null,
   query: '',
   filters: {
@@ -73,7 +73,8 @@ export const state = {
     maintenance: { etat: '', immat: '' },
     dotationPool: { dateFrom: '', dateTo: '', immat: '' },
     dotationMission: { dateFrom: '', dateTo: '', conducteur: '' },
-    decharges: { dateFrom: '', dateTo: '', destinataire: '' }
+    decharges: { dateFrom: '', dateTo: '', destinataire: '' },
+    indisponibilites: { etat: '', motif: '', conducteur: '' }
   }
 };
 
