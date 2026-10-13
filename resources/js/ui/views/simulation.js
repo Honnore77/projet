@@ -26,7 +26,8 @@ import { state, rerender, moduleColor, navigate } from '../shell.js';
 import { cablerParcours, enregistrerParcours, openMissionForm } from './missions.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
-import { dsSimulations, dsFicheSimulation } from '../../export/datasets.js';
+import { dsSimulations } from '../../export/datasets.js';
+import { modeleFicheSimulation, ficheHtml, exportFichePdf, exportFicheExcel } from '../../export/ficheSimulation.js';
 
 const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }];
 
@@ -152,49 +153,20 @@ function vehiculeActuel(s) {
 
 /**
  * Fiche d'une simulation : tout le calcul, du parcours au total, avec de
- * quoi l'exporter. L'apercu et les fichiers lisent les memes tableaux
- * (dsFicheSimulation), il n'y a donc qu'une version de la fiche.
+ * quoi l'exporter. L'ecran, le PDF et le classeur dessinent le meme modele
+ * (export/ficheSimulation.js) : le document exporte se presente comme la
+ * fiche.
  */
 function openFiche(s) {
-  const [resume, parcours, interne] = dsFicheSimulation(s);
-  const ligne = (k, v, d) =>
-    `<div class="subEntryRow"><span>${esc(k)}${d ? `<br><small>${esc(d)}</small>` : ''}</span><b>${esc(v || '—')}</b></div>`;
-  const total = resume.rows[resume.rows.length - 1];
-  const corps = el(
-    '<div>' +
-      '<div class="subBlock"><h5>Mission simulée</h5>' +
-        resume.rows.slice(0, 9).map((r) => ligne(r.rubrique, r.valeur, r.detail)).join('') +
-      '</div>' +
-      '<div class="subBlock"><h5>Parcours</h5>' +
-        (parcours.rows.length
-          ? parcours.rows.map((r) => ligne(`${r.n ? `${r.n}. ` : '↩ '}${r.etape}`, r.km === '' ? '? km' : `${fmt(r.km)} km`, r.note)).join('') +
-            ligne('Total aller-retour', `${fmt(s.parcoursKm)} km`)
-          : '<div class="subEntryRow"><span><small>Aucune étape.</small></span></div>') +
-      '</div>' +
-      '<div class="subBlock"><h5>Parcours en interne</h5>' +
-        (interne.rows.length
-          ? interne.rows.map((r) => ligne(r.destination, `${fmt(r.km)} km`, r.jours === '' ? '' : `${r.jours} jour(s) sur place`)).join('') +
-            ligne('Total en interne', `${fmt(s.interneKm)} km`)
-          : '<div class="subEntryRow"><span><small>Aucun.</small></span></div>') +
-      '</div>' +
-      '<div class="subBlock"><h5>Estimation des frais de mission</h5>' +
-        resume.rows.slice(9, -1).map((r) => ligne(`${r.rubrique} =`, r.valeur, r.detail)).join('') +
-        '<div class="subEntryRow" style="border-top:2px solid currentColor">' +
-          `<span><b>TOTAL</b><br><small>${esc(total.detail)}</small></span>` +
-          `<b style="color:${COULEUR()};font-size:1.15em">${esc(total.valeur)}</b></div>` +
-      '</div>' +
-    '</div>'
-  );
+  const modele = modeleFicheSimulation(s);
+  const corps = el(`<div>${ficheHtml(modele, COULEUR())}</div>`);
   // Nom de fichier sans accents : « Bouaké » donne « Bouake », pas « Bouak_ ».
   const nom = `PDU_simulation_${(s.destinations || []).join('-')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9-]+/g, '_').slice(0, 40) || 'mission'}`;
   const exporter = async (kind) => {
     try {
-      const datasets = dsFicheSimulation(s);
-      const res = kind === 'excel'
-        ? await exportExcel(datasets, nom)
-        : await exportPdf(datasets, nom, { title: 'Fiche de simulation de mission', orientation: 'p', enchaine: true });
+      const res = kind === 'excel' ? await exportFicheExcel(modele, nom) : await exportFichePdf(modele, nom);
       toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
     } catch (e) {
       console.error(e);

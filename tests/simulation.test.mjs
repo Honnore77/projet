@@ -114,10 +114,10 @@ test('la liste des vehicules vient de la rubrique VÉHICULES, sans doublon ni pr
   ]);
 });
 
-test('la fiche d’une simulation : calcul, parcours avec retour, parcours en interne', async () => {
-  const ds = await import('../resources/js/export/datasets.js');
+test('la fiche d’une simulation : quatre sections, parcours avec retour, total en dernier', async () => {
+  const fiche = await import('../resources/js/export/ficheSimulation.js');
   await charger();
-  const [resume, parcours, interne] = ds.dsFicheSimulation({
+  const m = fiche.modeleFicheSimulation({
     dateDepart: '2026-10-12', dateRetour: '2026-10-14', jours: 3,
     destinations: ['Yamoussoukro', 'Bouaké'],
     parcoursKm: 700, interneKm: 50, distanceTotale: 750, parcoursComplet: true,
@@ -125,10 +125,17 @@ test('la fiche d’une simulation : calcul, parcours avec retour, parcours en in
     vehicule: 'D45 50 1', consommation: 10, prixL: 875, litres: 75, montantCarburant: 65625,
     participants: 2, fraisOm: 2000, fraisOmUnitaire: 1000, fraisPeage: 1500, estimation: 69125
   });
-  assert.equal(resume.rows[resume.rows.length - 1].valeur.replace(/\s/g, ' '), '69 125 F');
+  assert.deepEqual(m.sections.map((x) => x.titre),
+    ['Mission simulée', 'Parcours', 'Parcours en interne', 'Estimation des frais de mission']);
   // Simulation d'avant l'enregistrement des etapes : elles sont recalculees.
-  assert.deepEqual(parcours.rows.map((r) => [r.etape, r.km]), [
-    ['Abidjan - Yamoussoukro', 240], ['Yamoussoukro - Bouaké', 110], ['Retour : Bouaké - Abidjan', 350]
+  assert.deepEqual(m.sections[1].lignes.map((l) => [l.libelle, l.valeur.replace(/\s/g, ' ')]), [
+    ['1. Abidjan - Yamoussoukro', '240 km'], ['2. Yamoussoukro - Bouaké', '110 km'],
+    ['Retour : Bouaké - Abidjan', '350 km'], ['Total aller-retour', '700 km']
   ]);
-  assert.deepEqual(interne.rows.map((r) => r.km), [20, 30]);
+  const total = m.sections[3].lignes[3];
+  assert.equal(total.total, true);
+  assert.equal(total.valeur.replace(/\s/g, ' '), '69 125 F');
+  // Les deux fichiers se construisent sans erreur.
+  assert.ok(fiche.buildFichePdf(m).length > 1000);
+  assert.ok(fiche.buildFicheExcel(m).length > 1000);
 });

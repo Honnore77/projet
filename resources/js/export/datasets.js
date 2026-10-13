@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, parcoursDe, nomComplet, dureeIndisponibilite, etatIndisponibilite } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 
@@ -668,67 +668,4 @@ export function dsIndisponibilites(list = DB.indisponibilites) {
       };
     })
   };
-}
-
-/**
- * Etapes d'une simulation : celles enregistrees avec elle, sinon (simulation
- * d'avant cet enregistrement) recalculees sur les distances actuelles.
- */
-export function etapesSimulation(s) {
-  if (Array.isArray(s.etapes) && s.etapes.length) return s.etapes;
-  const p = parcoursDe(s.destinations || []);
-  return [...p.etapes, ...(p.retour ? [Object.assign({ retour: true }, p.retour)] : [])];
-}
-
-/**
- * Fiche d'une simulation, en trois tableaux : le calcul des frais, le
- * parcours etape par etape, le parcours en interne. Les memes pour
- * l'apercu, le PDF et l'Excel.
- */
-export function dsFicheSimulation(s) {
-  const f = (n) => Number(n || 0).toLocaleString('fr-FR');
-  const v = vehiculeDeSimulation(s);
-  const ligne = (rubrique, valeur, detail = '') => ({ rubrique, valeur, detail });
-  const resume = {
-    title: 'Simulation de mission',
-    columns: [C('rubrique', 'Rubrique', 30), C('valeur', 'Valeur', 30), C('detail', 'Détail', 50)],
-    rows: [
-      ligne('Période', `${dateFR(s.dateDepart) || '…'} - ${dateFR(s.dateRetour) || '…'}`, s.jours ? `${s.jours} jour(s)` : ''),
-      ligne('Destinations', (s.destinations || []).join(', ')),
-      ligne('Parcours aller-retour', `${f(s.parcoursKm)} km`, s.parcoursComplet === false ? 'une distance d’étape manquait' : ''),
-      ligne('Parcours en interne', `${f(s.interneKm)} km`),
-      ligne('Distance totale', `${f(s.distanceTotale)} km`),
-      ligne('Véhicule utilisé', [s.vehicule, v.marqueModele].filter(Boolean).join(' - '), v.energie),
-      ligne('Consommation', `${String(s.consommation || 0).replace('.', ',')} L/100 km`),
-      ligne('Prix du litre', `${f(s.prixL)} F`),
-      ligne('Total participants', f(s.participants)),
-      ligne('Frais OM', `${f(s.fraisOm)} F`, `${f(s.participants)} participant(s) x ${f(s.fraisOmUnitaire || (s.participants ? s.fraisOm / s.participants : 0))} F`),
-      ligne('Frais de péage', `${f(s.fraisPeage)} F`),
-      ligne('Carburant', `${f(s.montantCarburant)} F`, `${String(s.litres || 0).replace('.', ',')} L x ${f(s.prixL)} F pour ${f(s.distanceTotale)} km`),
-      ligne('ESTIMATION DES FRAIS DE MISSION', `${f(s.estimation)} F`, 'Frais OM + frais de péage + carburant')
-    ]
-  };
-  const etapes = etapesSimulation(s);
-  const parcours = {
-    title: 'Parcours',
-    columns: [C('n', 'N°', 6), C('etape', 'Étape', 40), C('km', 'Distance (km)', 16), C('note', 'Note', 24)],
-    rows: etapes.map((e, i) => ({
-      n: e.retour ? '' : i + 1,
-      etape: `${e.retour ? 'Retour : ' : ''}${e.de} - ${e.vers}`,
-      km: e.km === null || e.km === undefined ? '' : Number(e.km),
-      note: e.km === null || e.km === undefined ? 'distance inconnue' : e.estimee ? 'estimée' : ''
-    })),
-    note: `Total aller-retour : ${f(s.parcoursKm)} km.`
-  };
-  const interne = {
-    title: 'Parcours en interne',
-    columns: [C('destination', 'Destination', 40), C('jours', 'Jours sur place', 16), C('km', 'Distance (km)', 16)],
-    rows: (s.interne || []).map((x) => ({
-      destination: x.nom || '',
-      jours: x.jours === '' || x.jours === undefined ? '' : Number(x.jours),
-      km: Number(x.km || 0)
-    })),
-    note: `Total en interne : ${f(s.interneKm)} km.`
-  };
-  return [resume, parcours, interne];
 }
