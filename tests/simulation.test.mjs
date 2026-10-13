@@ -70,3 +70,20 @@ test('la consommation reprise est celle de la derniere simulation du vehicule', 
   assert.equal(derniereConsommation('d45 50 1234'), 11);
   assert.equal(derniereConsommation('INCONNU'), '');
 });
+
+test('les frais OM suivent le montant fixe dans RÉGLAGES', async () => {
+  const base = await charger();
+  assert.equal(db.fraisOmParParticipant(), 1000);
+  base.settings.fraisOmParParticipant = 2500;
+  const r = calculerSimulation({ participants: 3 });
+  assert.equal(r.fraisOmUnitaire, 2500);
+  assert.equal(r.fraisOm, 7500);
+});
+
+test('un montant de frais OM vide revient a 1 000 F, zero reste possible', async () => {
+  const base = await charger();
+  base.settings.fraisOmParParticipant = '';
+  assert.equal(db.fraisOmParParticipant(), 1000);
+  base.settings.fraisOmParParticipant = 0;
+  assert.equal(calculerSimulation({ participants: 3 }).fraisOm, 0);
+});

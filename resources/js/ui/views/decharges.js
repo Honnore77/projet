@@ -94,6 +94,8 @@ function renderListeDecharges(page) {
   grid.appendChild(statTile('Décharges', fmt(list.length), 'sur la période filtrée', COULEUR()));
   grid.appendChild(statTile('Destinataires', fmt(new Set(list.map((d) => norm(d.destinataire || '')).filter(Boolean)).size),
     'structures concernées', COULEUR_DEST));
+  grid.appendChild(statTile('Sans décharge signée', fmt(list.filter((d) => !(d.images || []).length).length),
+    'photo à joindre', '#F47B20'));
   page.appendChild(grid);
 
   page.appendChild(
@@ -111,7 +113,7 @@ function renderListeDecharges(page) {
 
   const headers = [
     'Réf.', 'N° courrier', 'Objet', 'Destinataire', 'Date',
-    'Décharge<br>récupérée par', 'Conducteur', 'Véhicule', ''
+    'Décharge<br>récupérée par', 'Conducteur', 'Véhicule', 'Décharge<br>signée', ''
   ];
 
   const rows = list.map((d) => [
@@ -123,6 +125,10 @@ function renderListeDecharges(page) {
     esc(d.recuperePar || ''),
     esc(d.conducteur || ''),
     esc(d.immat || ''),
+    // La decharge signee est la preuve de remise : son absence se voit.
+    (d.images || []).length
+      ? miniBtn(COULEUR(), 'data-photo', `📎 ${(d.images || []).length}`, 'Voir la décharge signée')
+      : '<span class="badge" style="background:#F47B20">à joindre</span>',
     canWrite()
       ? `${miniBtn('#008A3B', 'data-edit data-write', '✎')} ${miniBtn('#D32F2F', 'data-del data-write', '✕')}`
       : ''
@@ -137,6 +143,10 @@ function renderListeDecharges(page) {
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openDechargeForm(d);
+
+      // Les images s'ouvrent dans le formulaire, ou chaque vignette s'agrandit.
+      const photo = tr.querySelector('[data-photo]');
+      if (photo) photo.onclick = () => openDechargeForm(d);
 
       const del = tr.querySelector('[data-del]');
       if (del) {
@@ -170,7 +180,9 @@ function dechargeFields(d = {}) {
       hint: 'Un objet par ligne' },
     { key: 'recuperePar', label: 'Décharge récupérée par', value: d.recuperePar, list: nomsUtilisateurs() },
     { key: 'conducteur', label: 'Nom du conducteur', value: d.conducteur, list: knownDrivers() },
-    { key: 'immat', label: 'Immatriculation du véhicule', value: d.immat, list: knownImmats() }
+    { key: 'immat', label: 'Immatriculation du véhicule', value: d.immat, list: knownImmats() },
+    { key: 'images', label: 'Photo de la décharge signée', type: 'images', full: true, value: d.images,
+      hint: 'Photo ou scan de la décharge signée par le destinataire (JPEG ou PNG)' }
   ];
 }
 
@@ -200,7 +212,8 @@ function openDechargeForm(d) {
         date: values.date,
         recuperePar: values.recuperePar,
         conducteur: values.conducteur,
-        immat: String(values.immat || '').trim().toUpperCase()
+        immat: String(values.immat || '').trim().toUpperCase(),
+        images: values.images
       };
       if (isEdit) update('decharges', d.id, payload);
       else insert('decharges', Object.assign({ createdAt: new Date().toISOString() }, payload));

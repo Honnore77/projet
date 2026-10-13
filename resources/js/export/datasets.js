@@ -508,7 +508,8 @@ export function dsDecharges(list = DB.decharges) {
       C('date', 'Date', 12),
       C('recuperePar', 'Décharge récupérée par', 22),
       C('conducteur', 'Conducteur', 22),
-      C('immat', 'Véhicule', 16)
+      C('immat', 'Véhicule', 16),
+      C('signee', 'Décharge signée', 14)
     ],
     rows: list.map((d) => ({
       ref: d.ref || '',
@@ -518,7 +519,8 @@ export function dsDecharges(list = DB.decharges) {
       date: dateFR(d.date),
       recuperePar: d.recuperePar || '',
       conducteur: d.conducteur || '',
-      immat: d.immat || ''
+      immat: d.immat || '',
+      signee: (d.images || []).length ? 'jointe' : 'à joindre'
     }))
   };
 }
@@ -591,6 +593,7 @@ export function dsSimulations(list = DB.simulations) {
       C('montantCarburant', 'Carburant (F)', 13),
       C('participants', 'Participants', 11),
       C('fraisOm', 'Frais OM (F)', 12),
+      C('mission', 'Mission créée', 12),
       C('fraisPeage', 'Péages (F)', 11),
       C('estimation', 'Estimation (F)', 14)
     ],
@@ -608,6 +611,7 @@ export function dsSimulations(list = DB.simulations) {
       montantCarburant: num(s.montantCarburant),
       participants: num(s.participants),
       fraisOm: num(s.fraisOm),
+      mission: ((DB.missions || []).find((m) => m.id === s.missionId) || {}).ref || '',
       fraisPeage: num(s.fraisPeage),
       estimation: num(s.estimation)
     }))

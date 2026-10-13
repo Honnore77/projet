@@ -3,7 +3,7 @@
    Rubrique reservee aux administrateurs (voir MODULES dans shell.js).
    =================================================================== */
 
-import { DB, persistNow, replaceDB, emptyDB, saveSettings } from '../../core/db.js';
+import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT } from '../../core/db.js';
 import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
   createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
@@ -292,6 +292,7 @@ function renderThresholdsSection(page) {
         `Devise : ${esc(s.devise)}\n` +
         `Prix du litre (Essence) : ${s.prixLitreEssence ? `${num(s.prixLitreEssence)} ${esc(s.devise)}` : 'non renseigné'}\n` +
         `Prix du litre (Diesel) : ${s.prixLitreDiesel ? `${num(s.prixLitreDiesel)} ${esc(s.devise)}` : 'non renseigné'}\n` +
+        `Frais OM par participant (simulations) : ${num(fraisOmParParticipant())} ${esc(s.devise)}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
         `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
@@ -321,6 +322,8 @@ function openSettingsForm() {
         hint: 'Proposé dans le champ « Prix / L » des dotations et des rapports de mission' },
       { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'number', value: s.prixLitreDiesel,
         hint: 'Laisser à 0 tant que le prix n’est pas connu : il n’est alors pas proposé' },
+      { key: 'fraisOmParParticipant', label: 'Frais OM par participant', type: 'number', value: fraisOmParParticipant(),
+        hint: 'Utilisé par SIMULATION : frais OM = participants × ce montant' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'number', value: s.seuilVidangeKm,
@@ -336,6 +339,8 @@ function openSettingsForm() {
         devise: v.devise || 'F',
         prixLitreEssence: francSup(v.prixLitreEssence),
         prixLitreDiesel: francSup(v.prixLitreDiesel),
+        // Vide : on revient aux 1 000 F d'origine ; zero reste un choix possible.
+        fraisOmParParticipant: v.fraisOmParParticipant === '' ? FRAIS_OM_PAR_PARTICIPANT : francSup(v.fraisOmParParticipant),
         seuilImmobilisationJours: num(v.seuilImmobilisationJours) || 7,
         seuilMissionImpayeeJours: num(v.seuilMissionImpayeeJours) || 30,
         seuilVidangeKm: num(v.seuilVidangeKm) || 5000,

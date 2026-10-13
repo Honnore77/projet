@@ -123,6 +123,8 @@ export function emptyDB() {
       // prise. Zero vaut « pas encore renseigne » : la liste ne le propose pas.
       prixLitreEssence: 0,
       prixLitreDiesel: 0,
+      // Frais d'ordre de mission par participant, pour les simulations.
+      fraisOmParParticipant: 1000,
       // Dossier des copies datees, hors du poste de preference : cle USB,
       // disque reseau, dossier synchronise. Vide, la sauvegarde automatique
       // ne se fait pas — c'est un choix explicite, pas un defaut silencieux.
@@ -375,6 +377,8 @@ export function fichesAImages(db = DB) {
     ...db.maintenance,
     ...db.missions,
     ...db.dotationPool,
+    // La decharge signee, photographiee ou scannee.
+    ...(db.decharges || []),
     // Les sous-fiches comptent autant que les autres : une image citee par
     // une intervention ou un incident, mais absente d'ici, serait tenue pour
     // orpheline et effacee au demarrage suivant — et elle manquerait a
@@ -1837,8 +1841,14 @@ export function lienItineraire(d) {
    Le parcours se calcule comme celui d'une mission, etape par etape.
    ================================================================= */
 
-/** Frais d'ordre de mission, par participant. */
+/** Frais d'ordre de mission par participant, tant que RÉGLAGES n'en fixe pas d'autre. */
 export const FRAIS_OM_PAR_PARTICIPANT = 1000;
+
+/** Frais OM par participant en vigueur : celui de RÉGLAGES, sinon 1 000 F. */
+export function fraisOmParParticipant(db = DB) {
+  const v = db.settings && db.settings.fraisOmParParticipant;
+  return v === '' || v === undefined || v === null ? FRAIS_OM_PAR_PARTICIPANT : num(v);
+}
 
 /**
  * Tous les montants d'une simulation, a partir de ce qui a ete saisi.
@@ -1854,6 +1864,7 @@ export const FRAIS_OM_PAR_PARTICIPANT = 1000;
  * @param {number} s.prixL  prix du litre
  * @param {number} s.participants
  * @param {Array<{prix:number}>} s.peages
+ * @param {number} [s.fraisOmUnitaire]  frais OM par participant (RÉGLAGES par defaut)
  */
 export function calculerSimulation(s) {
   const parcoursKm = num(s.parcoursKm);
@@ -1862,7 +1873,10 @@ export function calculerSimulation(s) {
   const litresExacts = (distanceTotale * num(s.consommation)) / 100;
   const montantCarburant = francSup(litresExacts * francSup(s.prixL));
   const participants = Math.max(0, Math.floor(num(s.participants)));
-  const fraisOm = participants * FRAIS_OM_PAR_PARTICIPANT;
+  const fraisOmUnitaire = s.fraisOmUnitaire === undefined || s.fraisOmUnitaire === ''
+    ? fraisOmParParticipant()
+    : num(s.fraisOmUnitaire);
+  const fraisOm = participants * fraisOmUnitaire;
   const fraisPeage = francSup((s.peages || []).reduce((t, p) => t + num(p.prix), 0));
   return {
     parcoursKm,
@@ -1871,6 +1885,7 @@ export function calculerSimulation(s) {
     litres: Math.round(litresExacts * 10) / 10,
     montantCarburant,
     participants,
+    fraisOmUnitaire,
     fraisOm,
     fraisPeage,
     estimation: fraisOm + fraisPeage + montantCarburant

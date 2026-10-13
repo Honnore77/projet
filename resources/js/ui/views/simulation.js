@@ -13,7 +13,7 @@
 import {
   DB, insert, update, remove, knownImmats, vehicleByImmat, joursMission, ENERGIES,
   prixLitreOptions, nomsDestinationsMission, parcoursDe,
-  calculerSimulation, peagesConnus, derniereConsommation, FRAIS_OM_PAR_PARTICIPANT,
+  calculerSimulation, peagesConnus, derniereConsommation, fraisOmParParticipant,
   destinationsDe, texteDestinations
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
@@ -21,8 +21,8 @@ import { esc, el, fmt, num, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
   card, toolbar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS
 } from '../components.js';
-import { state, rerender, moduleColor } from '../shell.js';
-import { cablerParcours, enregistrerParcours } from './missions.js';
+import { state, rerender, moduleColor, navigate } from '../shell.js';
+import { cablerParcours, enregistrerParcours, openMissionForm } from './missions.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsSimulations } from '../../export/datasets.js';
@@ -43,8 +43,8 @@ function renderListe(page) {
   page.appendChild(
     card(
       'SIMULATION DE MISSION',
-      'Estimez les frais d’une mission avant le départ : frais OM (' + fmt(FRAIS_OM_PAR_PARTICIPANT) +
-      ' F par participant) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations.',
+      'Estimez les frais d’une mission avant le départ : frais OM (' + fmt(fraisOmParParticipant()) +
+      ' F par participant, réglable dans RÉGLAGES) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations. « Créer la mission » reprend une simulation dans MISSION.',
       COULEUR()
     )
   );
@@ -75,7 +75,7 @@ function renderListe(page) {
   const droite = (v) => `<span style="display:block;text-align:right">${v}</span>`;
   const headers = [
     'Période', 'Destinations', 'Distance', 'Véhicule', 'Carburant', 'Participants<br>/ Frais OM',
-    'Péages', '<b>Estimation</b>', ''
+    'Péages', '<b>Estimation</b>', 'Mission', ''
   ];
   const rows = list.map((s) => [
     `${esc(dateFR(s.dateDepart) || '…')}<br>→ ${esc(dateFR(s.dateRetour) || '…')}` +
@@ -87,6 +87,7 @@ function renderListe(page) {
     droite(`${fmt(s.participants)}<br><b>${fmt(s.fraisOm)} F</b>`),
     droite(`<b>${fmt(s.fraisPeage)} F</b>${(s.peages || []).length ? `<br><small>${s.peages.length} péage(s)</small>` : ''}`),
     droite(`<b style="color:${COULEUR()};font-size:1.05em">${fmt(s.estimation)} F</b>`),
+    celluleMission(s),
     canWrite()
       ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
         `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
@@ -99,6 +100,18 @@ function renderListe(page) {
       tr.dataset.search = norm(`${texteDestinations(s.destinations)} ${s.vehicule} ${s.dateDepart}`);
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openSimulationForm(s);
+
+      const creer = tr.querySelector('[data-creer]');
+      if (creer) creer.onclick = () => creerMission(s);
+      const voir = tr.querySelector('[data-voir-mission]');
+      if (voir) {
+        voir.onclick = () => {
+          const m = missionDe(s);
+          state.sub.MISSION = 'suivi';
+          state.filters.missions.conducteur = (m && m.conducteur) || '';
+          navigate('MISSION');
+        };
+      }
       const del = tr.querySelector('[data-del]');
       if (del) {
         del.onclick = async () => {
@@ -114,6 +127,46 @@ function renderListe(page) {
       }
     })
   );
+}
+
+/* ======================== Creer la mission ========================= */
+
+/** La mission creee depuis cette simulation, si elle existe encore. */
+function missionDe(s) {
+  return s.missionId ? DB.missions.find((m) => m.id === s.missionId) || null : null;
+}
+
+function celluleMission(s) {
+  const m = missionDe(s);
+  if (m) {
+    return `<button class="miniBtn" style="background:#C2185B;padding:5px 8px" data-voir-mission ` +
+      `title="Ouvrir le tableau de suivi">→ ${esc(m.ref || 'mission')}</button>`;
+  }
+  return canWrite()
+    ? `<button class="miniBtn" style="background:#C2185B;padding:5px 8px" data-creer data-write>Créer la mission</button>`
+    : '—';
+}
+
+/**
+ * Ouvre le formulaire de mission, prerempli avec la simulation : dates,
+ * parcours et vehicule. Le conducteur reste a choisir — c'est le tour de
+ * role qui le designe — et les frais de mission restent a saisir : ceux de
+ * la mission ne sont pas l'estimation de la simulation.
+ */
+function creerMission(s) {
+  openMissionForm(null, {
+    titre: 'Nouvelle mission — depuis une simulation',
+    preset: {
+      dateDepart: s.dateDepart,
+      dateRetour: s.dateRetour,
+      destinations: (s.destinations || []).slice(),
+      vehicule: s.vehicule
+    },
+    apresCreation: (m) => {
+      update('simulations', s.id, { missionId: m.id });
+      rerender();
+    }
+  });
 }
 
 /* ============================ Formulaire =========================== */
@@ -138,7 +191,7 @@ function simulationFields(s = {}) {
     { key: 'participants', label: 'Total participants', type: 'number', required: true, value: s.participants,
       hint: 'Nombre total de personnes qui prennent part à la mission' },
     { key: 'fraisOm', label: 'Frais OM', type: 'static', value: '',
-      hint: `Participants × ${fmt(FRAIS_OM_PAR_PARTICIPANT)} F` },
+      hint: `Participants × ${fmt(fraisOmParParticipant())} F — réglable dans RÉGLAGES` },
     { key: 'fraisPeage', label: 'Frais de péage', type: 'static', full: true, value: '',
       hint: 'Somme des péages ci-dessous' },
     { key: 'carburant', label: 'Carburant', type: 'static', full: true, value: '',
@@ -177,7 +230,7 @@ function openSimulationForm(sim) {
     });
     const j = joursMission(valeur('dateDepart'), valeur('dateRetour'));
     champ('jours').value = j === null || j < 1 ? '—' : `${j} j`;
-    champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(FRAIS_OM_PAR_PARTICIPANT)} F)`;
+    champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(r.fraisOmUnitaire)} F)`;
     champ('fraisPeage').value = `${fmt(r.fraisPeage)} F${peages.length ? `  (${peages.length} péage(s))` : ''}`;
     const incomplet = parcoursCalcule.etapes.length && !parcoursCalcule.complet;
     champ('carburant').value =

@@ -85,3 +85,8 @@ test('une adresse devient une recherche Google Maps', () => {
   );
   assert.equal(lienCarte(''), '');
 });
+
+test('la photo de la decharge signee est une image citee : ni effacee, ni oubliee a la sauvegarde', async () => {
+  await charger({ decharges: [{ id: 'a', ref: 'D-001', images: [{ id: 'img-decharge', nom: 'decharge.jpg' }] }] });
+  assert.ok(db.imagesCitees().has('img-decharge'));
+});

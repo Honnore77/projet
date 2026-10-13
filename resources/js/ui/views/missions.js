@@ -590,19 +590,28 @@ function conducteursProposes() {
   return [...rot, ...autres];
 }
 
-export function openMissionForm(m) {
+/**
+ * @param {object|null} m mission a modifier, ou null pour une nouvelle
+ * @param {object} [options]
+ * @param {object} [options.preset] valeurs de depart d'une nouvelle mission
+ *   (dates, destinations, vehicule) — par exemple reprises d'une simulation
+ * @param {string} [options.titre] titre du formulaire
+ * @param {Function} [options.apresCreation] (mission creee) => void
+ */
+export function openMissionForm(m, options = {}) {
   const isEdit = !!m;
+  const depart = m || options.preset || {};
   const rot = rotationConducteurs();
   // Le parcours en cours de saisie, et les distances d'etape tapees a la
   // main, par trajet : deplacer une ville ne fait pas perdre ce qu'on a
   // saisi pour un trajet qui existe toujours.
-  const parcours = destinationsDe(m || {}).map((nom) => ({ nom }));
+  const parcours = destinationsDe(depart).map((nom) => ({ nom }));
   const saisies = new Map();
   let redessinerParcours = () => {};
   openForm({
-    title: isEdit ? `Modifier la mission ${m.ref}` : 'Nouvelle mission',
+    title: isEdit ? `Modifier la mission ${m.ref}` : options.titre || 'Nouvelle mission',
     intro: !isEdit && rot.length ? `Tour de rôle : c’est au tour de ${rot[0].nom}.` : undefined,
-    fields: missionFields(m || {}),
+    fields: missionFields(depart),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la mission',
     extra: (scope) => { redessinerParcours = cablerParcours(scope, parcours, saisies); },
     onInput: (values, scope) => {
@@ -642,9 +651,10 @@ export function openMissionForm(m) {
         jours: jours === null ? '' : jours,
         montant: francSup(values.montant)
       };
+      let creee = null;
       if (isEdit) update('missions', m.id, payload);
       else {
-        insert('missions', Object.assign(
+        creee = insert('missions', Object.assign(
           { ref: '', paye: false, datePaiement: '', participants: [], ravitaillements: [], kmDepart: '', kmArrivee: '', observations: '' },
           payload
         ));
@@ -653,7 +663,8 @@ export function openMissionForm(m) {
       // les references se recalculent d'un bloc plutot que de figer un rang
       // que le tableau contredirait ensuite.
       if (renumeroterMissions()) persist();
-      toast(isEdit ? 'Mission mise à jour.' : 'Mission enregistrée.', 'ok');
+      if (creee && options.apresCreation) options.apresCreation(creee);
+      toast(isEdit ? 'Mission mise à jour.' : `Mission ${creee ? creee.ref : ''} enregistrée.`, 'ok');
       rerender();
       return null;
     }
