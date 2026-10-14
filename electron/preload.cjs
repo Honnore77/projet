@@ -73,13 +73,5 @@ contextBridge.exposeInMainWorld('pduDesktop', {
   imageSupprimer: (id) => ipcRenderer.invoke('image:delete', id),
 
   /** @returns {Promise<string[]>} identifiants presents dans le dossier */
-  imageListe: () => ipcRenderer.invoke('image:list'),
-
-  /**
-   * Pastille d'alertes sur le raccourci du bureau et la barre des taches.
-   * @param {number} n nombre d'alertes (0 : icone d'origine)
-   * @param {Uint8Array|null} ico icone complete (.ico) avec la pastille
-   * @param {Uint8Array|null} seule pastille seule (PNG 32 px)
-   */
-  pastilleAlertes: (n, ico, seule) => ipcRenderer.invoke('pastille:alertes', n, ico, seule)
+  imageListe: () => ipcRenderer.invoke('image:list')
 });
