@@ -19,7 +19,7 @@ import {
   renommerAgentDansIndisponibilites, nomsUtilisateurs
 } from '../../core/db.js';
 import {
-  TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau
+  TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau, etatValidation
 } from '../../core/demandes.js';
 import { exporterDemande } from '../../export/demandes.js';
 import { canWrite } from '../../core/auth.js';
@@ -529,10 +529,16 @@ function renderDemandes(page) {
     return;
   }
 
-  const headers = ['Formulaire', 'Agent', 'Du', 'Au', 'Durée', 'Demandé le', 'Au tableau', ''];
+  const headers = ['Formulaire', 'Agent', 'Du', 'Au', 'Durée', 'Demandé le', 'Validation', 'Au tableau', ''];
   const rows = list.map((d) => {
     const conge = d.type === 'conge';
     const auTableau = d.indispoId && DB.indisponibilites.some((i) => i.id === d.indispoId);
+    const etat = etatValidation(d);
+    const validation = etat === 'oui'
+      ? '<span class="voyant vert" title="Demande validée"></span><span class="voyantTexte">Validée</span>'
+      : etat === 'non'
+        ? '<span class="voyant rouge" title="Demande refusée"></span><span class="voyantTexte">Refusée</span>'
+        : '<em class="voyantAttente">En cours…</em>';
     return [
       `<span class="badge" style="background:${COULEUR_DEMANDE[d.type] || COLORS.grey}">${esc(TYPES_DEMANDE[d.type] || '')}</span>`,
       `<b>${esc(d.agent || d.nomPrenoms || `${d.nom || ''} ${d.prenoms || ''}`)}</b>`,
@@ -540,6 +546,7 @@ function renderDemandes(page) {
       esc(dateFR(conge ? d.dateFin : d.dateRetour)) + (!conge && d.heureRetour ? ` <small>${esc(d.heureRetour)}</small>` : ''),
       esc((conge ? d.duree : d.total) || '—'),
       esc(dateFR(d.dateDemande)),
+      `<span style="white-space:nowrap">${validation}</span>`,
       auTableau ? '✓' : '<span style="color:#8aa0a6">—</span>',
       `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-pdf title="Exporter l’imprimé">📄 PDF</button> ` +
       (canWrite()
@@ -621,6 +628,8 @@ function demandeFields(type, d) {
       { key: 'duree', label: 'Durée du congé', value: d.duree, hint: 'Calculée du début à la fin, modifiable' },
       { key: 'faitA', label: 'Fait à', value: d.faitA || DB.settings.ville || 'Abidjan' },
       dateDemande,
+      { key: 'validee', label: 'Demande validée', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
+        options: ['Oui', 'Non'], value: d.validee, hint: 'Voyant vert si oui, rouge si non dans le tableau' },
       { key: 'interimaire', label: 'Intérimaire (fiche d’intérim)', type: 'selectAdd', value: d.interimaire,
         options: agents, emptyLabel: '— aucun —', addLabel: 'Autre personne' },
       { key: 'activites', label: 'Activités principales en cours', type: 'textarea', rows: 6, full: true, value: d.activites,
@@ -641,7 +650,8 @@ function demandeFields(type, d) {
     { key: 'heureRetour', label: 'Retour — heure', type: 'time', value: d.heureRetour },
     { key: 'total', label: 'Total jour/heures demandés', value: d.total, hint: 'Calculé, modifiable' },
     { key: 'autorisee', label: 'Absence autorisée', type: 'select', allowEmpty: true, emptyLabel: '— pas encore décidé —',
-      options: ['OUI', 'NON'], value: d.autorisee, hint: 'Laissez vide pour cocher à la main sur l’imprimé' },
+      options: ['OUI', 'NON'], value: d.autorisee,
+      hint: 'Voyant vert ou rouge dans le tableau ; vide : « en cours », case à cocher à la main sur l’imprimé' },
     { key: 'motif', label: 'Motif de la demande', type: 'textarea', rows: 3, full: true, required: true, value: d.motif },
     { key: 'commentaires', label: 'Commentaires', full: true, value: d.commentaires },
     dateDemande,

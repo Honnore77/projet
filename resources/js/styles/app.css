@@ -808,3 +808,13 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 .themeCarte b{display:block;font-size:14px;}
 .themeCarte small{display:block;color:var(--muted);margin-top:3px;line-height:1.35;}
 .themeCarte .coche{float:right;color:var(--green);font-weight:800;}
+
+/* Voyants de validation des demandes de conge et d'absence. */
+.voyant{display:inline-block;width:14px;height:14px;border-radius:50%;vertical-align:-2px;margin-right:6px;
+  border:1px solid rgba(0,0,0,.18);}
+.voyant.vert{background:radial-gradient(circle at 35% 30%,#b9ffd2,#1fbf5b 55%,#0b7a36);
+  box-shadow:0 0 6px 1px rgba(31,191,91,.65);}
+.voyant.rouge{background:radial-gradient(circle at 35% 30%,#ffc4c4,#e53935 55%,#9e1b1b);
+  box-shadow:0 0 6px 1px rgba(229,57,53,.6);}
+.voyantTexte{font-size:12px;font-weight:600;color:var(--muted);}
+.voyantAttente{color:#E08A00;font-weight:600;font-size:12.5px;}

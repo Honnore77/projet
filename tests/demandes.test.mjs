@@ -5,8 +5,19 @@ import assert from 'node:assert/strict';
 import { db, charger } from './aide.mjs';
 
 const {
-  lendemain, dureeConge, totalAbsence, periodeAuTableau, lignes
+  lendemain, dureeConge, totalAbsence, periodeAuTableau, lignes, etatValidation
 } = await import('../resources/js/core/demandes.js');
+
+test('la validation : oui, non, ou en cours tant que rien n’est décidé', () => {
+  assert.equal(etatValidation({ type: 'conge', validee: 'Oui' }), 'oui');
+  assert.equal(etatValidation({ type: 'conge', validee: 'Non' }), 'non');
+  assert.equal(etatValidation({ type: 'conge' }), 'en cours');
+  assert.equal(etatValidation({ type: 'absence', autorisee: 'OUI' }), 'oui');
+  assert.equal(etatValidation({ type: 'absence', autorisee: 'NON' }), 'non');
+  assert.equal(etatValidation({ type: 'absence', autorisee: '' }), 'en cours');
+  // Le champ de l'autre formulaire ne compte pas.
+  assert.equal(etatValidation({ type: 'conge', autorisee: 'OUI' }), 'en cours');
+});
 
 test('le lendemain change de mois et d’année', () => {
   assert.equal(lendemain('2026-11-21'), '2026-11-22');

@@ -85,6 +85,16 @@ export function periodeAuTableau(d) {
   return { dateDepart: d.dateDebut, dateReprise: retour };
 }
 
+/**
+ * Où en est la décision sur une demande : 'oui', 'non' ou 'en cours'.
+ * La demande d'absence la porte dans « Absence autorisée » (imprimée sur
+ * la fiche), la demande de congé dans « Demande validée ».
+ */
+export function etatValidation(d) {
+  const v = String((d && (d.type === 'absence' ? d.autorisee : d.validee)) || '').toLowerCase();
+  return v === 'oui' ? 'oui' : v === 'non' ? 'non' : 'en cours';
+}
+
 /** Les lignes d'une zone de texte, sans les vides, dans la limite donnée. */
 export function lignes(texte, max) {
   return String(texte || '')
