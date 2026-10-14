@@ -1,7 +1,7 @@
 {
   "name": "pdu-parc-auto",
   "productName": "PDU Parc Auto",
-  "version": "4.3.5",
+  "version": "4.3.6",
   "description": "Gestion du parc automobile du PDU — application Windows autonome (un seul fichier)",
   "author": "PDU",
   "license": "UNLICENSED",
@@ -26,6 +26,7 @@
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.8",
     "jsqr": "^1.4.0",
+    "pdfjs-dist": "^4.10.38",
     "qrcode-generator": "^1.5.2",
     "xlsx-js-style": "^1.2.0"
   },

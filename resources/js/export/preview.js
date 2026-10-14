@@ -49,10 +49,12 @@ export function previewAndSave({ kind, bytes, filename, mime, datasets = [], tit
 
     let objectUrl = null;
 
-    if (kind === 'pdf') {
+    if (kind === 'pdf' && lecteurPdfIntegre()) {
       objectUrl = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
       const cadre = el(`<iframe class="apercuCadre" src="${objectUrl}#toolbar=1&navpanes=0"></iframe>`);
       corps.appendChild(cadre);
+    } else if (kind === 'pdf') {
+      corps.appendChild(pagesPdfNode(bytes));
     } else {
       corps.appendChild(tablesNode(datasets));
     }
@@ -89,6 +91,55 @@ export function previewAndSave({ kind, bytes, filename, mime, datasets = [], tit
       ]
     });
   });
+}
+
+/**
+ * Le PC et les navigateurs de bureau affichent un PDF eux-memes. Le
+ * navigateur integre d'Android, non : un cadre PDF y reste vide.
+ */
+function lecteurPdfIntegre() {
+  if (isDesktop) return true;
+  return typeof navigator !== 'undefined' && navigator.pdfViewerEnabled === true;
+}
+
+/**
+ * Sans lecteur integre, les pages sont dessinees une a une par pdf.js,
+ * charge seulement a ce moment-la : le PC ne le telecharge jamais.
+ */
+function pagesPdfNode(bytes) {
+  const zone = el('<div class="apercuPages"><p class="apercuNote">Préparation de l’aperçu…</p></div>');
+  (async () => {
+    try {
+      const pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      const worker = await import('pdfjs-dist/legacy/build/pdf.worker.min.mjs?url');
+      pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
+      // pdf.js garde le tableau qu'on lui passe : une copie laisse intact
+      // celui qui sera enregistre.
+      const doc = await pdfjs.getDocument({ data: bytes.slice() }).promise;
+      zone.innerHTML = '';
+      // Assez de points pour un texte net, sans saturer la memoire du
+      // telephone sur un long document.
+      const largeur = Math.min(Math.max(zone.clientWidth || 360, 320), 1100);
+      const finesse = Math.min(window.devicePixelRatio || 1, 2);
+      for (let n = 1; n <= doc.numPages; n += 1) {
+        const page = await doc.getPage(n);
+        const base = page.getViewport({ scale: 1 });
+        const vue = page.getViewport({ scale: (largeur / base.width) * finesse });
+        const toile = document.createElement('canvas');
+        toile.width = Math.floor(vue.width);
+        toile.height = Math.floor(vue.height);
+        toile.className = 'apercuPage';
+        zone.appendChild(toile);
+        if (doc.numPages > 1) zone.appendChild(el(`<p class="apercuNumero">Page ${n} / ${doc.numPages}</p>`));
+        await page.render({ canvasContext: toile.getContext('2d'), viewport: vue }).promise;
+      }
+      doc.destroy();
+    } catch (e) {
+      console.error(e);
+      zone.innerHTML = '<p class="apercuNote">L’aperçu n’a pas pu s’afficher. Le fichier peut tout de même être téléchargé.</p>';
+    }
+  })();
+  return zone;
 }
 
 /** Rend les feuilles du classeur sous forme de tableaux. */

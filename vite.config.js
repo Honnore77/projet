@@ -20,6 +20,14 @@ export default defineConfig({
     chunkSizeWarningLimit: 1500,
     rollupOptions: {
       output: {
+        // Le moteur de rendu PDF (pdf.js, pour l'apercu sur Android) arrive
+        // en « .mjs » ; le serveur interne de l'application Android ne
+        // reconnait pas cette extension comme du JavaScript, et refuserait
+        // de le lancer. Il sort donc en « .js ».
+        assetFileNames(info) {
+          const nom = (info.names && info.names[0]) || info.name || '';
+          return nom.endsWith('.mjs') ? 'assets/[name]-[hash].js' : 'assets/[name]-[hash][extname]';
+        },
         // Les trois grosses bibliotheques (Excel, PDF, graphiques) sont
         // isolees : elles ne changent jamais, le cache du navigateur les
         // garde d'une mise a jour a l'autre.

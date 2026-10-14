@@ -22,6 +22,59 @@ export const THEMES = [
 
 const CLE = 'pdu_theme';
 
+/* ------------------------ Taille de l'affichage --------------------- */
+
+const CLE_ZOOM = 'pdu_zoom';
+export const ZOOM_MIN = 70;
+export const ZOOM_MAX = 160;
+export const ZOOM_PAS = 10;
+
+/** La taille d'affichage retenue sur cet appareil, en pour cent. */
+export function zoomActuel() {
+  try {
+    const z = Number(localStorage.getItem(CLE_ZOOM));
+    return z >= ZOOM_MIN && z <= ZOOM_MAX ? z : 100;
+  } catch (e) {
+    return 100;
+  }
+}
+
+/**
+ * Agrandit ou reduit toute l'application, comme le zoom d'un navigateur,
+ * et retient la taille sur cet appareil.
+ */
+export function appliquerZoom(z = zoomActuel()) {
+  const v = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, Math.round(Number(z) / ZOOM_PAS) * ZOOM_PAS || 100));
+  document.documentElement.style.zoom = v === 100 ? '' : String(v / 100);
+  try { localStorage.setItem(CLE_ZOOM, String(v)); } catch (e) { /* la taille vaut pour la session */ }
+  corrigerHauteurEcran();
+  return v;
+}
+
+/**
+ * Sous un zoom, « 100vh » ne vaut plus forcement la hauteur de l'ecran :
+ * selon la version du navigateur, il est agrandi avec le reste. Une
+ * fenetre de formulaire deborderait alors, boutons hors d'atteinte. On
+ * mesure ce que vaut 100vh et on en tire le facteur qui le ramene a
+ * l'ecran (--k-ecran, utilise par la feuille de style).
+ */
+function corrigerHauteurEcran() {
+  const racine = document.documentElement;
+  racine.style.setProperty('--k-ecran', '1');
+  if (!racine.style.zoom || !document.body) return;
+  const sonde = document.createElement('div');
+  sonde.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:100vh;visibility:hidden;pointer-events:none';
+  document.body.appendChild(sonde);
+  const h = sonde.getBoundingClientRect().height;
+  sonde.remove();
+  if (h > 0) racine.style.setProperty('--k-ecran', String(window.innerHeight / h));
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('resize', () => corrigerHauteurEcran());
+  window.addEventListener('DOMContentLoaded', () => corrigerHauteurEcran());
+}
+
 /** Le style retenu sur cet appareil. */
 export function themeActuel() {
   try {

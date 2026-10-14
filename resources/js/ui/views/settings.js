@@ -19,7 +19,7 @@ import {
 } from '../components.js';
 import { rerender } from '../shell.js';
 import { renderSynchroSection } from './synchroUI.js';
-import { THEMES, themeActuel, appliquerTheme } from '../theme.js';
+import { THEMES, themeActuel, appliquerTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS } from '../theme.js';
 
 export function renderSettings(page) {
   if (!canAdmin()) {
@@ -75,6 +75,32 @@ function renderApparenceSection(page) {
   });
   bloc.appendChild(grille);
   page.appendChild(bloc);
+
+  // Taille de l'affichage : tout l'ecran grossit ou rapetisse d'un cran.
+  const taille = document.createElement('div');
+  taille.className = 'card';
+  taille.innerHTML =
+    '<h3>TAILLE DE L’AFFICHAGE</h3>' +
+    '<p>Agrandit ou réduit toute l’application sur cet appareil. Sur téléphone, on peut aussi zoomer ' +
+    'à deux doigts, comme sur une photo.</p>' +
+    '<div class="zoomBarre">' +
+    '<button type="button" class="zoomBtn" data-moins aria-label="Réduire">−</button>' +
+    '<b class="zoomValeur"></b>' +
+    '<button type="button" class="zoomBtn" data-plus aria-label="Agrandir">+</button>' +
+    '<button type="button" class="smallBtn" data-normal>Taille normale</button>' +
+    '</div>';
+  const valeur = taille.querySelector('.zoomValeur');
+  const afficher = (z) => {
+    valeur.textContent = `${z} %`;
+    taille.querySelector('[data-moins]').disabled = z <= ZOOM_MIN;
+    taille.querySelector('[data-plus]').disabled = z >= ZOOM_MAX;
+  };
+  const regler = (z) => afficher(appliquerZoom(z));
+  taille.querySelector('[data-moins]').addEventListener('click', () => regler(zoomActuel() - ZOOM_PAS));
+  taille.querySelector('[data-plus]').addEventListener('click', () => regler(zoomActuel() + ZOOM_PAS));
+  taille.querySelector('[data-normal]').addEventListener('click', () => regler(100));
+  afficher(zoomActuel());
+  page.appendChild(taille);
 }
 
 /* ------------------- Sauvegarde automatique datee ------------------ */
