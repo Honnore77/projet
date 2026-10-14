@@ -19,7 +19,8 @@ import {
   renommerAgentDansIndisponibilites, nomsUtilisateurs
 } from '../../core/db.js';
 import {
-  TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau, etatValidation
+  TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau, etatValidation,
+  validationAbsence, decisionPourDemande, MOTIFS_SANS_VALIDATION
 } from '../../core/demandes.js';
 import { exporterDemande } from '../../export/demandes.js';
 import { urlImage } from '../../core/images.js';
@@ -392,7 +393,7 @@ function renderTableauAbsences(page) {
     return;
   }
 
-  const headers = ['Conducteur', 'Motif', 'Date de départ', 'Date de reprise', 'Durée', 'Intérimaire', 'État', 'Justificatif', ''];
+  const headers = ['Conducteur', 'Motif', 'Date de départ', 'Date de reprise', 'Durée', 'Intérimaire', 'État', 'Validation', 'Justificatif', ''];
   const rows = list.map((i) => {
     const d = dureeIndisponibilite(i.dateDepart, i.dateReprise);
     const etat = etatIndisponibilite(i, jour);
@@ -404,13 +405,15 @@ function renderTableauAbsences(page) {
       `<span style="display:block;text-align:right;white-space:nowrap">${d === null ? '—' : `${fmt(d)} j`}</span>`,
       esc(i.interimaire || '—'),
       etat ? `<span class="badge" style="background:${COULEUR_ETAT[etat]}">${esc(etat)}</span>` : '',
+      `<span style="white-space:nowrap">${voyantValidation(validationAbsence(i, DB.demandes || []))}</span>`,
       (i.images || []).length
         ? `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-photo>📎 ${(i.images || []).length}</button>`
         : '<span style="color:#8aa0a6">—</span>',
-      canWrite()
-        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+      `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche</button>` +
+      (canWrite()
+        ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
           `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
-        : ''
+        : '')
     ];
   });
 
@@ -418,10 +421,13 @@ function renderTableauAbsences(page) {
     dataTable(headers, rows, (tr, k) => {
       const i = list[k];
       tr.dataset.search = norm(`${i.conducteur} ${i.motif} ${i.interimaire} ${i.dateDepart} ${i.dateReprise}`);
+      tr.querySelector('[data-fiche]').onclick = () => openFicheIndisponibilite(i);
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openIndisponibiliteForm(i);
+      // Le justificatif se consulte sur la fiche : un agent en lecture seule
+      // le voit aussi.
       const ph = tr.querySelector('[data-photo]');
-      if (ph) ph.onclick = () => openIndisponibiliteForm(i);
+      if (ph) ph.onclick = () => openFicheIndisponibilite(i);
       const del = tr.querySelector('[data-del]');
       if (del) {
         del.onclick = async () => {
@@ -457,9 +463,34 @@ function indisponibiliteFields(i = {}) {
       options: nomsUtilisateurs().slice().sort((a, b) => a.localeCompare(b, 'fr')),
       emptyLabel: '— aucun —', addLabel: 'Autre personne',
       hint: 'Agent qui assure le remplacement pendant l’absence' },
+    { key: 'validee', label: 'Validation', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
+      options: ['Oui', 'Non'], value: valeurValidation(i),
+      hint: demandeDeLAbsence(i)
+        ? 'Reprise de la demande liée, et reportée sur elle si vous la changez ici'
+        : 'Sans objet pour un repos maladie' },
     { key: 'images', label: 'Ajout d’image', type: 'images', full: true, value: i.images,
       hint: 'Titre de congé, autorisation de permission, certificat médical (JPEG ou PNG)' }
   ];
+}
+
+/** La demande dont une absence du tableau est issue, s'il y en a une. */
+function demandeDeLAbsence(i) {
+  if (!i || !i.id) return null;
+  return (DB.demandes || []).find((x) => x.id === i.demandeId || (x.indispoId && x.indispoId === i.id)) || null;
+}
+
+/** La decision d'une absence, telle que la liste « Validation » l'affiche. */
+function valeurValidation(i) {
+  const v = validationAbsence(i, DB.demandes || []);
+  return v === 'oui' ? 'Oui' : v === 'non' ? 'Non' : '';
+}
+
+/** Voyant de validation, ou mention quand rien n'est decide ou a decider. */
+function voyantValidation(v) {
+  if (v === 'oui') return '<span class="voyant vert" title="Validée"></span><span class="voyantTexte">Validée</span>';
+  if (v === 'non') return '<span class="voyant rouge" title="Refusée"></span><span class="voyantTexte">Refusée</span>';
+  if (v === 'non soumis') return '<span class="voyantTexte">Non soumis</span>';
+  return '<em class="voyantAttente">En cours…</em>';
 }
 
 function openIndisponibiliteForm(i) {
@@ -472,6 +503,13 @@ function openIndisponibiliteForm(i) {
       const d = dureeIndisponibilite(values.dateDepart, values.dateReprise);
       const n = scope.querySelector('[data-key="duree"]');
       if (n) n.value = d === null ? '—' : d < 1 ? 'reprise à corriger' : `${d} jour(s)`;
+      // Un repos maladie ne se valide pas : la liste se vide et se fige.
+      const v = scope.querySelector('[data-key="validee"]');
+      if (v) {
+        const sans = MOTIFS_SANS_VALIDATION.includes(values.motif);
+        if (sans) v.value = '';
+        v.disabled = sans;
+      }
     },
     onSubmit: (values) => {
       const conducteur = String(values.conducteur || '').trim();
@@ -490,8 +528,14 @@ function openIndisponibiliteForm(i) {
         dateReprise: values.dateReprise,
         duree: d,
         interimaire,
+        validee: MOTIFS_SANS_VALIDATION.includes(values.motif) ? '' : values.validee || '',
         images: values.images
       };
+      // La decision suit la demande liee : les deux tableaux disent la meme chose.
+      const demande = isEdit ? demandeDeLAbsence(i) : null;
+      if (demande && !MOTIFS_SANS_VALIDATION.includes(values.motif)) {
+        update('demandes', demande.id, decisionPourDemande(demande, payload.validee));
+      }
       if (isEdit) update('indisponibilites', i.id, payload);
       else insert('indisponibilites', Object.assign({ createdAt: new Date().toISOString() }, payload));
       toast(isEdit ? 'Indisponibilité mise à jour.' : 'Indisponibilité enregistrée.', 'ok');
@@ -648,6 +692,50 @@ function openFicheDemande(d) {
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
       { label: '📄 Imprimé PDF', cls: 'ok', onClick: () => exporterImprime(d) },
       ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openDemandeForm(d.type, d); } }] : [])
+    ]
+  });
+}
+
+/**
+ * La fiche d'une absence du tableau : periode, interimaire, etat, la
+ * demande dont elle vient s'il y en a une, et le justificatif.
+ */
+function openFicheIndisponibilite(i) {
+  const etat = etatIndisponibilite(i, todayISO());
+  const d = dureeIndisponibilite(i.dateDepart, i.dateReprise);
+  const demande = (DB.demandes || []).find((x) => x.id === i.demandeId || (x.indispoId && x.indispoId === i.id)) || null;
+  const lignes = [
+    ['Conducteur', i.conducteur], ['Motif', i.motif],
+    ['Date de départ', dateFR(i.dateDepart)], ['Date de reprise', dateFR(i.dateReprise)],
+    ['Durée', d === null ? '' : `${fmt(d)} jour${d > 1 ? 's' : ''}`], ['Intérimaire', i.interimaire],
+    ['Tour de rôle', etat === 'en cours' ? 'Hors du tour de rôle jusqu’à la reprise' : etat === 'à venir' ? 'Sortira du tour de rôle au départ' : 'De retour dans le tour de rôle'],
+    ['Demande liée', demande ? `${TYPES_DEMANDE[demande.type] || 'Demande'} du ${dateFR(demande.dateDemande)}` : '']
+  ];
+  const validation = voyantValidation(validationAbsence(i, DB.demandes || []));
+  const couleur = COULEUR_MOTIF[i.motif] || COLORS.purple;
+  const corps = el(
+    '<div class="ficheDemande">' +
+      `<div class="ficheDemandeTete" style="border-color:${couleur}">` +
+        `<span class="badge" style="background:${couleur}">${esc(i.motif || 'Absence')}</span>` +
+        `<b>${esc(i.conducteur || '')}</b>` +
+        (etat ? `<span class="ficheDemandeDecision"><span class="badge" style="background:${COULEUR_ETAT[etat]}">${esc(etat)}</span></span>` : '') +
+      '</div>' +
+      '<dl class="ficheDemandeGrille">' +
+        lignes.map(([k, v]) => `<div><dt>${esc(k)}</dt><dd>${v ? esc(String(v)) : '<span class="vide">—</span>'}</dd></div>`).join('') +
+        `<div><dt>Validation</dt><dd>${validation}</dd></div>` +
+      '</dl>' +
+      `<h4 class="ficheDemandeTitre">JUSTIFICATIF (${(i.images || []).length})</h4>` +
+    '</div>'
+  );
+  corps.appendChild(galerieDemande(i.images || []));
+
+  openModal({
+    title: `Absence — ${i.conducteur || ''}`,
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
+      ...(demande ? [{ label: '📋 Voir la demande', cls: 'ok', onClick: (close) => { close(); openFicheDemande(demande); } }] : []),
+      ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openIndisponibiliteForm(i); } }] : [])
     ]
   });
 }

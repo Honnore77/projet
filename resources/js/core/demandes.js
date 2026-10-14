@@ -95,6 +95,33 @@ export function etatValidation(d) {
   return v === 'oui' ? 'oui' : v === 'non' ? 'non' : 'en cours';
 }
 
+/** Motifs d'absence qui ne se soumettent pas a validation. */
+export const MOTIFS_SANS_VALIDATION = ['Repos maladie'];
+
+/**
+ * La décision sur une absence du tableau : 'oui', 'non', 'en cours', ou
+ * 'non soumis' pour un repos maladie. Une absence née d'une demande prend
+ * la décision de sa demande ; une absence saisie à la main porte la sienne.
+ */
+export function validationAbsence(i, demandes = []) {
+  if (!i) return 'en cours';
+  if (MOTIFS_SANS_VALIDATION.includes(i.motif)) return 'non soumis';
+  const d = demandes.find((x) => x.id === i.demandeId || (x.indispoId && x.indispoId === i.id));
+  if (d) return etatValidation(d);
+  const v = String(i.validee || '').toLowerCase();
+  return v === 'oui' ? 'oui' : v === 'non' ? 'non' : 'en cours';
+}
+
+/**
+ * Ce qu'il faut écrire sur la demande pour qu'elle porte la décision
+ * saisie sur son absence : « Demande validée » ou « Absence autorisée ».
+ */
+export function decisionPourDemande(d, validee) {
+  const v = validee === 'Oui' ? 'oui' : validee === 'Non' ? 'non' : '';
+  if (d.type === 'absence') return { autorisee: v === 'oui' ? 'OUI' : v === 'non' ? 'NON' : '' };
+  return { validee: v === 'oui' ? 'Oui' : v === 'non' ? 'Non' : '' };
+}
+
 /** Les lignes d'une zone de texte, sans les vides, dans la limite donnée. */
 export function lignes(texte, max) {
   return String(texte || '')

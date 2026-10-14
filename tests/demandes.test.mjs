@@ -5,8 +5,28 @@ import assert from 'node:assert/strict';
 import { db, charger } from './aide.mjs';
 
 const {
-  lendemain, dureeConge, totalAbsence, periodeAuTableau, lignes, etatValidation
+  lendemain, dureeConge, totalAbsence, periodeAuTableau, lignes, etatValidation,
+  validationAbsence, decisionPourDemande
 } = await import('../resources/js/core/demandes.js');
+
+test('le repos maladie n’est pas soumis à validation', () => {
+  assert.equal(validationAbsence({ motif: 'Repos maladie', validee: 'Oui' }), 'non soumis');
+  assert.equal(validationAbsence({ motif: 'En congé', validee: 'Oui' }), 'oui');
+  assert.equal(validationAbsence({ motif: 'Permissionnaire', validee: 'Non' }), 'non');
+  assert.equal(validationAbsence({ motif: 'En congé' }), 'en cours');
+});
+
+test('une absence issue d’une demande prend la décision de la demande', () => {
+  const demandes = [
+    { id: 'd1', type: 'conge', indispoId: 'i1', validee: 'Oui' },
+    { id: 'd2', type: 'absence', autorisee: 'NON' }
+  ];
+  assert.equal(validationAbsence({ id: 'i1', motif: 'En congé', validee: 'Non' }, demandes), 'oui');
+  assert.equal(validationAbsence({ id: 'i2', demandeId: 'd2', motif: 'Permissionnaire' }, demandes), 'non');
+  assert.deepEqual(decisionPourDemande({ type: 'conge' }, 'Non'), { validee: 'Non' });
+  assert.deepEqual(decisionPourDemande({ type: 'absence' }, 'Oui'), { autorisee: 'OUI' });
+  assert.deepEqual(decisionPourDemande({ type: 'absence' }, ''), { autorisee: '' });
+});
 
 test('la validation : oui, non, ou en cours tant que rien n’est décidé', () => {
   assert.equal(etatValidation({ type: 'conge', validee: 'Oui' }), 'oui');
