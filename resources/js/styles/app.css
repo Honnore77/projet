@@ -412,3 +412,112 @@ td.celluleManquante{display:table-cell;border-radius:0;}
 
 /* Mention de lieu et de date, telle qu'elle ferme le fichier */
 .apercuMention{margin:2px 2px 14px;text-align:right;font-size:12px;font-style:italic;color:#5b7178;}
+
+/* ===================================================================
+   ÉCLAT — finition lumineuse.
+
+   La mise en page et les couleurs de chaque rubrique ne changent pas :
+   cette couche ajoute de la lumiere par-dessus — fond plus clair, ombres
+   douces, reflets sur les boutons, survols. Elle ne fait que surcharger
+   les regles precedentes ; la retirer rend l'interface d'avant.
+   =================================================================== */
+:root{
+  --bg:#f3f8f6;
+  --shadow:0 1px 2px rgba(16,60,40,.05), 0 4px 16px rgba(16,60,40,.07);
+  --shadow-hover:0 2px 4px rgba(16,60,40,.06), 0 10px 26px rgba(16,60,40,.12);
+  --reflet:inset 0 1px 0 rgba(255,255,255,.38);
+  --doux:.16s ease;
+}
+html,body{
+  background:
+    radial-gradient(1200px 600px at 85% -10%, rgba(0,166,80,.10), transparent 60%),
+    radial-gradient(900px 500px at -10% 110%, rgba(244,123,32,.08), transparent 60%),
+    var(--bg);
+  background-attachment:fixed;
+}
+
+/* En-tete : blanc lumineux, souligne d'un filet aux couleurs du logo. */
+header.top{background:linear-gradient(180deg,#ffffff,#fbfdfc);position:relative;
+  box-shadow:0 2px 12px rgba(16,60,40,.08);}
+header.top::after{content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+  background:linear-gradient(90deg,#00A650 0%,#00A650 55%,#F47B20 55%,#F9A24F 100%);}
+header.top h2{background:linear-gradient(90deg,#007A34,#00A650);-webkit-background-clip:text;
+  background-clip:text;color:transparent;}
+#logoutBtn{background:linear-gradient(180deg,#ef5350,#d32f2f);box-shadow:var(--reflet),0 3px 10px rgba(211,47,47,.28);
+  transition:transform var(--doux),box-shadow var(--doux);}
+#logoutBtn:hover{transform:translateY(-1px);box-shadow:var(--reflet),0 6px 16px rgba(211,47,47,.35);}
+
+/* Barre de recherche */
+.searchWrap input{border:1px solid rgba(255,255,255,.9);box-shadow:var(--shadow);transition:box-shadow var(--doux);}
+.searchWrap input:focus{box-shadow:0 0 0 3px rgba(0,166,80,.18),var(--shadow-hover);}
+
+/* Menu : colonne blanche, rubrique active qui brille dans sa couleur. */
+nav.tabs{background:linear-gradient(180deg,rgba(255,255,255,.96),rgba(250,253,252,.96));}
+.tab{transition:background var(--doux),color var(--doux),transform var(--doux),box-shadow var(--doux);}
+.tab:hover{transform:translateX(2px);}
+.tab.active{background:linear-gradient(135deg,color-mix(in srgb,var(--tabColor,#008A3B) 82%,#fff),var(--tabColor,#008A3B));
+  box-shadow:var(--reflet),0 6px 16px color-mix(in srgb,var(--tabColor,#008A3B) 38%,transparent);}
+
+/* Cartes, chiffres cles, tableaux, graphiques : blancs nets, ombres douces. */
+.card,.stat,.entry,.chartCard,.tableWrap,.alertItem{
+  border-radius:16px;box-shadow:var(--shadow);
+  background:linear-gradient(180deg,#ffffff,#fdfefe);
+  outline:1px solid rgba(255,255,255,.7);outline-offset:-1px;}
+.stat,.chartCard,.alertItem{transition:transform var(--doux),box-shadow var(--doux);}
+.stat:hover,.chartCard:hover,.alertItem:hover{transform:translateY(-2px);box-shadow:var(--shadow-hover);}
+.stat .v{letter-spacing:-.3px;text-shadow:0 1px 0 rgba(255,255,255,.6);}
+.card h3{letter-spacing:.4px;}
+
+.groupHeader{background:linear-gradient(180deg,#eef5f2,#e6efec);box-shadow:inset 0 1px 0 #fff;}
+.subBlock{background:linear-gradient(180deg,#f8fbfa,#f3f8f6);border:1px solid #e7efec;}
+
+/* Boutons : reflet sur le haut, leger soulevement au survol. */
+.toolbar button,.miniBtn,.modal .foot .ok,.modal .foot .danger,.globalBtn,.cxBouton{
+  box-shadow:var(--reflet),0 2px 6px rgba(16,60,40,.14);
+  transition:transform var(--doux),box-shadow var(--doux),filter var(--doux);}
+.toolbar button:hover,.miniBtn:hover,.modal .foot .ok:hover,.modal .foot .danger:hover,.globalBtn:hover,.cxBouton:hover{
+  transform:translateY(-1px);filter:brightness(1.07) saturate(1.08);
+  box-shadow:var(--reflet),0 6px 14px rgba(16,60,40,.2);}
+.toolbar button:active,.miniBtn:active,.modal .foot button:active{transform:translateY(0);filter:brightness(.97);}
+.cxBouton{background:linear-gradient(180deg,#00a650,#007a34);}
+.modal .foot .ok{background:linear-gradient(180deg,#00a650,#008A3B);}
+.modal .foot .cancel{background:linear-gradient(180deg,#f4f8f7,#e9f0ee);}
+
+/* Sous-rubriques : pastilles, l'active en relief. */
+.subtab{border-radius:999px;transition:transform var(--doux),box-shadow var(--doux),filter var(--doux);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.6);}
+.subtab:hover{transform:translateY(-1px);filter:brightness(1.04);}
+
+/* Tableaux : en-tete vert lumineux, ligne survolee eclairee. */
+table.dataTable th{background:linear-gradient(180deg,#0aa954,#008A3B);text-shadow:0 1px 0 rgba(0,0,0,.12);}
+table.dataTable tbody tr{transition:background var(--doux);}
+table.dataTable tbody tr:hover{background:#eefaf3;}
+.badge{box-shadow:inset 0 1px 0 rgba(255,255,255,.3),0 1px 3px rgba(0,0,0,.12);}
+
+/* Champs : halo vert a la saisie. */
+.fRow input,.fRow select,.fRow textarea,.filterBar input,.filterBar select{
+  transition:border-color var(--doux),box-shadow var(--doux);}
+.fRow input:focus,.fRow select:focus,.fRow textarea:focus,.filterBar input:focus,.filterBar select:focus{
+  border-color:#00a650;box-shadow:0 0 0 4px rgba(0,166,80,.14);}
+
+/* Fenetres : en-tete lumineux, ombre profonde. */
+.modal{box-shadow:0 24px 60px rgba(10,40,30,.28);}
+.modal header{background:linear-gradient(180deg,#ffffff,#f7fbf9);}
+.modal header h3{background:linear-gradient(90deg,#007A34,#00A650);-webkit-background-clip:text;
+  background-clip:text;color:transparent;}
+
+/* Messages : un peu de profondeur. */
+.toast{box-shadow:var(--reflet),0 10px 30px rgba(0,0,0,.22);}
+.toast.ok{background:linear-gradient(180deg,#0aa954,#008A3B);}
+.toast.err{background:linear-gradient(180deg,#ef5350,#d32f2f);}
+.toast.info{background:linear-gradient(180deg,#2196f3,#1976D2);}
+
+/* Connexion : badge et bouton lumineux. */
+.cxBadge{background:radial-gradient(circle at 35% 30%,#ffffff,#dff3e8 70%);
+  box-shadow:0 6px 18px rgba(0,138,59,.18);}
+
+/* Moins de mouvement si Windows ou Android le demande. */
+@media (prefers-reduced-motion:reduce){
+  .tab,.stat,.chartCard,.alertItem,.toolbar button,.miniBtn,.subtab,.modal .foot button,#logoutBtn{transition:none;}
+  .tab:hover,.stat:hover,.chartCard:hover,.alertItem:hover,.toolbar button:hover,.miniBtn:hover,.subtab:hover,#logoutBtn:hover{transform:none;}
+}
