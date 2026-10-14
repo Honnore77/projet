@@ -16,6 +16,7 @@ import apercuTableau from '../styles/decor/tableau-gauche.svg';
 import apercuLumiereBleue from '../styles/decor/lumiere-bleue.svg';
 import apercuLumierePdu from '../styles/decor/lumiere-pdu.svg';
 import apercuFondCristal from '../styles/decor/fond-cristal.svg';
+import photoCampus from '../styles/decor/photo-campus.jpg';
 import apercuFondCadres from '../styles/decor/fond-cadres.svg';
 import apercuFondEclats from '../styles/decor/fond-eclats.svg';
 import apercuFondSoie from '../styles/decor/fond-soie.svg';
@@ -41,6 +42,7 @@ export const DECORS = [
   { id: 'tableau', nom: 'Tableau de bord', detail: 'Compteur, volant, pompe et clé : l’univers du parc, en trait fin.', apercu: apercuTableau },
   { id: 'lumiere-bleue', nom: 'Lumière bleue', detail: 'Toute la page : rubans de lumière, étincelles et bulles, en bleu.', apercu: apercuLumiereBleue, plein: true },
   { id: 'lumiere-pdu', nom: 'Lumière PDU', detail: 'Toute la page : rubans de lumière aux couleurs vert et orange du PDU.', apercu: apercuLumierePdu, plein: true },
+  { id: 'photo-campus', nom: 'Campus (photo)', detail: 'Toute la page : photo du campus universitaire.', apercu: photoCampus, plein: true },
   { id: 'fond-cristal', nom: 'Cristal', detail: 'Carrés blancs en relief sur gris clair : sobre et élégant.', apercu: apercuFondCristal, plein: true },
   { id: 'fond-cadres', nom: 'Cadres PDU', detail: 'Cadres en diagonale, orange et vert du PDU, sur fond clair.', apercu: apercuFondCadres, plein: true },
   { id: 'fond-eclats', nom: 'Éclats', detail: 'Triangles en relief, blancs, orange et verts, sur fond clair.', apercu: apercuFondEclats, plein: true },
@@ -60,9 +62,14 @@ export function decorPleinePage(id) {
 }
 
 /** Le decor retenu sur cet appareil (vide : sans decor). */
+/** Le fond tant que l'appareil n'en a choisi aucun. */
+export const DECOR_PAR_DEFAUT = 'photo-campus';
+
 export function decorActuel() {
   try {
-    const d = localStorage.getItem(CLE_DECOR) || '';
+    const d = localStorage.getItem(CLE_DECOR);
+    // Jamais choisi : le fond par defaut. « Sans décor » choisi : rien.
+    if (d === null) return DECOR_PAR_DEFAUT;
     return DECORS.some((x) => x.id === d) ? d : '';
   } catch (e) {
     return '';

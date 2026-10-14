@@ -913,3 +913,6 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 .themeCarte .apercuMarque{display:none;color:#F47B20;}
 .themeCarte.apercu{border-color:#F47B20;box-shadow:0 0 0 3px rgba(244,123,32,.25);}
 .themeCarte.apercu .apercuMarque{display:inline;}
+
+/* Fond photo : le campus universitaire, sur toute la page. */
+#login[data-decor="photo-campus"]{background-color:#8fa79a;background-image:url('./decor/photo-campus.jpg');background-position:center 60%;}
