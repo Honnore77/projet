@@ -19,6 +19,14 @@ import apercuTableau from '../styles/decor/tableau-gauche.svg';
 import apercuCampus from '../styles/decor/campus-gauche.svg';
 import apercuLumiereBleue from '../styles/decor/lumiere-bleue.svg';
 import apercuLumierePdu from '../styles/decor/lumiere-pdu.svg';
+import apercuFondCristal from '../styles/decor/fond-cristal.svg';
+import apercuFondCadres from '../styles/decor/fond-cadres.svg';
+import apercuFondEclats from '../styles/decor/fond-eclats.svg';
+import apercuFondSoie from '../styles/decor/fond-soie.svg';
+import apercuFondFaisceaux from '../styles/decor/fond-faisceaux.svg';
+import apercuFondAurore from '../styles/decor/fond-aurore.svg';
+import apercuFondEau from '../styles/decor/fond-eau.svg';
+import apercuFondPrismes from '../styles/decor/fond-prismes.svg';
 
 export const THEMES = [
   { id: 'classique', nom: 'Lumineux 3D', detail: 'L’interface actuelle : lumineuse, avec relief.', apercu: ['#ffffff', '#008A3B', '#F47B20', '#f3f8f6'] },
@@ -39,11 +47,25 @@ export const DECORS = [
   { id: 'vagues', nom: 'Vagues', detail: 'Orange, blanc, vert : les couleurs du drapeau en ondes douces.', apercu: apercuVagues },
   { id: 'tableau', nom: 'Tableau de bord', detail: 'Compteur, volant, pompe et clé : l’univers du parc, en trait fin.', apercu: apercuTableau },
   { id: 'campus', nom: 'Campus', detail: 'Université, palmiers et soleil : l’esprit du PDU.', apercu: apercuCampus },
-  { id: 'lumiere-bleue', nom: 'Lumière bleue', detail: 'Toute la page : rubans de lumière, étincelles et bulles, en bleu.', apercu: apercuLumiereBleue },
-  { id: 'lumiere-pdu', nom: 'Lumière PDU', detail: 'Toute la page : rubans de lumière aux couleurs vert et orange du PDU.', apercu: apercuLumierePdu }
+  { id: 'lumiere-bleue', nom: 'Lumière bleue', detail: 'Toute la page : rubans de lumière, étincelles et bulles, en bleu.', apercu: apercuLumiereBleue, plein: true },
+  { id: 'lumiere-pdu', nom: 'Lumière PDU', detail: 'Toute la page : rubans de lumière aux couleurs vert et orange du PDU.', apercu: apercuLumierePdu, plein: true },
+  { id: 'fond-cristal', nom: 'Cristal', detail: 'Carrés blancs en relief sur gris clair : sobre et élégant.', apercu: apercuFondCristal, plein: true },
+  { id: 'fond-cadres', nom: 'Cadres PDU', detail: 'Cadres en diagonale, orange et vert du PDU, sur fond clair.', apercu: apercuFondCadres, plein: true },
+  { id: 'fond-eclats', nom: 'Éclats', detail: 'Triangles en relief, blancs, orange et verts, sur fond clair.', apercu: apercuFondEclats, plein: true },
+  { id: 'fond-soie', nom: 'Soie bleue', detail: 'Voiles bleus soyeux traversés de fils de lumière.', apercu: apercuFondSoie, plein: true },
+  { id: 'fond-faisceaux', nom: 'Faisceaux', detail: 'Plans de lumière bleue sur fond nuit.', apercu: apercuFondFaisceaux, plein: true },
+  { id: 'fond-aurore', nom: 'Aurore', detail: 'Vague rose, poussière dorée et bulles de lumière.', apercu: apercuFondAurore, plein: true },
+  { id: 'fond-eau', nom: 'Eau scintillante', detail: 'Eau irisée et bulles de lumière, tons pastel.', apercu: apercuFondEau, plein: true },
+  { id: 'fond-prismes', nom: 'Prismes', detail: 'Triangles translucides en haut et en bas, fond clair.', apercu: apercuFondPrismes, plein: true }
 ];
 
 const CLE_DECOR = 'pdu_decor_connexion';
+
+/** Un fond qui couvre toute la page de connexion (et pas seulement ses cotes). */
+export function decorPleinePage(id) {
+  const d = DECORS.find((x) => x.id === id);
+  return !!(d && d.plein);
+}
 
 /** Le decor retenu sur cet appareil (vide : sans decor). */
 export function decorActuel() {

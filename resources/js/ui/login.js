@@ -6,7 +6,7 @@ import { el, esc } from '../core/utils.js';
 import { login, inscrire } from '../core/auth.js';
 import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
-import { decorActuel } from './theme.js';
+import { decorActuel, decorPleinePage } from './theme.js';
 
 const logoUrl = './logo-pdu.png';
 const armoiriesUrl = './armoiries-ci.png';
@@ -48,7 +48,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
 
   root.innerHTML = '';
   const screen = el(`
-    <div id="login"${decorActuel() ? ` data-decor="${decorActuel()}"` : ''}>
+    <div id="login"${decorActuel() ? ` data-decor="${decorActuel()}"` : ''}${decorPleinePage(decorActuel()) ? ' data-plein' : ''}>
       <header class="cxEntete">
         <img class="cxLogo" src="${logoUrl}" alt="Programme de Décentralisation des Universités">
         <div class="cxTitre">

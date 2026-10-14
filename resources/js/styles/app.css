@@ -886,18 +886,32 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 /* Fonds « Lumière » : toute la page de connexion, sur tous les ecrans.
    En-tete et pied deviennent translucides ; le formulaire reste une carte
    blanche, lisible sur le fond. */
-#login[data-decor^="lumiere"]{background-color:#3f86d6;background-position:center;background-size:cover;background-repeat:no-repeat;}
+#login[data-plein]{background-color:#3f86d6;background-position:center;background-size:cover;background-repeat:no-repeat;}
 #login[data-decor="lumiere-bleue"]{background-image:url('./decor/lumiere-bleue.svg');}
 #login[data-decor="lumiere-pdu"]{background-color:#049447;background-image:url('./decor/lumiere-pdu.svg');}
-#login[data-decor^="lumiere"] .cxEntete{background:rgba(255,255,255,.86);
+#login[data-plein] .cxEntete{background:rgba(255,255,255,.86);
   -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 2px 14px rgba(0,0,0,.08);}
-#login[data-decor^="lumiere"] .cxCorps{background:rgba(255,255,255,.96);border-radius:24px;margin:18px auto;
+#login[data-plein] .cxCorps{background:rgba(255,255,255,.96);border-radius:24px;margin:18px auto;
   box-shadow:0 24px 60px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.08);}
-#login[data-decor^="lumiere"] .cxIllustration{background:transparent;}
-#login[data-decor^="lumiere"] .cxPied{background:rgba(255,255,255,.8);}
+#login[data-plein] .cxIllustration{background:transparent;}
+#login[data-plein] .cxPied{background:rgba(255,255,255,.8);}
 @media (max-width:899px){
-  #login[data-decor^="lumiere"] .cxCorps{width:calc(100% - 24px);}
+  #login[data-plein] .cxCorps{width:calc(100% - 24px);}
 }
-html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxEntete,
-html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxPied{background:rgba(15,26,30,.85);}
-html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxCorps{background:rgba(15,26,30,.94);}
+html[data-theme="sombre"] #login[data-plein] .cxEntete,
+html[data-theme="sombre"] #login[data-plein] .cxPied{background:rgba(15,26,30,.85);}
+html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.94);}
+#login[data-decor="fond-cristal"]{background-image:url('./decor/fond-cristal.svg');}
+#login[data-decor="fond-cadres"]{background-image:url('./decor/fond-cadres.svg');}
+#login[data-decor="fond-eclats"]{background-image:url('./decor/fond-eclats.svg');}
+#login[data-decor="fond-soie"]{background-image:url('./decor/fond-soie.svg');}
+#login[data-decor="fond-faisceaux"]{background-image:url('./decor/fond-faisceaux.svg');}
+#login[data-decor="fond-aurore"]{background-image:url('./decor/fond-aurore.svg');}
+#login[data-decor="fond-eau"]{background-image:url('./decor/fond-eau.svg');}
+#login[data-decor="fond-prismes"]{background-image:url('./decor/fond-prismes.svg');}
+/* Fonds clairs : couleur de secours et pied plus discret. */
+#login[data-decor="fond-cristal"],#login[data-decor="fond-cadres"],#login[data-decor="fond-eclats"],#login[data-decor="fond-prismes"]{background-color:#eceef0;}
+#login[data-decor="fond-soie"]{background-color:#1146d8;}
+#login[data-decor="fond-faisceaux"]{background-color:#062c62;}
+#login[data-decor="fond-aurore"]{background-color:#5a2a6e;}
+#login[data-decor="fond-eau"]{background-color:#b7e2ea;}
