@@ -420,6 +420,8 @@ export function fichesAImages(db = DB) {
     ...(db.decharges || []),
     // Le justificatif d'une indisponibilite : titre de conge, certificat.
     ...(db.indisponibilites || []),
+    // Les pieces jointes d'une demande de conge ou d'absence.
+    ...(db.demandes || []),
     // Les sous-fiches comptent autant que les autres : une image citee par
     // une intervention ou un incident, mais absente d'ici, serait tenue pour
     // orpheline et effacee au demarrage suivant — et elle manquerait a

@@ -22,6 +22,7 @@ import {
   TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau, etatValidation
 } from '../../core/demandes.js';
 import { exporterDemande } from '../../export/demandes.js';
+import { urlImage } from '../../core/images.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
@@ -548,6 +549,7 @@ function renderDemandes(page) {
       esc(dateFR(d.dateDemande)),
       `<span style="white-space:nowrap">${validation}</span>`,
       auTableau ? '✓' : '<span style="color:#8aa0a6">—</span>',
+      `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche${(d.images || []).length ? ` 📎${(d.images || []).length}` : ''}</button> ` +
       `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-pdf title="Exporter l’imprimé">📄 PDF</button> ` +
       (canWrite()
         ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
@@ -560,15 +562,8 @@ function renderDemandes(page) {
     dataTable(headers, rows, (tr, k) => {
       const d = list[k];
       tr.dataset.search = norm(`${d.agent} ${d.nomPrenoms} ${d.nom} ${d.prenoms} ${TYPES_DEMANDE[d.type]} ${d.dateDebut}`);
-      tr.querySelector('[data-pdf]').onclick = async () => {
-        try {
-          const res = await exporterDemande(d);
-          if (res) toast('Export terminé.', 'ok');
-        } catch (e) {
-          console.error(e);
-          toast("L'export a échoué.", 'err');
-        }
-      };
+      tr.querySelector('[data-fiche]').onclick = () => openFicheDemande(d);
+      tr.querySelector('[data-pdf]').onclick = () => exporterImprime(d);
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openDemandeForm(d.type, d);
       const del = tr.querySelector('[data-del]');
@@ -588,6 +583,105 @@ function renderDemandes(page) {
       }
     })
   );
+}
+
+async function exporterImprime(d) {
+  try {
+    const res = await exporterDemande(d);
+    if (res) toast('Export terminé.', 'ok');
+  } catch (e) {
+    console.error(e);
+    toast("L'export a échoué.", 'err');
+  }
+}
+
+/**
+ * La fiche d'une demande : tout ce qu'elle contient, sa decision et ses
+ * images, en consultation. L'imprime s'exporte et la demande se modifie
+ * depuis la fiche.
+ */
+function openFicheDemande(d) {
+  const conge = d.type === 'conge';
+  const etat = etatValidation(d);
+  const auTableau = d.indispoId && DB.indisponibilites.some((i) => i.id === d.indispoId);
+  const quand = (date, heure) => [dateFR(date), heure].filter(Boolean).join(' à ');
+  const lignes = conge
+    ? [
+      ['Agent', d.agent], ['Nom', d.nom], ['Prénoms', d.prenoms], ['Fonction', d.fonction], ['Service', d.service],
+      ['Date d’embauche', dateFR(d.dateEmbauche)], ['Début du congé', dateFR(d.dateDebut)], ['Fin du congé', dateFR(d.dateFin)],
+      ['Reprise du service', dateFR(d.dateReprise)], ['Durée', d.duree], ['Fait à', d.faitA],
+      ['Date de la demande', dateFR(d.dateDemande)], ['Intérimaire', d.interimaire],
+      ['Activités en cours', d.activites, true], ['Points clés à suivre', d.pointsCles, true]
+    ]
+    : [
+      ['Agent', d.agent], ['Matricule', d.matricule], ['Nom & Prénoms', d.nomPrenoms], ['Fonction', d.fonction],
+      ['Début', quand(d.dateDebut, d.heureDebut)], ['Retour', quand(d.dateRetour || (d.heureRetour ? d.dateDebut : ''), d.heureRetour)],
+      ['Total demandé', d.total], ['Date de la demande', dateFR(d.dateDemande)],
+      ['Motif', d.motif, true], ['Commentaires', d.commentaires, true]
+    ];
+  const decision = etat === 'oui'
+    ? '<span class="voyant vert"></span>Validée'
+    : etat === 'non' ? '<span class="voyant rouge"></span>Refusée' : '<em class="voyantAttente">En cours…</em>';
+
+  const corps = el(
+    '<div class="ficheDemande">' +
+      `<div class="ficheDemandeTete" style="border-color:${COULEUR_DEMANDE[d.type] || COLORS.grey}">` +
+        `<span class="badge" style="background:${COULEUR_DEMANDE[d.type] || COLORS.grey}">${esc(TYPES_DEMANDE[d.type] || '')}</span>` +
+        `<b>${esc(d.agent || d.nomPrenoms || `${d.nom || ''} ${d.prenoms || ''}`)}</b>` +
+        `<span class="ficheDemandeDecision">${decision}</span>` +
+      '</div>' +
+      '<dl class="ficheDemandeGrille">' +
+        lignes.map(([k, v, large]) =>
+          `<div class="${large ? 'large' : ''}"><dt>${esc(k)}</dt><dd>${v ? escLignes(String(v)) : '<span class="vide">—</span>'}</dd></div>`
+        ).join('') +
+        `<div><dt>Au tableau des absences</dt><dd>${auTableau ? 'Oui — sort du tour de rôle' : 'Non'}</dd></div>` +
+      '</dl>' +
+      `<h4 class="ficheDemandeTitre">IMAGES (${(d.images || []).length})</h4>` +
+    '</div>'
+  );
+  corps.appendChild(galerieDemande(d.images || []));
+
+  openModal({
+    title: `${TYPES_DEMANDE[d.type] || 'Demande'} — ${d.agent || d.nomPrenoms || ''}`,
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
+      { label: '📄 Imprimé PDF', cls: 'ok', onClick: () => exporterImprime(d) },
+      ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openDemandeForm(d.type, d); } }] : [])
+    ]
+  });
+}
+
+/** Les images d'une demande, en vignettes : un toucher les agrandit. */
+function galerieDemande(images) {
+  const zone = el('<div class="imgChamp"><div class="imgGalerie"></div></div>');
+  const galerie = zone.querySelector('.imgGalerie');
+  if (!images.length) {
+    galerie.appendChild(el('<p class="apercuNote" style="margin:4px 0">Aucune image jointe.</p>'));
+    return zone;
+  }
+  images.forEach((img) => {
+    const fig = el(
+      '<figure class="imgVignette"><span class="imgAbsente">chargement…</span>' +
+      `<figcaption>${esc(img.nom || '')}</figcaption></figure>`
+    );
+    galerie.appendChild(fig);
+    urlImage(img.id).then((url) => {
+      if (!url) {
+        fig.querySelector('.imgAbsente').textContent = 'introuvable';
+        return;
+      }
+      const vue = el(`<img src="${url}" alt="${esc(img.nom || '')}">`);
+      vue.onclick = () => openModal({
+        title: img.nom || 'Image',
+        bodyNode: el(`<div style="text-align:center"><img src="${url}" alt="${esc(img.nom || '')}" ` +
+          'style="max-width:100%;max-height:70vh;border-radius:10px"></div>'),
+        buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }]
+      });
+      fig.replaceChild(vue, fig.querySelector('.imgAbsente'));
+    });
+  });
+  return zone;
 }
 
 /** L'agent enregistre dans UTILISATEURS sous ce nom. */
@@ -613,6 +707,8 @@ function demandeFields(type, d) {
   const inscrire = { key: 'inscrire', label: 'Inscrire au tableau des congés et absences', type: 'select', options: OUI_NON,
     value: d.inscrire || 'Oui', hint: 'Le conducteur sort du tour de rôle pendant son absence' };
   const dateDemande = { key: 'dateDemande', label: 'Date de la demande', type: 'date', value: d.dateDemande || todayISO() };
+  const images = { key: 'images', label: 'Ajout d’image', type: 'images', full: true, value: d.images,
+    hint: 'Demande signée, titre de congé, justificatif, certificat (JPEG ou PNG)' };
   if (type === 'conge') {
     return [
       agent,
@@ -636,6 +732,7 @@ function demandeFields(type, d) {
         hint: 'Une activité par ligne (6 au plus)' },
       { key: 'pointsCles', label: 'Points clés à suivre', type: 'textarea', rows: 5, full: true, value: d.pointsCles,
         hint: 'Un point par ligne (5 au plus)' },
+      images,
       inscrire
     ];
   }
@@ -655,6 +752,7 @@ function demandeFields(type, d) {
     { key: 'motif', label: 'Motif de la demande', type: 'textarea', rows: 3, full: true, required: true, value: d.motif },
     { key: 'commentaires', label: 'Commentaires', full: true, value: d.commentaires },
     dateDemande,
+    images,
     inscrire
   ];
 }

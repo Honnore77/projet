@@ -71,3 +71,10 @@ test('les demandes suivent le nouveau nom d’un agent, et la base les garde', a
   assert.equal(db.DB.demandes[0].interimaire, 'KONE Ali Junior');
   assert.deepEqual(db.normalize({}).demandes, []);
 });
+
+test('les images d’une demande sont gardées par le ménage et la sauvegarde', async () => {
+  await charger({
+    demandes: [{ id: 'd1', type: 'absence', agent: 'DOSSO YAYA', images: [{ id: 'img-demande', nom: 'certificat.jpg' }] }]
+  });
+  assert.ok(db.imagesCitees().has('img-demande'));
+});
