@@ -89,18 +89,18 @@ input,select,textarea{font-family:inherit;}
 #login .btnGhost{max-width:none;}
 
 /* ------------------- illustration et pied de page ------------------- */
-/* Les vehicules, sous le formulaire : meme largeur que la carte de
-   connexion (420 px au plus), coins arrondis comme elle, et un leger
-   fondu sur les quatre bords. */
-.cxIllustration{flex-shrink:0;display:flex;justify-content:center;padding:4px 12px 18px;background:transparent;}
-.cxPhoto{display:block;width:100%;max-width:420px;aspect-ratio:396 / 154;border-radius:24px;
+/* Les vehicules sur toute la largeur de la page, proportions gardees :
+   l'image couvre le bandeau (le ciel se rogne sur un ecran large) et
+   s'estompe legerement sur ses bords. */
+.cxIllustration{flex-shrink:0;display:flex;background:transparent;}
+.cxPhoto{display:block;width:100%;height:clamp(150px,21vw,300px);
   background-image:url('./bandeau-connexion.png');
-  background-size:cover;background-position:center;background-repeat:no-repeat;
-  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%),
-    linear-gradient(180deg,transparent 0,#000 6%,#000 94%,transparent 100%);
+  background-size:cover;background-position:center 72%;background-repeat:no-repeat;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 4%,#000 96%,transparent 100%),
+    linear-gradient(180deg,transparent 0,#000 8%,#000 100%);
   -webkit-mask-composite:source-in;
-  mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%),
-    linear-gradient(180deg,transparent 0,#000 6%,#000 94%,transparent 100%);
+  mask-image:linear-gradient(90deg,transparent 0,#000 4%,#000 96%,transparent 100%),
+    linear-gradient(180deg,transparent 0,#000 8%,#000 100%);
   mask-composite:intersect;}
 .cxPied{flex-shrink:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
   background:#dff0e6;text-align:center;font-size:11.5px;line-height:1.6;color:#4a6b58;}
