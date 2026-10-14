@@ -6,7 +6,8 @@
    securite a chaque ecriture.
    =================================================================== */
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeImage } = require('electron');
+const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const { sauvegardeDatee, listerSauvegardes, miroirImages, dossierCopies } = require('./sauvegarde.cjs');
@@ -376,6 +377,69 @@ function filtersFor(filename) {
   };
   return [known[ext] || { name: 'Fichier', extensions: [ext || '*'] }];
 }
+
+/* ------------------------- Pastille d'alertes ----------------------- */
+
+/*
+ * La fenetre dessine l'icone (logo + pastille rouge portant le nombre
+ * d'alertes, voir resources/js/ui/pastille.js) ; on l'applique ici :
+ *   - au raccourci « PDU Parc Auto » du bureau, s'il existe ;
+ *   - au bouton de la fenetre dans la barre des taches.
+ * Sans alerte, le raccourci reprend l'icone de son programme.
+ *
+ * Chaque icone porte un nom neuf : l'Explorateur garde en cache l'image
+ * d'un fichier deja vu, il afficherait encore l'ancien nombre.
+ */
+const NOM_RACCOURCI = 'PDU Parc Auto.lnk';
+
+function dossierPastilles() {
+  return path.join(app.getPath('userData'), 'pastilles');
+}
+
+function appliquerPastille(n, ico, seule) {
+  if (process.platform !== 'win32') return { ok: false, raison: 'Windows seulement' };
+
+  if (win) {
+    win.setOverlayIcon(n && seule ? nativeImage.createFromBuffer(Buffer.from(seule)) : null,
+      n ? `${n} alerte${n > 1 ? 's' : ''}` : '');
+  }
+
+  const lnk = path.join(app.getPath('desktop'), NOM_RACCOURCI);
+  if (!fs.existsSync(lnk)) return { ok: false, raison: 'pas de raccourci sur le bureau' };
+  let lien;
+  try { lien = shell.readShortcutLink(lnk); } catch (e) { return { ok: false, raison: String(e.message || e) }; }
+
+  const dossier = dossierPastilles();
+  let icone = lien.target;
+  let garder = '';
+  if (n && ico) {
+    fs.mkdirSync(dossier, { recursive: true });
+    garder = `alertes-${n}-${Date.now()}.ico`;
+    icone = path.join(dossier, garder);
+    fs.writeFileSync(icone, Buffer.from(ico));
+  }
+  shell.writeShortcutLink(lnk, 'update', { icon: icone, iconIndex: 0 });
+
+  // Les icones precedentes ne servent plus.
+  try {
+    fs.readdirSync(dossier).filter((f) => f.endsWith('.ico') && f !== garder)
+      .forEach((f) => fs.rmSync(path.join(dossier, f), { force: true }));
+  } catch (e) { /* dossier absent : rien a nettoyer */ }
+
+  // Demande a Windows de rafraichir les icones affichees.
+  try {
+    spawn('ie4uinit.exe', ['-show'], { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  } catch (e) { /* le bureau se mettra a jour a son rythme */ }
+  return { ok: true };
+}
+
+ipcMain.handle('pastille:alertes', (_evt, n, ico, seule) => {
+  try {
+    return appliquerPastille(Number(n) || 0, ico, seule);
+  } catch (e) {
+    return { ok: false, raison: String((e && e.message) || e) };
+  }
+});
 
 /* ---------------------------- Cycle de vie -------------------------- */
 
