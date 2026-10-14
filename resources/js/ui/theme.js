@@ -17,6 +17,8 @@ import apercuPagne from '../styles/decor/pagne-gauche.svg';
 import apercuVagues from '../styles/decor/vagues-gauche.svg';
 import apercuTableau from '../styles/decor/tableau-gauche.svg';
 import apercuCampus from '../styles/decor/campus-gauche.svg';
+import apercuLumiereBleue from '../styles/decor/lumiere-bleue.svg';
+import apercuLumierePdu from '../styles/decor/lumiere-pdu.svg';
 
 export const THEMES = [
   { id: 'classique', nom: 'Lumineux 3D', detail: 'L’interface actuelle : lumineuse, avec relief.', apercu: ['#ffffff', '#008A3B', '#F47B20', '#f3f8f6'] },
@@ -36,7 +38,9 @@ export const DECORS = [
   { id: 'pagne', nom: 'Pagne', detail: 'Motif tissé inspiré des pagnes ivoiriens, aux couleurs du PDU.', apercu: apercuPagne },
   { id: 'vagues', nom: 'Vagues', detail: 'Orange, blanc, vert : les couleurs du drapeau en ondes douces.', apercu: apercuVagues },
   { id: 'tableau', nom: 'Tableau de bord', detail: 'Compteur, volant, pompe et clé : l’univers du parc, en trait fin.', apercu: apercuTableau },
-  { id: 'campus', nom: 'Campus', detail: 'Université, palmiers et soleil : l’esprit du PDU.', apercu: apercuCampus }
+  { id: 'campus', nom: 'Campus', detail: 'Université, palmiers et soleil : l’esprit du PDU.', apercu: apercuCampus },
+  { id: 'lumiere-bleue', nom: 'Lumière bleue', detail: 'Toute la page : rubans de lumière, étincelles et bulles, en bleu.', apercu: apercuLumiereBleue },
+  { id: 'lumiere-pdu', nom: 'Lumière PDU', detail: 'Toute la page : rubans de lumière aux couleurs vert et orange du PDU.', apercu: apercuLumierePdu }
 ];
 
 const CLE_DECOR = 'pdu_decor_connexion';

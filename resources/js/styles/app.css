@@ -882,3 +882,22 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 }
 .decorApercu{height:120px;border-radius:8px;margin-bottom:8px;background-size:cover;background-position:left center;outline:1px solid rgba(0,0,0,.08);}
 .decorVide{display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg);font-weight:600;}
+
+/* Fonds « Lumière » : toute la page de connexion, sur tous les ecrans.
+   En-tete et pied deviennent translucides ; le formulaire reste une carte
+   blanche, lisible sur le fond. */
+#login[data-decor^="lumiere"]{background-color:#3f86d6;background-position:center;background-size:cover;background-repeat:no-repeat;}
+#login[data-decor="lumiere-bleue"]{background-image:url('./decor/lumiere-bleue.svg');}
+#login[data-decor="lumiere-pdu"]{background-color:#049447;background-image:url('./decor/lumiere-pdu.svg');}
+#login[data-decor^="lumiere"] .cxEntete{background:rgba(255,255,255,.86);
+  -webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);box-shadow:0 2px 14px rgba(0,0,0,.08);}
+#login[data-decor^="lumiere"] .cxCorps{background:rgba(255,255,255,.96);border-radius:24px;margin:18px auto;
+  box-shadow:0 24px 60px rgba(0,0,0,.22),0 2px 8px rgba(0,0,0,.08);}
+#login[data-decor^="lumiere"] .cxIllustration{background:transparent;}
+#login[data-decor^="lumiere"] .cxPied{background:rgba(255,255,255,.8);}
+@media (max-width:899px){
+  #login[data-decor^="lumiere"] .cxCorps{width:calc(100% - 24px);}
+}
+html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxEntete,
+html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxPied{background:rgba(15,26,30,.85);}
+html[data-theme="sombre"] #login[data-decor^="lumiere"] .cxCorps{background:rgba(15,26,30,.94);}
