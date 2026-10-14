@@ -107,10 +107,9 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
           Pas encore de compte ? <b>S’inscrire</b>
         </button>
 
+        <div class="cxIllustration"><span class="cxPhoto"></span></div>
       </main>
       </div>
-
-      <div class="cxIllustration"><span class="cxPhoto"></span></div>
 
       <footer class="cxPied">
         © ${annee} PDU – Programme de Décentralisation des Universités<br>
