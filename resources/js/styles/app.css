@@ -860,3 +860,25 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 .cxInscrire{margin-top:16px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;padding:6px;}
 .cxInscrire b{color:var(--green);}
 .cxInscrire:hover b{text-decoration:underline;}
+
+/* ===================================================================
+   DECORS DE LA PAGE DE CONNEXION — sur les cotes du formulaire, la ou un
+   grand ecran laisse du vide. Choisi dans REGLAGES → Apparence ; dessins
+   dans styles/decor/ (gauche et droite, fondus vers le formulaire).
+   Sur un ecran etroit, il n'y a pas de place : rien ne s'affiche.
+   =================================================================== */
+.cxMilieu{flex:1 0 auto;display:flex;justify-content:center;width:100%;}
+@media (min-width:900px){
+  #login[data-decor] .cxMilieu{background-repeat:no-repeat;background-position:left center,right center;
+    background-size:auto 100%,auto 100%;}
+  #login[data-decor="itineraires"] .cxMilieu{background-image:url('./decor/itineraires-gauche.svg'),url('./decor/itineraires-droite.svg');}
+  #login[data-decor="pagne"] .cxMilieu{background-image:url('./decor/pagne-gauche.svg'),url('./decor/pagne-droite.svg');}
+  #login[data-decor="vagues"] .cxMilieu{background-image:url('./decor/vagues-gauche.svg'),url('./decor/vagues-droite.svg');}
+  #login[data-decor="tableau"] .cxMilieu{background-image:url('./decor/tableau-gauche.svg'),url('./decor/tableau-droite.svg');}
+  #login[data-decor="campus"] .cxMilieu{background-image:url('./decor/campus-gauche.svg'),url('./decor/campus-droite.svg');}
+  /* Le formulaire se detache du decor : une carte blanche, bien posee. */
+  #login[data-decor] .cxCorps{background:var(--white);border-radius:24px;margin:18px auto;
+    box-shadow:0 18px 50px rgba(23,49,59,.12),0 2px 8px rgba(23,49,59,.06);}
+}
+.decorApercu{height:120px;border-radius:8px;margin-bottom:8px;background-size:cover;background-position:left center;outline:1px solid rgba(0,0,0,.08);}
+.decorVide{display:flex;align-items:center;justify-content:center;color:var(--muted);background:var(--bg);font-weight:600;}

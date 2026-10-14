@@ -20,7 +20,10 @@ import {
 } from '../components.js';
 import { rerender } from '../shell.js';
 import { renderSynchroSection } from './synchroUI.js';
-import { THEMES, themeActuel, appliquerTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS } from '../theme.js';
+import {
+  THEMES, themeActuel, appliquerTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS,
+  DECORS, decorActuel, choisirDecor
+} from '../theme.js';
 
 export function renderSettings(page) {
   if (!canAdmin()) {
@@ -103,6 +106,36 @@ function renderApparenceSection(page) {
   taille.querySelector('[data-normal]').addEventListener('click', () => regler(100));
   afficher(zoomActuel());
   page.appendChild(taille);
+
+  // Decor des cotes de la page de connexion (grand ecran).
+  const decor = document.createElement('div');
+  decor.className = 'card';
+  decor.innerHTML =
+    '<h3>DÉCOR DE LA PAGE DE CONNEXION</h3>' +
+    '<p>Sur un grand écran, il habille les côtés du formulaire de connexion. Il ne s’affiche pas sur un ' +
+    'téléphone, faute de place. Le choix vaut pour cet appareil.</p>';
+  const grilleDecor = document.createElement('div');
+  grilleDecor.className = 'themeChoix';
+  const actuelDecor = decorActuel();
+  DECORS.forEach((d) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'themeCarte' + (d.id === actuelDecor ? ' choisi' : '');
+    b.innerHTML =
+      (d.apercu
+        ? `<div class="decorApercu" style="background-image:url('${d.apercu}')"></div>`
+        : '<div class="decorApercu decorVide">Aucun</div>') +
+      (d.id === actuelDecor ? '<span class="coche">✓ Actif</span>' : '') +
+      `<b>${esc(d.nom)}</b><small>${esc(d.detail)}</small>`;
+    b.addEventListener('click', () => {
+      choisirDecor(d.id);
+      rerender();
+      toast(d.id ? `Décor « ${d.nom} » choisi : il s’affichera à la prochaine connexion.` : 'Page de connexion sans décor.');
+    });
+    grilleDecor.appendChild(b);
+  });
+  decor.appendChild(grilleDecor);
+  page.appendChild(decor);
 }
 
 /* ------------------- Sauvegarde automatique datee ------------------ */

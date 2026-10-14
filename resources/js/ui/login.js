@@ -6,6 +6,7 @@ import { el, esc } from '../core/utils.js';
 import { login, inscrire } from '../core/auth.js';
 import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
+import { decorActuel } from './theme.js';
 
 const logoUrl = './logo-pdu.png';
 const armoiriesUrl = './armoiries-ci.png';
@@ -47,7 +48,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
 
   root.innerHTML = '';
   const screen = el(`
-    <div id="login">
+    <div id="login"${decorActuel() ? ` data-decor="${decorActuel()}"` : ''}>
       <header class="cxEntete">
         <img class="cxLogo" src="${logoUrl}" alt="Programme de Décentralisation des Universités">
         <div class="cxTitre">
@@ -60,6 +61,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
         </div>
       </header>
 
+      <div class="cxMilieu">
       <main class="cxCorps">
         <div class="cxBadge">${ICONES.voiture}</div>
         <h1>CONNEXION</h1>
@@ -104,6 +106,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
         </button>
 
       </main>
+      </div>
 
       <div class="cxIllustration"><span class="cxPhoto"></span></div>
 

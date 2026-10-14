@@ -11,6 +11,12 @@
    =================================================================== */
 
 import Chart from 'chart.js/auto';
+// Vignettes des decors de la page de connexion (REGLAGES → Apparence).
+import apercuItineraires from '../styles/decor/itineraires-gauche.svg';
+import apercuPagne from '../styles/decor/pagne-gauche.svg';
+import apercuVagues from '../styles/decor/vagues-gauche.svg';
+import apercuTableau from '../styles/decor/tableau-gauche.svg';
+import apercuCampus from '../styles/decor/campus-gauche.svg';
 
 export const THEMES = [
   { id: 'classique', nom: 'Lumineux 3D', detail: 'L’interface actuelle : lumineuse, avec relief.', apercu: ['#ffffff', '#008A3B', '#F47B20', '#f3f8f6'] },
@@ -21,6 +27,33 @@ export const THEMES = [
 ];
 
 const CLE = 'pdu_theme';
+
+/* --------------------- Decor de la page de connexion ---------------- */
+
+export const DECORS = [
+  { id: '', nom: 'Sans décor', detail: 'La page de connexion telle qu’elle était.', apercu: '' },
+  { id: 'itineraires', nom: 'Itinéraires', detail: 'Routes de Côte d’Ivoire et étapes de mission, sur fond de relief.', apercu: apercuItineraires },
+  { id: 'pagne', nom: 'Pagne', detail: 'Motif tissé inspiré des pagnes ivoiriens, aux couleurs du PDU.', apercu: apercuPagne },
+  { id: 'vagues', nom: 'Vagues', detail: 'Orange, blanc, vert : les couleurs du drapeau en ondes douces.', apercu: apercuVagues },
+  { id: 'tableau', nom: 'Tableau de bord', detail: 'Compteur, volant, pompe et clé : l’univers du parc, en trait fin.', apercu: apercuTableau },
+  { id: 'campus', nom: 'Campus', detail: 'Université, palmiers et soleil : l’esprit du PDU.', apercu: apercuCampus }
+];
+
+const CLE_DECOR = 'pdu_decor_connexion';
+
+/** Le decor retenu sur cet appareil (vide : sans decor). */
+export function decorActuel() {
+  try {
+    const d = localStorage.getItem(CLE_DECOR) || '';
+    return DECORS.some((x) => x.id === d) ? d : '';
+  } catch (e) {
+    return '';
+  }
+}
+
+export function choisirDecor(id) {
+  try { localStorage.setItem(CLE_DECOR, id || ''); } catch (e) { /* vaut pour la session */ }
+}
 
 /* ------------------------ Taille de l'affichage --------------------- */
 
