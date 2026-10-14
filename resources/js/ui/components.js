@@ -156,6 +156,9 @@ function fieldHtml(f) {
     case 'date':
       input = `<input id="${id}" data-key="${esc(f.key)}" type="date" value="${esc(val)}"${req}${ro}>`;
       break;
+    case 'time':
+      input = `<input id="${id}" data-key="${esc(f.key)}" type="time" value="${esc(val)}"${req}${ro}>`;
+      break;
     case 'password':
       input = `<input id="${id}" data-key="${esc(f.key)}" type="password" autocomplete="new-password" value="${esc(val)}"${req}${ph}>`;
       break;

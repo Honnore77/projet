@@ -280,7 +280,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -2090,6 +2090,11 @@ export function renommerAgentDansIndisponibilites(ancien, nouveau, db = DB) {
   (db.indisponibilites || []).forEach((i) => {
     if (norm(i.conducteur || '') === cle && i.conducteur !== propre) { i.conducteur = propre; n += 1; }
     if (norm(i.interimaire || '') === cle && i.interimaire !== propre) { i.interimaire = propre; n += 1; }
+  });
+  // Les demandes de conge et d'absence retiennent l'agent et l'interimaire.
+  (db.demandes || []).forEach((d) => {
+    if (norm(d.agent || '') === cle && d.agent !== propre) { d.agent = propre; n += 1; }
+    if (norm(d.interimaire || '') === cle && d.interimaire !== propre) { d.interimaire = propre; n += 1; }
   });
   if (n && db === DB) persist();
   return n;

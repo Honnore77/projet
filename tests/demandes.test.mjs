@@ -1,0 +1,62 @@
+/* Demandes de conge et d'absence : durees, total, inscription au tableau. */
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { db, charger } from './aide.mjs';
+
+const {
+  lendemain, dureeConge, totalAbsence, periodeAuTableau, lignes
+} = await import('../resources/js/core/demandes.js');
+
+test('le lendemain change de mois et d’année', () => {
+  assert.equal(lendemain('2026-11-21'), '2026-11-22');
+  assert.equal(lendemain('2026-11-30'), '2026-12-01');
+  assert.equal(lendemain('2026-12-31'), '2027-01-01');
+  assert.equal(lendemain(''), '');
+});
+
+test('la durée du congé compte le premier et le dernier jour', () => {
+  assert.equal(dureeConge('2026-11-02', '2026-11-21'), '20 jours');
+  assert.equal(dureeConge('2026-11-02', '2026-11-02'), '1 jour');
+  assert.equal(dureeConge('2026-11-05', '2026-11-02'), '');
+  assert.equal(dureeConge('2026-11-05', ''), '');
+});
+
+test('une absence du jour se compte en heures, sur plusieurs jours en jours', () => {
+  assert.equal(totalAbsence('2026-10-20', '08:00', '2026-10-20', '12:30'), '4 h 30');
+  assert.equal(totalAbsence('2026-10-20', '08:00', '', '10:00'), '2 h');
+  assert.equal(totalAbsence('2026-10-20', '12:00', '2026-10-20', '08:00'), '');
+  assert.equal(totalAbsence('2026-10-20', '', '2026-10-23', ''), '3 jours');
+  assert.equal(totalAbsence('2026-10-20', '', '2026-10-21', ''), '1 jour');
+  assert.equal(totalAbsence('2026-10-23', '', '2026-10-20', ''), '');
+});
+
+test('au tableau, la reprise est le jour du retour au poste', () => {
+  assert.deepEqual(periodeAuTableau({ type: 'conge', dateDebut: '2026-11-02', dateFin: '2026-11-21', dateReprise: '2026-11-23' }),
+    { dateDepart: '2026-11-02', dateReprise: '2026-11-23' });
+  assert.deepEqual(periodeAuTableau({ type: 'conge', dateDebut: '2026-11-02', dateFin: '2026-11-21' }),
+    { dateDepart: '2026-11-02', dateReprise: '2026-11-22' });
+  // Quelques heures d'absence : la journée compte.
+  assert.deepEqual(periodeAuTableau({ type: 'absence', dateDebut: '2026-10-20', dateRetour: '2026-10-20' }),
+    { dateDepart: '2026-10-20', dateReprise: '2026-10-21' });
+  assert.deepEqual(periodeAuTableau({ type: 'absence', dateDebut: '2026-10-20', dateRetour: '2026-10-23' }),
+    { dateDepart: '2026-10-20', dateReprise: '2026-10-23' });
+  assert.equal(periodeAuTableau({ type: 'absence' }), null);
+});
+
+test('les lignes d’activités perdent puces et lignes vides, dans la limite', () => {
+  assert.deepEqual(lignes('- Courses\n\n• Missions\n  Vidange  \nA\nB\nC\nD', 4), ['Courses', 'Missions', 'Vidange', 'A']);
+  assert.deepEqual(lignes('', 6), []);
+});
+
+test('les demandes suivent le nouveau nom d’un agent, et la base les garde', async () => {
+  await charger({
+    users: [{ id: 'u1', nom: 'DOSSO', prenoms: 'YAYA' }],
+    demandes: [{ id: 'd1', type: 'conge', agent: 'DOSSO YAYA', interimaire: 'KONE Ali' }]
+  });
+  db.renommerAgentDansIndisponibilites('DOSSO YAYA', 'DOSSO Yaya Ibrahim');
+  db.renommerAgentDansIndisponibilites('KONE Ali', 'KONE Ali Junior');
+  assert.equal(db.DB.demandes[0].agent, 'DOSSO Yaya Ibrahim');
+  assert.equal(db.DB.demandes[0].interimaire, 'KONE Ali Junior');
+  assert.deepEqual(db.normalize({}).demandes, []);
+});
