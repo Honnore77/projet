@@ -663,7 +663,19 @@ export function openMissionForm(m, options = {}) {
 
       // Un conducteur absent pendant la mission : on previent, sans bloquer
       // — un conge peut avoir ete ecourte sans que la fiche le dise encore.
+      // Le repos maladie, lui, interdit la mission : si le repos a pris fin
+      // plus tot, c'est sa date de reprise qu'il faut corriger.
       const absence = indisponibiliteSurMission(values.conducteur, values.dateDepart, values.dateRetour);
+      // Une mission deja enregistree reste modifiable (son rapport, ses frais)
+      // tant qu'on n'y change ni le conducteur ni les dates.
+      const memeAffectation = isEdit && values.conducteur === m.conducteur &&
+        values.dateDepart === m.dateDepart && (values.dateRetour || '') === (m.dateRetour || '');
+      if (absence && absence.motif === 'Repos maladie' && !memeAffectation) {
+        return `${values.conducteur} est en repos maladie du ${dateFR(absence.dateDepart)} à sa reprise le ` +
+          `${dateFR(absence.dateReprise) || '…'} : ce conducteur ne peut pas partir en mission sur ces dates. ` +
+          'Choisissez un autre conducteur, ou corrigez la date de reprise dans UTILISATEURS → CONGÉS ET ABSENCES AU POOL ' +
+          'si le repos a pris fin plus tôt.';
+      }
       if (absence && !(isEdit && absence === dejaSignalee)) {
         const ok = await confirmDialog({
           title: 'Conducteur indisponible',
