@@ -205,12 +205,15 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   loginBtn.onclick = attempt;
   // Le fond de la page se choisit avant meme de se connecter : il est
   // propre a l'appareil, et s'applique aussitot.
+  const poserFond = (id) => {
+    if (id) screen.dataset.decor = id; else delete screen.dataset.decor;
+    if (decorPleinePage(id)) screen.dataset.plein = ''; else delete screen.dataset.plein;
+  };
+  // Un clic : apercu sur la page ; double clic : valide.
   screen.querySelector('#apparenceBtn').onclick = () => ouvrirApparence({
     titre: '🎨 Fond de la page de connexion', style: false, taille: false,
-    surDecor: (id) => {
-      if (id) screen.dataset.decor = id; else delete screen.dataset.decor;
-      if (decorPleinePage(id)) screen.dataset.plein = ''; else delete screen.dataset.plein;
-    }
+    surApercu: poserFond,
+    surDecor: poserFond
   });
   screen.querySelector('#inscrireBtn').onclick = () => ouvrirInscription((identifiant) => {
     userInput.value = identifiant;

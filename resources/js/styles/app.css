@@ -89,19 +89,20 @@ input,select,textarea{font-family:inherit;}
 #login .btnGhost{max-width:none;}
 
 /* ------------------- illustration et pied de page ------------------- */
-/* Les vehicules sur toute la largeur de la page, proportions gardees :
-   l'image couvre le bandeau (le ciel se rogne sur un ecran large) et
-   s'estompe legerement sur ses bords. */
-.cxIllustration{flex-shrink:0;display:flex;background:transparent;}
-.cxPhoto{display:block;width:100%;height:clamp(150px,21vw,300px);
-  background-image:url('./bandeau-connexion.png');
-  background-size:cover;background-position:center 72%;background-repeat:no-repeat;
-  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 4%,#000 96%,transparent 100%),
-    linear-gradient(180deg,transparent 0,#000 8%,#000 100%);
-  -webkit-mask-composite:source-in;
-  mask-image:linear-gradient(90deg,transparent 0,#000 4%,#000 96%,transparent 100%),
-    linear-gradient(180deg,transparent 0,#000 8%,#000 100%);
-  mask-composite:intersect;}
+/* Les vehicules, comme le bloc du formulaire au-dessus : meme largeur
+   (420 px au plus), coins arrondis et relief 3D — ombre portee, legere
+   inclinaison vers l'arriere, qui se redresse et se souleve au survol. */
+.cxIllustration{flex-shrink:0;display:flex;justify-content:center;padding:6px 16px 26px;
+  background:transparent;perspective:1000px;}
+.cxPhoto{display:block;width:100%;max-width:420px;aspect-ratio:396 / 154;border-radius:24px;
+  background:#fff url('./bandeau-connexion.png') center / cover no-repeat;
+  border:3px solid #fff;
+  box-shadow:0 2px 0 rgba(255,255,255,.9) inset,0 18px 40px rgba(23,49,59,.22),0 6px 12px rgba(23,49,59,.12);
+  transform:rotateX(9deg);transform-origin:center bottom;
+  transition:transform .35s ease,box-shadow .35s ease;}
+.cxPhoto:hover{transform:rotateX(0deg) translateY(-6px);
+  box-shadow:0 2px 0 rgba(255,255,255,.9) inset,0 28px 56px rgba(23,49,59,.26),0 8px 16px rgba(23,49,59,.14);}
+@media (prefers-reduced-motion:reduce){.cxPhoto,.cxPhoto:hover{transform:none;transition:none;}}
 .cxPied{flex-shrink:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
   background:#dff0e6;text-align:center;font-size:11.5px;line-height:1.6;color:#4a6b58;}
 .field{width:100%;max-width:340px;}
@@ -912,3 +913,8 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 #apparenceBtn{border:0;background:var(--green-soft,#e7f6ee);width:40px;height:40px;border-radius:12px;font-size:20px;line-height:1;cursor:pointer;margin-right:8px;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.08);}
 #apparenceBtn:hover{filter:brightness(.96);}
 #login #apparenceBtn,.cxApparence{width:auto;height:auto;margin:12px 0 0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--green);background:var(--green-soft,#e7f6ee);border:0;cursor:pointer;}
+
+/* Choix du fond : la carte en apercu (clic), avant validation (double clic). */
+.themeCarte .apercuMarque{display:none;color:#F47B20;}
+.themeCarte.apercu{border-color:#F47B20;box-shadow:0 0 0 3px rgba(244,123,32,.25);}
+.themeCarte.apercu .apercuMarque{display:inline;}

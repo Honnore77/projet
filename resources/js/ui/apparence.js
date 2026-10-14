@@ -75,30 +75,45 @@ function blocTaille() {
   return taille;
 }
 
-function blocDecor(refaire, surDecor) {
+/**
+ * Choix du fond : un clic montre un apercu (sur la page de connexion, le
+ * fond change aussitot), un double clic valide et ferme la fenetre. Fermer
+ * sans valider rend le fond d'avant.
+ */
+function blocDecor(refaire, o) {
   const decor = carte('FOND DE LA PAGE DE CONNEXION',
-    'Les fonds « pleine page » couvrent toute la page, sur tous les écrans. Le décor « Tableau de bord » ' +
-    'habille les côtés du formulaire sur un grand écran. ' +
-    'Le choix vaut pour cet appareil.');
+    'Un clic pour voir un fond, <b>double clic pour le valider</b>. Les fonds « pleine page » couvrent toute ' +
+    'la page, sur tous les écrans ; le décor « Tableau de bord » habille les côtés du formulaire sur un grand ' +
+    'écran. Le choix vaut pour cet appareil.');
   const grille = document.createElement('div');
   grille.className = 'themeChoix';
   const actuel = decorActuel();
+  const cartes = [];
   DECORS.forEach((d) => {
     const b = document.createElement('button');
     b.type = 'button';
+    b.title = 'Clic : aperçu — double clic : valider';
     b.className = 'themeCarte' + (d.id === actuel ? ' choisi' : '');
     b.innerHTML =
       (d.apercu
         ? `<div class="decorApercu" style="background-image:url('${d.apercu}')"></div>`
         : '<div class="decorApercu decorVide">Aucun</div>') +
-      (d.id === actuel ? '<span class="coche">✓ Actif</span>' : '') +
+      (d.id === actuel ? '<span class="coche">✓ Actif</span>' : '<span class="coche apercuMarque">👁 Aperçu</span>') +
       `<b>${esc(d.nom)}</b><small>${esc(d.detail)}</small>`;
+    // Pas de redessin au simple clic : le double clic doit tomber sur la
+    // meme carte que les deux clics qui le composent.
     b.addEventListener('click', () => {
-      choisirDecor(d.id);
-      toast(d.id ? `Fond « ${d.nom} » choisi.` : 'Page de connexion sans fond.');
-      refaire();
-      if (surDecor) surDecor(d.id);
+      cartes.forEach((c) => c.classList.toggle('apercu', c === b));
+      if (o.surApercu) o.surApercu(d.id);
     });
+    b.addEventListener('dblclick', () => {
+      choisirDecor(d.id);
+      toast(d.id ? `Fond « ${d.nom} » validé.` : 'Page de connexion sans fond.');
+      if (o.surDecor) o.surDecor(d.id);
+      if (o.fermer) o.fermer();
+      else refaire();
+    });
+    cartes.push(b);
     grille.appendChild(b);
   });
   decor.appendChild(grille);
@@ -120,7 +135,7 @@ export function apparenceNode(o = {}) {
     zone.innerHTML = '';
     if (o.style !== false) zone.appendChild(blocStyle(refaire, o.surChoix));
     if (o.taille !== false) zone.appendChild(blocTaille());
-    if (o.decor !== false) zone.appendChild(blocDecor(refaire, o.surDecor));
+    if (o.decor !== false) zone.appendChild(blocDecor(refaire, o));
   };
   refaire();
   return zone;
@@ -128,10 +143,14 @@ export function apparenceNode(o = {}) {
 
 /** Le panneau dans une fenetre : bouton 🎨 de l'en-tete et de la connexion. */
 export function ouvrirApparence(o = {}) {
-  openModal({
+  let fenetre = null;
+  const options = Object.assign({}, o, { fermer: () => fenetre && fenetre.close() });
+  fenetre = openModal({
     title: o.titre || '🎨 Apparence',
-    bodyNode: apparenceNode(o),
+    bodyNode: apparenceNode(options),
     wide: true,
+    // Un apercu non valide s'efface a la fermeture : le fond retenu revient.
+    onClose: () => { if (o.surApercu && o.surDecor) o.surDecor(decorActuel()); },
     buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }]
   });
 }
