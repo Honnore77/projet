@@ -521,3 +521,84 @@ table.dataTable tbody tr:hover{background:#eefaf3;}
   .tab,.stat,.chartCard,.alertItem,.toolbar button,.miniBtn,.subtab,.modal .foot button,#logoutBtn{transition:none;}
   .tab:hover,.stat:hover,.chartCard:hover,.alertItem:hover,.toolbar button:hover,.miniBtn:hover,.subtab:hover,#logoutBtn:hover{transform:none;}
 }
+
+/* ===================================================================
+   RELIEF 3D — par-dessus la finition « eclat ».
+
+   La lumiere vient d'en haut : les surfaces ont un biseau clair sur le
+   haut, un rebord sombre en dessous, et des ombres en couches. Les boutons
+   s'enfoncent au clic ; les cartes basculent un peu en perspective au
+   survol. Rien ne change de place dans la page.
+   =================================================================== */
+:root{
+  --relief-carte:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 -1px 0 rgba(16,60,40,.04) inset,
+    0 1px 1px rgba(16,60,40,.06),
+    0 3px 6px rgba(16,60,40,.06),
+    0 10px 22px rgba(16,60,40,.08);
+  --relief-carte-haut:
+    0 1px 0 rgba(255,255,255,.9) inset,
+    0 2px 2px rgba(16,60,40,.06),
+    0 8px 14px rgba(16,60,40,.10),
+    0 22px 40px rgba(16,60,40,.14);
+  --rebord:0 4px 0 rgba(0,0,0,.22);
+  --rebord-bas:0 1px 0 rgba(0,0,0,.22);
+}
+
+/* La page donne la profondeur aux cartes qui basculent. */
+#content > .page{perspective:1400px;}
+
+/* Cartes, chiffres cles, graphiques, tableaux : en couches. */
+.card,.stat,.entry,.chartCard,.tableWrap,.alertItem{box-shadow:var(--relief-carte);}
+.stat,.chartCard,.alertItem,.entry{transform-style:preserve-3d;will-change:transform;
+  transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s ease;}
+.stat:hover,.chartCard:hover,.alertItem:hover,.entry:hover{
+  transform:translateY(-4px) rotateX(3deg) rotateY(-1.5deg);box-shadow:var(--relief-carte-haut);}
+/* Le chiffre cle ressort de sa carte. */
+.stat .v{transform:translateZ(18px);text-shadow:0 1px 0 #fff,0 3px 6px rgba(16,60,40,.18);}
+
+/* Boutons : une touche avec son rebord, qui s'enfonce au clic. */
+.toolbar button,.miniBtn,.globalBtn,.modal .foot .ok,.modal .foot .danger,.modal .foot .cancel,#logoutBtn,.cxBouton{
+  position:relative;
+  box-shadow:var(--reflet),var(--rebord),0 6px 12px rgba(16,60,40,.18);
+  transition:transform .1s ease,box-shadow .1s ease,filter .16s ease;}
+.toolbar button:hover,.miniBtn:hover,.globalBtn:hover,.modal .foot button:hover,#logoutBtn:hover,.cxBouton:hover{
+  transform:translateY(-2px);
+  box-shadow:var(--reflet),0 6px 0 rgba(0,0,0,.22),0 10px 18px rgba(16,60,40,.22);}
+.toolbar button:active,.miniBtn:active,.globalBtn:active,.modal .foot button:active,#logoutBtn:active,.cxBouton:active{
+  transform:translateY(3px);
+  box-shadow:inset 0 2px 4px rgba(0,0,0,.18),var(--rebord-bas);}
+.modal .foot .cancel{box-shadow:var(--reflet),0 4px 0 rgba(16,60,40,.14),0 6px 12px rgba(16,60,40,.10);}
+
+/* Menu : chaque rubrique a son rebord ; l'active ressort comme une touche. */
+.tab{box-shadow:0 1px 0 rgba(255,255,255,.9) inset,0 2px 0 rgba(16,60,40,.08),0 3px 6px rgba(16,60,40,.05);}
+.tab.active{transform:translateX(3px);
+  box-shadow:var(--reflet),0 4px 0 color-mix(in srgb,var(--tabColor,#008A3B) 60%,#000),
+    0 10px 18px color-mix(in srgb,var(--tabColor,#008A3B) 40%,transparent);}
+.tab:active{transform:translateY(2px);}
+
+/* Sous-rubriques et badges : petites pastilles en relief. */
+.subtab{box-shadow:inset 0 1px 0 rgba(255,255,255,.6),0 3px 0 rgba(0,0,0,.12),0 5px 10px rgba(16,60,40,.10);}
+.subtab:active{transform:translateY(2px);box-shadow:inset 0 2px 3px rgba(0,0,0,.15);}
+.badge{box-shadow:inset 0 1px 0 rgba(255,255,255,.35),0 2px 0 rgba(0,0,0,.18),0 3px 6px rgba(0,0,0,.12);}
+
+/* En-tete : biseau et ombre portee sur la page. */
+header.top{box-shadow:0 1px 0 #fff inset,0 4px 0 rgba(16,60,40,.03),0 8px 22px rgba(16,60,40,.12);z-index:5;}
+header.top img{filter:drop-shadow(0 2px 3px rgba(16,60,40,.25));}
+
+/* En-tete de tableau biseaute. */
+table.dataTable th{box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -2px 0 rgba(0,0,0,.12);}
+
+/* Champs : creuses dans la page. */
+.fRow input,.fRow select,.fRow textarea,.filterBar input,.filterBar select,.searchWrap input{
+  box-shadow:inset 0 2px 3px rgba(16,60,40,.07);}
+
+/* Fenetres : bien detachees du fond. */
+.modal{box-shadow:0 2px 0 rgba(255,255,255,.6) inset,0 30px 70px rgba(10,40,30,.35),0 10px 20px rgba(10,40,30,.18);}
+
+@media (prefers-reduced-motion:reduce){
+  .stat:hover,.chartCard:hover,.alertItem:hover,.entry:hover{transform:none;}
+  .tab.active,.tab:active,.subtab:active{transform:none;}
+  .toolbar button,.miniBtn,.globalBtn,.modal .foot button,#logoutBtn,.cxBouton{transition:none;}
+}
