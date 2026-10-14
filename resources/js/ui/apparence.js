@@ -77,8 +77,8 @@ function blocTaille() {
 
 function blocDecor(refaire, surDecor) {
   const decor = carte('FOND DE LA PAGE DE CONNEXION',
-    'Les fonds « pleine page » couvrent toute la page, sur tous les écrans. Les décors de côté ' +
-    '(Itinéraires, Pagne, Vagues, Tableau de bord, Campus) habillent les bords du formulaire sur un grand écran. ' +
+    'Les fonds « pleine page » couvrent toute la page, sur tous les écrans. Le décor « Tableau de bord » ' +
+    'habille les côtés du formulaire sur un grand écran. ' +
     'Le choix vaut pour cet appareil.');
   const grille = document.createElement('div');
   grille.className = 'themeChoix';

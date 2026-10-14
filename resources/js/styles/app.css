@@ -871,11 +871,7 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 @media (min-width:900px){
   #login[data-decor] .cxMilieu{background-repeat:no-repeat;background-position:left center,right center;
     background-size:auto 100%,auto 100%;}
-  #login[data-decor="itineraires"] .cxMilieu{background-image:url('./decor/itineraires-gauche.svg'),url('./decor/itineraires-droite.svg');}
-  #login[data-decor="pagne"] .cxMilieu{background-image:url('./decor/pagne-gauche.svg'),url('./decor/pagne-droite.svg');}
-  #login[data-decor="vagues"] .cxMilieu{background-image:url('./decor/vagues-gauche.svg'),url('./decor/vagues-droite.svg');}
   #login[data-decor="tableau"] .cxMilieu{background-image:url('./decor/tableau-gauche.svg'),url('./decor/tableau-droite.svg');}
-  #login[data-decor="campus"] .cxMilieu{background-image:url('./decor/campus-gauche.svg'),url('./decor/campus-droite.svg');}
   /* Le formulaire se detache du decor : une carte blanche, bien posee. */
   #login[data-decor] .cxCorps{background:var(--white);border-radius:24px;margin:18px auto;
     box-shadow:0 18px 50px rgba(23,49,59,.12),0 2px 8px rgba(23,49,59,.06);}
