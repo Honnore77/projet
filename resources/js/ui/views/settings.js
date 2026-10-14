@@ -218,7 +218,16 @@ function renderAccountsSection(page) {
     ])
   );
 
-  const accounts = listAccounts();
+  // Les inscriptions faites depuis la page de connexion d'abord.
+  const accounts = listAccounts().sort((a, b) => (b.enAttente ? 1 : 0) - (a.enAttente ? 1 : 0));
+  const enAttente = accounts.filter((a) => a.enAttente);
+  if (enAttente.length) {
+    page.appendChild(el(
+      `<div class="card" style="border-left-color:${COLORS.orange}"><h3>⏳ ${enAttente.length} INSCRIPTION(S) À VALIDER</h3>` +
+      '<p>Ces personnes se sont inscrites depuis la page de connexion. Elles ne peuvent pas se connecter tant que ' +
+      'vous n’avez pas validé leur compte : « ✓ Valider » leur donne un rôle et l’agent lié ; ✕ refuse la demande.</p></div>'
+    ));
+  }
   page.appendChild(
     dataTable(
       ['Identifiant', 'Nom', 'Rôle', 'Agent lié', 'État', 'Dernière connexion', 'Actions'],
@@ -227,15 +236,20 @@ function renderAccountsSection(page) {
         esc(a.nom || ''),
         esc(roleLabel(a.role)),
         a.agent ? esc(a.agent) : (a.role === 'conducteur' ? '<span style="color:#D32F2F">à lier</span>' : '—'),
-        a.actif ? '🟢 Actif' : '🔴 Désactivé',
+        a.enAttente
+          ? `⏳ Inscription à valider<br><small>${esc(new Date(a.inscritLe || a.createdAt).toLocaleString('fr-FR'))}</small>`
+          : a.actif ? '🟢 Actif' : '🔴 Désactivé',
         a.lastLogin ? new Date(a.lastLogin).toLocaleString('fr-FR') : '—',
-        `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit>✎</button> ` +
+        (a.enAttente ? `<button class="miniBtn" style="background:${COLORS.orange};padding:5px 8px" data-valider>✓ Valider</button> ` : '') +
+          `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit>✎</button> ` +
           `<button class="miniBtn" style="background:${COLORS.orange};padding:5px 8px" data-reset>🔑</button> ` +
           `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del>✕</button>`
       ]),
       (tr, i) => {
         const a = accounts[i];
         tr.querySelector('[data-edit]').onclick = () => openEditAccount(a);
+        const val = tr.querySelector('[data-valider]');
+        if (val) val.onclick = () => openValiderInscription(a);
         tr.querySelector('[data-reset]').onclick = () => openResetPassword(a);
         tr.querySelector('[data-del]').onclick = async () => {
           if (!(await confirmDialog({ title: 'Supprimer le compte', message: `Supprimer définitivement le compte « ${a.login} » ?`, okLabel: 'Supprimer', danger: true }))) return;
@@ -388,6 +402,32 @@ function openEditAccount(a) {
       const res = updateAccount(a.id, { nom: v.nom, role: v.role, agent: v.agent || '', actif: v.actif === 'oui' });
       if (!res.ok) return res.error;
       toast('Compte mis à jour.', 'ok');
+      rerender();
+      return null;
+    }
+  });
+}
+
+/** Valider une inscription : lui donner un role, un agent, et l'activer. */
+function openValiderInscription(a) {
+  const agent = DB.users.find((u) => `${u.nom || ''} ${u.prenoms || ''}`.trim() === a.agent);
+  const role = agent && agent.poolConducteur === 'Oui' ? 'conducteur' : 'direction';
+  openForm({
+    title: `Valider l’inscription — ${a.nom || a.login}`,
+    intro: `${a.nom || a.login} s’est inscrit(e) avec l’identifiant « ${a.login} ». Choisissez son rôle et l’agent lié ; ` +
+      'le compte pourra servir aussitôt.',
+    fields: [
+      { key: 'role', label: 'Rôle', type: 'select', options: ROLES.map((r) => ({ value: r.key, label: r.label })), value: role },
+      { key: 'agent', label: 'Agent lié (UTILISATEURS)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
+        options: nomsUtilisateurs().slice().sort((x, y) => x.localeCompare(y, 'fr')), value: a.agent,
+        hint: a.agent ? 'Retrouvé d’après le nom donné à l’inscription' : 'Aucun agent ne porte exactement ce nom : choisissez-le' }
+    ],
+    okLabel: '✓ Valider le compte',
+    onSubmit: (v) => {
+      if (v.role === 'conducteur' && !v.agent) return 'Un compte « Conducteur » doit être lié à son agent.';
+      const res = updateAccount(a.id, { role: v.role, agent: v.agent || '', actif: true });
+      if (!res.ok) return res.error;
+      toast(`Compte de ${a.nom || a.login} validé.`, 'ok');
       rerender();
       return null;
     }

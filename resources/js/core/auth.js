@@ -54,6 +54,9 @@ export async function login(loginName, password) {
   const key = norm(loginName).trim();
   const acc = DB.accounts.find((a) => norm(a.login).trim() === key);
   if (!acc) return { ok: false, error: 'Identifiant inconnu.' };
+  if (acc.enAttente) {
+    return { ok: false, error: 'Votre inscription n’a pas encore été validée. Un administrateur doit l’accepter et vous attribuer vos accès.' };
+  }
   if (!acc.actif) return { ok: false, error: 'Ce compte est désactivé. Contactez un administrateur.' };
 
   if (!(await verifyPassword(password, acc.pass))) {
@@ -70,7 +73,7 @@ export function logout() {
   session = null;
   definirCompte(null);
   try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
-  document.body.classList.remove('readonly');
+  if (typeof document !== 'undefined') document.body.classList.remove('readonly');
 }
 
 /** Restaure une session ouverte dans le meme onglet (rafraichissement F5). */
@@ -138,10 +141,57 @@ export async function createAccount({ login: loginName, nom, role, agent, passwo
   return { ok: true };
 }
 
+/**
+ * Inscription depuis la page de connexion. Le compte nait inactif et « en
+ * attente » : il ne sert qu'une fois qu'un administrateur l'a valide et
+ * lui a donne son role. Sans cela, n'importe qui se donnerait un acces
+ * aux donnees.
+ */
+export async function inscrire({ login: loginName, nom, password }) {
+  const key = norm(loginName).trim();
+  const nomPropre = String(nom || '').trim();
+  if (!nomPropre) return { ok: false, error: 'Indiquez vos nom et prénoms.' };
+  if (!key) return { ok: false, error: 'Choisissez un identifiant.' };
+  if (DB.accounts.some((a) => norm(a.login).trim() === key)) {
+    return { ok: false, error: 'Cet identifiant est déjà pris : choisissez-en un autre.' };
+  }
+  const pwErr = passwordProblem(password);
+  if (pwErr) return { ok: false, error: pwErr };
+
+  // L'agent de la liste UTILISATEURS qui porte ce nom, s'il existe :
+  // l'administrateur n'aura qu'a confirmer.
+  const agent = DB.users.find((u) => norm(`${u.nom || ''} ${u.prenoms || ''}`.trim()) === norm(nomPropre));
+  const maintenant = new Date().toISOString();
+  DB.accounts.push({
+    id: uid(),
+    login: String(loginName).trim(),
+    nom: nomPropre,
+    role: 'direction',
+    agent: agent ? `${agent.nom || ''} ${agent.prenoms || ''}`.trim() : '',
+    pass: await hashPassword(password),
+    actif: false,
+    enAttente: true,
+    // Il a choisi son mot de passe lui-meme : rien a changer a l'arrivee.
+    mustChange: false,
+    createdAt: maintenant,
+    inscritLe: maintenant,
+    lastLogin: ''
+  });
+  persist();
+  return { ok: true };
+}
+
+/** Les inscriptions qui attendent un administrateur. */
+export function inscriptionsEnAttente() {
+  return DB.accounts.filter((a) => a.enAttente);
+}
+
 /** Modifie un compte (nom, role, activation). */
 export function updateAccount(id, patch) {
   const acc = DB.accounts.find((a) => a.id === id);
   if (!acc) return { ok: false, error: 'Compte introuvable.' };
+  // Activer un compte inscrit, c'est valider son inscription.
+  if (patch.actif === true) patch = Object.assign({}, patch, { enAttente: false });
 
   const perdAdmin = (patch.role && patch.role !== 'admin') || patch.actif === false;
   if (acc.role === 'admin' && acc.actif && perdAdmin && countActiveAdmins() <= 1) {

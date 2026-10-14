@@ -1248,6 +1248,18 @@ export function computeAlerts() {
     });
   }
 
+  // Inscriptions faites depuis la page de connexion, a valider.
+  const inscrits = (DB.accounts || []).filter((a) => a.enAttente);
+  if (inscrits.length) {
+    out.push({
+      level: 'warn',
+      icon: '👤',
+      title: `${inscrits.length} inscription(s) en attente de validation`,
+      detail: `${inscrits.map((a) => a.nom || a.login).join(', ')} — à valider dans RÉGLAGES → Comptes et accès`,
+      go: 'REGLAGES'
+    });
+  }
+
   const unpaid = unpaidMissions();
   if (unpaid.length) {
     const old = unpaid.filter((m) => {

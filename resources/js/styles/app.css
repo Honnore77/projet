@@ -855,3 +855,8 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 .niveauxTable td{vertical-align:middle;}
 .niveauFixe{color:var(--muted);font-weight:700;white-space:nowrap;}
 .niveauxLegende{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;}
+
+/* Lien d'inscription de l'ecran de connexion. */
+.cxInscrire{margin-top:16px;border:0;background:transparent;color:var(--muted);font:inherit;font-size:14px;cursor:pointer;padding:6px;}
+.cxInscrire b{color:var(--green);}
+.cxInscrire:hover b{text-decoration:underline;}

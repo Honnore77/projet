@@ -3,8 +3,8 @@
    =================================================================== */
 
 import { el, esc } from '../core/utils.js';
-import { login } from '../core/auth.js';
-import { toast, infoDialog } from './components.js';
+import { login, inscrire } from '../core/auth.js';
+import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
 
 const logoUrl = './logo-pdu.png';
@@ -97,6 +97,10 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
 
         <button class="cxBouton" id="loginBtn" type="button">
           ${ICONES.cadenas}<span>SE CONNECTER</span>
+        </button>
+
+        <button class="cxInscrire" id="inscrireBtn" type="button">
+          Pas encore de compte ? <b>S’inscrire</b>
         </button>
 
       </main>
@@ -194,6 +198,10 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   };
 
   loginBtn.onclick = attempt;
+  screen.querySelector('#inscrireBtn').onclick = () => ouvrirInscription((identifiant) => {
+    userInput.value = identifiant;
+    passInput.value = '';
+  });
   [userInput, passInput].forEach((inp) => {
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') attempt(); });
   });
@@ -201,6 +209,41 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   // preventScroll : sans cela, donner le focus au champ ferait defiler la
   // page et masquerait l'en-tete des l'ouverture sur une fenetre courte.
   setTimeout(() => (memorise || firstRun ? passInput : userInput).focus({ preventScroll: true }), 120);
+}
+
+/* ---------------------------- Inscription --------------------------- */
+
+/**
+ * Demande d'inscription. Le compte attend ensuite qu'un administrateur le
+ * valide (REGLAGES → Comptes et accès) et lui donne son role.
+ */
+function ouvrirInscription(apres) {
+  openForm({
+    title: 'Demande d’inscription',
+    intro: 'Votre compte servira dès qu’un administrateur l’aura validé et vous aura attribué vos accès.',
+    fields: [
+      { key: 'nom', label: 'Nom et prénoms', required: true, full: true,
+        hint: 'Tels qu’ils figurent dans la liste des agents du PDU' },
+      { key: 'login', label: 'Identifiant souhaité', required: true, full: true,
+        hint: 'Celui que vous taperez pour vous connecter' },
+      { key: 'password', label: 'Mot de passe', type: 'password', required: true, full: true,
+        hint: '6 caractères minimum, avec au moins une lettre et un chiffre' },
+      { key: 'password2', label: 'Confirmer le mot de passe', type: 'password', required: true, full: true }
+    ],
+    okLabel: 'Envoyer ma demande',
+    onSubmit: async (v) => {
+      if (v.password !== v.password2) return 'Les deux mots de passe ne correspondent pas.';
+      const res = await inscrire({ login: v.login, nom: v.nom, password: v.password });
+      if (!res.ok) return res.error;
+      if (apres) apres(String(v.login).trim());
+      setTimeout(() => infoDialog({
+        title: 'Demande envoyée',
+        message: 'Votre demande d’inscription est enregistrée. Vous pourrez vous connecter dès qu’un ' +
+          'administrateur l’aura validée.\n\nSur un téléphone, la demande parvient au PC à la prochaine synchronisation.'
+      }), 80);
+      return null;
+    }
+  });
 }
 
 /* ------------------------------------------------------------------ */
