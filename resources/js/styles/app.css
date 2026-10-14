@@ -89,19 +89,19 @@ input,select,textarea{font-family:inherit;}
 #login .btnGhost{max-width:none;}
 
 /* ------------------- illustration et pied de page ------------------- */
-/* L'illustration est une photo de 396 px de large. Sur un ecran etroit elle
-   remplit le bandeau. Au-dela, l'agrandir la rendrait floue et rognerait les
-   vehicules : elle garde donc sa taille utile, centree, sans fondu sur les bords.
-   */
-.cxIllustration{flex-shrink:0;height:clamp(150px,24vw,190px);
-  display:flex;justify-content:center;overflow:hidden;background:transparent;}
-.cxPhoto{width:100%;height:100%;
+/* Les vehicules, sous le formulaire : meme largeur que la carte de
+   connexion (420 px au plus), coins arrondis comme elle, et un leger
+   fondu sur les quatre bords. */
+.cxIllustration{flex-shrink:0;display:flex;justify-content:center;padding:4px 12px 18px;background:transparent;}
+.cxPhoto{display:block;width:100%;max-width:420px;aspect-ratio:396 / 154;border-radius:24px;
   background-image:url('./bandeau-connexion.png');
-  background-size:cover;background-position:center bottom;background-repeat:no-repeat;}
-
-@media (min-width:600px){
-  .cxPhoto{width:auto;aspect-ratio:396 / 154;}
-}
+  background-size:cover;background-position:center;background-repeat:no-repeat;
+  -webkit-mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%),
+    linear-gradient(180deg,transparent 0,#000 6%,#000 94%,transparent 100%);
+  -webkit-mask-composite:source-in;
+  mask-image:linear-gradient(90deg,transparent 0,#000 5%,#000 95%,transparent 100%),
+    linear-gradient(180deg,transparent 0,#000 6%,#000 94%,transparent 100%);
+  mask-composite:intersect;}
 .cxPied{flex-shrink:0;padding:12px 18px calc(14px + env(safe-area-inset-bottom));
   background:#dff0e6;text-align:center;font-size:11.5px;line-height:1.6;color:#4a6b58;}
 .field{width:100%;max-width:340px;}
