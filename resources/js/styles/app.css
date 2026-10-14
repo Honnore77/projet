@@ -915,3 +915,8 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 #login[data-decor="fond-faisceaux"]{background-color:#062c62;}
 #login[data-decor="fond-aurore"]{background-color:#5a2a6e;}
 #login[data-decor="fond-eau"]{background-color:#b7e2ea;}
+
+/* Bouton Apparence : en-tete (tous les comptes) et page de connexion. */
+#apparenceBtn{border:0;background:var(--green-soft,#e7f6ee);width:40px;height:40px;border-radius:12px;font-size:20px;line-height:1;cursor:pointer;margin-right:8px;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.08);}
+#apparenceBtn:hover{filter:brightness(.96);}
+#login #apparenceBtn,.cxApparence{width:auto;height:auto;margin:12px 0 0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--green);background:var(--green-soft,#e7f6ee);border:0;cursor:pointer;}

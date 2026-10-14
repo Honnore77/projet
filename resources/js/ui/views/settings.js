@@ -20,10 +20,7 @@ import {
 } from '../components.js';
 import { rerender } from '../shell.js';
 import { renderSynchroSection } from './synchroUI.js';
-import {
-  THEMES, themeActuel, appliquerTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS,
-  DECORS, decorActuel, choisirDecor
-} from '../theme.js';
+import { apparenceNode } from '../apparence.js';
 
 export function renderSettings(page) {
   if (!canAdmin()) {
@@ -53,89 +50,7 @@ export function renderSettings(page) {
  */
 function renderApparenceSection(page) {
   page.appendChild(sectionLabel('APPARENCE', COLORS.green));
-  const bloc = document.createElement('div');
-  bloc.className = 'card';
-  bloc.innerHTML =
-    '<h3>STYLE DE L’INTERFACE</h3>' +
-    '<p>Choisissez l’allure de l’application. Le choix ne vaut que pour cet appareil : ' +
-    'le PC et le téléphone peuvent avoir chacun le leur. Les données ne changent pas.</p>';
-  const grille = document.createElement('div');
-  grille.className = 'themeChoix';
-  const actuel = themeActuel();
-  THEMES.forEach((t) => {
-    const b = document.createElement('button');
-    b.className = 'themeCarte' + (t.id === actuel ? ' choisi' : '');
-    b.type = 'button';
-    b.innerHTML =
-      '<div class="nuancier">' + t.apercu.map((c) => `<span style="background:${c}"></span>`).join('') + '</div>' +
-      (t.id === actuel ? '<span class="coche">✓ Actif</span>' : '') +
-      `<b>${esc(t.nom)}</b><small>${esc(t.detail)}</small>`;
-    b.addEventListener('click', () => {
-      if (t.id === themeActuel()) return;
-      appliquerTheme(t.id);
-      rerender();
-      toast(`Style « ${t.nom} » appliqué.`);
-    });
-    grille.appendChild(b);
-  });
-  bloc.appendChild(grille);
-  page.appendChild(bloc);
-
-  // Taille de l'affichage : tout l'ecran grossit ou rapetisse d'un cran.
-  const taille = document.createElement('div');
-  taille.className = 'card';
-  taille.innerHTML =
-    '<h3>TAILLE DE L’AFFICHAGE</h3>' +
-    '<p>Agrandit ou réduit toute l’application sur cet appareil. Sur téléphone, on peut aussi zoomer ' +
-    'à deux doigts, comme sur une photo.</p>' +
-    '<div class="zoomBarre">' +
-    '<button type="button" class="zoomBtn" data-moins aria-label="Réduire">−</button>' +
-    '<b class="zoomValeur"></b>' +
-    '<button type="button" class="zoomBtn" data-plus aria-label="Agrandir">+</button>' +
-    '<button type="button" class="smallBtn" data-normal>Taille normale</button>' +
-    '</div>';
-  const valeur = taille.querySelector('.zoomValeur');
-  const afficher = (z) => {
-    valeur.textContent = `${z} %`;
-    taille.querySelector('[data-moins]').disabled = z <= ZOOM_MIN;
-    taille.querySelector('[data-plus]').disabled = z >= ZOOM_MAX;
-  };
-  const regler = (z) => afficher(appliquerZoom(z));
-  taille.querySelector('[data-moins]').addEventListener('click', () => regler(zoomActuel() - ZOOM_PAS));
-  taille.querySelector('[data-plus]').addEventListener('click', () => regler(zoomActuel() + ZOOM_PAS));
-  taille.querySelector('[data-normal]').addEventListener('click', () => regler(100));
-  afficher(zoomActuel());
-  page.appendChild(taille);
-
-  // Decor des cotes de la page de connexion (grand ecran).
-  const decor = document.createElement('div');
-  decor.className = 'card';
-  decor.innerHTML =
-    '<h3>DÉCOR DE LA PAGE DE CONNEXION</h3>' +
-    '<p>Sur un grand écran, il habille les côtés du formulaire de connexion. Il ne s’affiche pas sur un ' +
-    'téléphone, faute de place. Le choix vaut pour cet appareil.</p>';
-  const grilleDecor = document.createElement('div');
-  grilleDecor.className = 'themeChoix';
-  const actuelDecor = decorActuel();
-  DECORS.forEach((d) => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'themeCarte' + (d.id === actuelDecor ? ' choisi' : '');
-    b.innerHTML =
-      (d.apercu
-        ? `<div class="decorApercu" style="background-image:url('${d.apercu}')"></div>`
-        : '<div class="decorApercu decorVide">Aucun</div>') +
-      (d.id === actuelDecor ? '<span class="coche">✓ Actif</span>' : '') +
-      `<b>${esc(d.nom)}</b><small>${esc(d.detail)}</small>`;
-    b.addEventListener('click', () => {
-      choisirDecor(d.id);
-      rerender();
-      toast(d.id ? `Décor « ${d.nom} » choisi : il s’affichera à la prochaine connexion.` : 'Page de connexion sans décor.');
-    });
-    grilleDecor.appendChild(b);
-  });
-  decor.appendChild(grilleDecor);
-  page.appendChild(decor);
+  page.appendChild(apparenceNode({ surChoix: rerender }));
 }
 
 /* ------------------- Sauvegarde automatique datee ------------------ */

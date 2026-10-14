@@ -7,6 +7,7 @@ import { login, inscrire } from '../core/auth.js';
 import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
 import { decorActuel, decorPleinePage } from './theme.js';
+import { ouvrirApparence } from './apparence.js';
 
 const logoUrl = './logo-pdu.png';
 const armoiriesUrl = './armoiries-ci.png';
@@ -101,6 +102,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
           ${ICONES.cadenas}<span>SE CONNECTER</span>
         </button>
 
+        <button class="cxApparence" id="apparenceBtn" type="button" title="Choisir le fond de cette page">🎨 Fond</button>
         <button class="cxInscrire" id="inscrireBtn" type="button">
           Pas encore de compte ? <b>S’inscrire</b>
         </button>
@@ -201,6 +203,15 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   };
 
   loginBtn.onclick = attempt;
+  // Le fond de la page se choisit avant meme de se connecter : il est
+  // propre a l'appareil, et s'applique aussitot.
+  screen.querySelector('#apparenceBtn').onclick = () => ouvrirApparence({
+    titre: '🎨 Fond de la page de connexion', style: false, taille: false,
+    surDecor: (id) => {
+      if (id) screen.dataset.decor = id; else delete screen.dataset.decor;
+      if (decorPleinePage(id)) screen.dataset.plein = ''; else delete screen.dataset.plein;
+    }
+  });
   screen.querySelector('#inscrireBtn').onclick = () => ouvrirInscription((identifiant) => {
     userInput.value = identifiant;
     passInput.value = '';

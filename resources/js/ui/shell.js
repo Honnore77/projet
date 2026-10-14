@@ -21,6 +21,7 @@ import { renderDecharges } from './views/decharges.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
+import { ouvrirApparence } from './apparence.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
@@ -114,6 +115,7 @@ export function mountShell(appRoot, { onLogout }) {
           <b>${u ? escapeText(u.nom) : ''}</b>
           <span class="role-${u ? u.role : 'visiteur'}">${u ? escapeText(roleLabel(u.role).toUpperCase()) : ''}</span>
         </div>
+        <button id="apparenceBtn" type="button" title="Apparence : style, taille, fond">🎨</button>
         <button id="logoutBtn" type="button">Quitter</button>
       </header>
       <div class="shellBody">
@@ -158,6 +160,9 @@ export function mountShell(appRoot, { onLogout }) {
   const puce = dash.querySelector('.userChip');
   puce.title = 'Changer mon mot de passe';
   puce.onclick = () => openChangeOwnPassword();
+
+  // Chacun choisit son style, sa taille d'affichage et son fond.
+  dash.querySelector('#apparenceBtn').onclick = () => ouvrirApparence({ surChoix: rerender });
 
   dash.querySelector('#logoutBtn').onclick = () => {
     logout();
