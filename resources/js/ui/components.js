@@ -5,6 +5,7 @@
 
 import { esc, el } from '../core/utils.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
+import { voitTout, rubriqueCourante } from '../core/acces.js';
 
 export const COLORS = {
   green: '#008A3B',
@@ -561,7 +562,9 @@ export function filterBar(controls) {
 /** Onglets secondaires. */
 export function subtabs(items, activeKey, onClick, colorMap = {}) {
   const bar = el('<div class="subtabs"></div>');
-  items.forEach((it) => {
+  // Les statistiques portent sur toute la rubrique : qui n'en voit que ses
+  // propres fiches n'y a pas acces.
+  items.filter((it) => it.key !== 'stats' || voitTout(rubriqueCourante())).forEach((it) => {
     const active = it.key === activeKey;
     const b = el(`<button type="button" class="subtab">${esc(it.label)}</button>`);
     // La couleur passe par la feuille de style : chaque style d'interface

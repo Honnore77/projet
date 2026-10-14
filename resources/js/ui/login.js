@@ -3,7 +3,7 @@
    =================================================================== */
 
 import { el, esc } from '../core/utils.js';
-import { login, loginVisitor } from '../core/auth.js';
+import { login } from '../core/auth.js';
 import { toast, infoDialog } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
 
@@ -99,9 +99,6 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
           ${ICONES.cadenas}<span>SE CONNECTER</span>
         </button>
 
-        <div class="cxOu"><span>OU</span></div>
-
-        <button class="btnGhost" id="visitorBtn" type="button">Continuer en visiteur (lecture seule)</button>
       </main>
 
       <div class="cxIllustration"><span class="cxPhoto"></span></div>
@@ -197,10 +194,6 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   };
 
   loginBtn.onclick = attempt;
-  screen.querySelector('#visitorBtn').onclick = () => {
-    loginVisitor();
-    onSuccess();
-  };
   [userInput, passInput].forEach((inp) => {
     inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') attempt(); });
   });

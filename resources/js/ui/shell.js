@@ -4,7 +4,10 @@
 
 import { el, debounce, norm, fmt } from '../core/utils.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
-import { onChange, voyantsVidange, vehiculesImmobilises } from '../core/db.js';
+import { DB, onChange, voyantsVidange, vehiculesImmobilises, vehicleByImmat } from '../core/db.js';
+import {
+  voit, voitTout, seulementSiennes, peutSaisir, peutSupprimer, estAMoi, definirRubrique
+} from '../core/acces.js';
 // le logo vit dans public/ : Vite le copie tel quel a la racine du build
 const logoUrl = './logo-pdu.png';
 
@@ -17,7 +20,7 @@ import { renderMaintenance } from './views/maintenance.js';
 import { renderDecharges } from './views/decharges.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
-import { renderSettings } from './views/settings.js';
+import { renderSettings, openChangeOwnPassword } from './views/settings.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
@@ -150,6 +153,12 @@ export function mountShell(appRoot, { onLogout }) {
   }
   renderAlertBar();
 
+  // Chacun change son mot de passe d'un clic sur son nom : seul
+  // l'administrateur a acces aux REGLAGES.
+  const puce = dash.querySelector('.userChip');
+  puce.title = 'Changer mon mot de passe';
+  puce.onclick = () => openChangeOwnPassword();
+
   dash.querySelector('#logoutBtn').onclick = () => {
     logout();
     if (onLogoutCb) onLogoutCb();
@@ -168,12 +177,28 @@ export function mountShell(appRoot, { onLogout }) {
   );
   globalBtn.onclick = () => navigate('RECHERCHE_GLOBALE');
 
-  navigate('TABLEAU DE BORD');
+  navigate(premiereRubrique());
+}
+
+/**
+ * Une rubrique du menu est-elle ouverte au compte connecte ? UTILISATEURS
+ * l'est aussi pour qui ne voit que CONGES ET ABSENCES.
+ */
+function rubriqueOuverte(m) {
+  if (m.adminOnly) return canAdmin();
+  if (m.key === 'UTILISATEURS') return voit('UTILISATEURS') || voit('CONGES');
+  return voit(m.key);
+}
+
+/** La premiere rubrique ouverte : la page d'arrivee du compte. */
+function premiereRubrique() {
+  const m = MODULES.find(rubriqueOuverte);
+  return m ? m.key : 'TABLEAU DE BORD';
 }
 
 function buildTabs() {
   tabsEl.innerHTML = '';
-  MODULES.filter((m) => !m.adminOnly || canAdmin()).forEach((m) => {
+  MODULES.filter(rubriqueOuverte).forEach((m) => {
     const b = el(`<button type="button" class="tab">${m.label}</button>`);
     b.dataset.mod = m.key;
     b.style.setProperty('--tabColor', m.color);
@@ -223,6 +248,8 @@ const LARGEUR_COMPACTE = 560;
 function renderAlertBar() {
   if (!alertBarEl) return;
   alertBarEl.innerHTML = '';
+  // Les voyants parlent de tout le parc : reserves a qui le voit en entier.
+  if (!voitTout('VEHICULES')) return;
   const entete = alertBarEl.parentElement;
 
   const vidanges = voyantsVidange();
@@ -329,11 +356,56 @@ export function rerender() {
   // ne survivent pas a son remplacement.
   destroyCharts();
   const page = el('<div class="page"></div>');
-  const renderer = ROUTES[state.module] || renderDashboard;
-  renderer(page);
+  // UTILISATEURS s'ouvre sur la sous-rubrique que le compte peut voir.
+  if (state.module === 'UTILISATEURS') {
+    if (state.sub.UTILISATEURS !== 'indisponibilites' && !voit('UTILISATEURS') && voit('CONGES')) state.sub.UTILISATEURS = 'indisponibilites';
+    if (state.sub.UTILISATEURS === 'indisponibilites' && !voit('CONGES') && voit('UTILISATEURS')) state.sub.UTILISATEURS = 'liste';
+  }
+  const rub = rubriqueDeLaPage();
+  definirRubrique(rub);
+  // Boutons d'ajout et de modification, puis de suppression, selon le
+  // niveau du compte dans la rubrique affichee. Un conducteur garde les
+  // siens dans MISSION (rapport) et CONGES (ses demandes).
+  const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
+  document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches);
+  document.body.classList.toggle('sansSuppression', !peutSupprimer(rub));
+  if (pageAutorisee(rub)) {
+    const renderer = ROUTES[state.module] || renderDashboard;
+    renderer(page);
+  } else {
+    page.appendChild(el(
+      '<div class="card" style="border-left-color:#D32F2F"><h3>ACCÈS RESTREINT</h3>' +
+      '<p>Votre compte n’a pas accès à cette page. Si vous en avez besoin, demandez-le à un administrateur.</p></div>'
+    ));
+  }
   contentEl.innerHTML = '';
   contentEl.appendChild(page);
   applyLocalFilter();
+}
+
+/** La rubrique dont la page affichee depend, pour les droits. */
+function rubriqueDeLaPage() {
+  const m = state.module;
+  if (m === 'FICHE_VEHICULE') return 'VEHICULES';
+  if (m === 'FICHE_UTILISATEUR') return 'UTILISATEURS';
+  if (m === 'UTILISATEURS') return state.sub.UTILISATEURS === 'indisponibilites' ? 'CONGES' : 'UTILISATEURS';
+  return m;
+}
+
+/** Le compte connecte peut-il ouvrir cette page ? */
+function pageAutorisee(rub) {
+  const m = state.module;
+  if (m === 'REGLAGES') return canAdmin();
+  if (m === 'RECHERCHE_GLOBALE') return true;
+  if (m === 'FICHE_VEHICULE') {
+    return voitTout('VEHICULES') || (seulementSiennes('VEHICULES') && estAMoi('VEHICULES', vehicleByImmat(state.vehicleSheetImmat)));
+  }
+  if (m === 'FICHE_UTILISATEUR') {
+    const u = DB.users.find((x) => x.id === state.userSheetId);
+    return voitTout('UTILISATEURS') || (seulementSiennes('UTILISATEURS') && estAMoi('UTILISATEURS', u));
+  }
+  if (m === 'UTILISATEURS') return voit('UTILISATEURS') || voit('CONGES');
+  return voit(rub);
 }
 
 const ROUTES = {

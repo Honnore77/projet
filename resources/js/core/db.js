@@ -287,6 +287,13 @@ export function normalize(raw) {
   db.settings = Object.assign(base.settings, raw && raw.settings);
   db.meta = Object.assign(base.meta, raw && raw.meta);
 
+  // Roles d'avant les niveaux d'acces : le gestionnaire devient chef du
+  // parc, le visiteur direction / consultation (voir core/acces.js).
+  db.accounts.forEach((a) => {
+    if (a.role === 'gestionnaire') a.role = 'chef';
+    else if (a.role === 'visiteur') a.role = 'direction';
+  });
+
   db.users.forEach((u) => {
     if (!Array.isArray(u.historique)) u.historique = [];
     // « Conducteur du pool » a d'abord ete un booleen, il est compare a « Oui »

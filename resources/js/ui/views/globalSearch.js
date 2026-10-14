@@ -6,6 +6,8 @@ import { DB, allVehicles, immatOf } from '../../core/db.js';
 import { esc, escLignes, el, fmt, norm, dateFR } from '../../core/utils.js';
 import { toolbar, emptyState, COLORS } from '../components.js';
 import { state, navigate, openVehicleSheet } from '../shell.js';
+// Chaque compte ne trouve que ce que ses niveaux d'acces lui montrent.
+import { filtrer, voitTout } from '../../core/acces.js';
 
 export function renderGlobalSearch(page) {
   page.appendChild(
@@ -20,7 +22,7 @@ export function renderGlobalSearch(page) {
 
   const results = [];
 
-  allVehicles().forEach((v) => {
+  filtrer('VEHICULES', allVehicles()).forEach((v) => {
     if (norm(`${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.numeroChassis || ''} ${v.statut} ${v.section} ${v.utilisateur} ${v.groupe}`).includes(q)) {
       results.push({
         type: 'VÉHICULE',
@@ -32,7 +34,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.users.forEach((u) => {
+  filtrer('UTILISATEURS', DB.users).forEach((u) => {
     if (norm(`${u.nom} ${u.prenoms} ${u.fonction} ${u.section} ${u.telephone || ''}`).includes(q)) {
       results.push({
         type: 'UTILISATEUR',
@@ -44,7 +46,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.dotationPool.forEach((d) => {
+  filtrer('DOTATION', DB.dotationPool).forEach((d) => {
     if (norm(`${d.immat} ${d.marqueModele} ${d.station}`).includes(q)) {
       results.push({
         type: 'DOTATION POOL',
@@ -56,7 +58,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.missions.forEach((m) => {
+  filtrer('MISSION', DB.missions).forEach((m) => {
     if (norm(`${m.ref} ${m.conducteur} ${m.destination} ${m.vehicule}`).includes(q)) {
       results.push({
         type: 'MISSION',
@@ -68,7 +70,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.maintenance.forEach((m) => {
+  filtrer('ENTRETIEN', DB.maintenance).forEach((m) => {
     if (norm(`${m.marque} ${m.modele} ${m.immat} ${m.motif} ${m.signalePar || ''}`).includes(q)) {
       results.push({
         type: 'ENTRETIEN',
@@ -80,7 +82,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.users.forEach((u) => {
+  filtrer('UTILISATEURS', DB.users).forEach((u) => {
     (u.historique || []).forEach((h) => {
       if (norm(`${h.nature} ${h.circonstances} ${h.vehicule} ${h.responsabilite || ''}`).includes(q)) {
         results.push({
@@ -94,7 +96,7 @@ export function renderGlobalSearch(page) {
     });
   });
 
-  DB.decharges.forEach((d) => {
+  filtrer('DECHARGE', DB.decharges).forEach((d) => {
     if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.immat}`).includes(q)) {
       results.push({
         type: 'DÉCHARGE',
@@ -106,7 +108,7 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  DB.destinataires.forEach((d) => {
+  (voitTout('DECHARGE') ? DB.destinataires : []).forEach((d) => {
     if (norm(`${d.nom} ${d.contacts} ${d.localisation}`).includes(q)) {
       results.push({
         type: 'DESTINATAIRE',

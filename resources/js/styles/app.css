@@ -156,10 +156,10 @@ header.top h2{flex:0 1 auto;min-width:0;font-size:16px;font-weight:700;color:var
 @media (prefers-reduced-motion:reduce){
   .voyant.clignote{animation:none;box-shadow:0 0 0 2px rgba(23,49,59,.35);}
 }
-.userChip{display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;margin-right:2px;}
+.userChip{cursor:pointer;display:flex;flex-direction:column;align-items:flex-end;line-height:1.25;margin-right:2px;}
 .userChip b{font-size:12.5px;}
 .userChip span{font-size:10px;color:#fff;padding:2px 7px;border-radius:7px;font-weight:700;letter-spacing:.3px;}
-.role-admin{background:var(--purple);} .role-gestionnaire{background:var(--blue);} .role-visiteur{background:var(--orange);}
+.role-admin{background:var(--purple);} .role-chef,.role-gestionnaire{background:var(--blue);} .role-saisie{background:#00838F;} .role-conducteur{background:#C2185B;} .role-direction,.role-visiteur{background:var(--orange);}
 .syncChip{border:1px solid var(--line);background:var(--white);border-radius:10px;padding:6px 9px;
   font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;line-height:1;}
 .syncChip:active{background:#eef2f2;}
@@ -172,9 +172,10 @@ header.top h2{flex:0 1 auto;min-width:0;font-size:16px;font-weight:700;color:var
 .shellMain{flex:1;display:flex;flex-direction:column;min-width:0;min-height:0;}
 
 /* Sur un ecran etroit, le nom du compte prend toute la place et
-   ecraserait le titre de la rubrique : on le retire. */
+   ecraserait le titre de la rubrique : on n’en garde qu’une icône, qui ouvre le changement de mot de passe. */
 @media (max-width:459px){
-  header.top .userChip{display:none;}
+  header.top .userChip b,header.top .userChip span{display:none;}
+  header.top .userChip::before{content:"👤";font-size:20px;line-height:1;}
   header.top img{max-width:96px;object-fit:contain;object-position:left;}
   /* Le titre ne cede la place que s'il y a reellement quelque chose a
      signaler : sans alerte, la barre reste celle qu'on connait. */
@@ -372,6 +373,7 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 
 /* lecture seule : on masque toute action d ecriture */
 body.readonly .addBtn,body.readonly .smallBtn,body.readonly [data-write]{display:none !important;}
+body.sansSuppression [data-del]{display:none !important;}
 
 /* ---------------- GRAND ECRAN / BUREAU ---------------- */
 @media (min-width:760px){
@@ -847,3 +849,9 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 /* Repos maladie : une information, pas une demande a valider. */
 .voyantInfo{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;
   color:#1565C0;background:color-mix(in srgb,#1976D2 12%,transparent);}
+
+/* REGLAGES -> Niveaux d'acces. */
+.niveauxTable select{min-width:150px;padding:6px 8px;border-radius:8px;border:1px solid var(--line);background:var(--white);color:var(--text);font:inherit;font-size:13px;}
+.niveauxTable td{vertical-align:middle;}
+.niveauFixe{color:var(--muted);font-weight:700;white-space:nowrap;}
+.niveauxLegende{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;}

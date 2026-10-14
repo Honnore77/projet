@@ -24,6 +24,7 @@ import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsDotationPool, dsCarburantMissions, dsRavitaillementsMissions } from '../../export/datasets.js';
+import { filtrer } from '../../core/acces.js';
 
 const SUBS = [
   { key: 'pool', label: 'DOTATION EN CARBURANT POOL' },
@@ -133,7 +134,8 @@ function renderPool(page) {
     ])
   );
 
-  let list = DB.dotationPool.slice();
+  // Un conducteur n'y voit que les dotations de son vehicule.
+  let list = filtrer('DOTATION', DB.dotationPool.slice());
   if (f.dateFrom) list = list.filter((d) => !d.date || d.date >= f.dateFrom);
   if (f.dateTo) list = list.filter((d) => !d.date || d.date <= f.dateTo);
   if (f.immat) list = list.filter((d) => norm(d.immat || '').includes(norm(f.immat)));
@@ -310,7 +312,7 @@ function renderMission(page) {
     )
   );
 
-  let list = missionsAvecCarburant();
+  let list = filtrer('DOTATION', missionsAvecCarburant());
   if (f.dateFrom) list = list.filter((m) => !m.dateDepart || m.dateDepart >= f.dateFrom);
   if (f.dateTo) list = list.filter((m) => !m.dateDepart || m.dateDepart <= f.dateTo);
   if (f.conducteur) list = list.filter((m) => norm(m.conducteur || '').includes(norm(f.conducteur)));

@@ -25,6 +25,9 @@ import {
 import { exporterDemande } from '../../export/demandes.js';
 import { urlImage } from '../../core/images.js';
 import { canWrite } from '../../core/auth.js';
+import {
+  voit, filtrer, seulementSiennes, peutModifier, peutValider, peutValiderPour, agentConnecte, estAMoi
+} from '../../core/acces.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
@@ -95,8 +98,10 @@ const SUBS = [
 
 export function renderUsers(page) {
   const sub = state.sub.UTILISATEURS || 'liste';
+  // Chaque sous-rubrique a son propre niveau d'acces (REGLAGES).
+  const subs = SUBS.filter((s) => (s.key === 'liste' ? voit('UTILISATEURS') : s.key === 'indisponibilites' ? voit('CONGES') : true));
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); },
+    subtabs(subs, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); },
       { liste: COLORS.blue, indisponibilites: COLORS.purple, stats: COLORS.grey })
   );
   if (sub === 'stats') renderStatistiques(page, 'UTILISATEURS');
@@ -128,7 +133,8 @@ function renderListe(page) {
     ])
   );
 
-  let list = DB.users.slice().reverse();
+  // Un conducteur n'y voit que sa propre fiche.
+  let list = filtrer('UTILISATEURS', DB.users.slice().reverse());
   if (f.statut) list = list.filter((u) => u.statut === f.statut);
   if (f.section) list = list.filter((u) => u.section === f.section);
 
@@ -364,18 +370,19 @@ function renderTableauAbsences(page) {
     ])
   );
 
-  let list = DB.indisponibilites.slice();
+  // Un conducteur n'y voit que ses propres absences.
+  let list = filtrer('CONGES', DB.indisponibilites.slice());
   if (f.etat) list = list.filter((i) => etatIndisponibilite(i, jour) === f.etat);
   if (f.motif) list = list.filter((i) => i.motif === f.motif);
   if (f.conducteur) list = list.filter((i) => norm(i.conducteur || '').includes(norm(f.conducteur)));
   // Les plus recentes en tete.
   list.sort((a, b) => String(b.dateDepart || '').localeCompare(String(a.dateDepart || '')));
 
-  const enCours = indisponibilitesEnCours(jour);
+  const enCours = filtrer('CONGES', indisponibilitesEnCours(jour));
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('En cours', fmt(enCours.length),
     enCours.length ? enCours.map((i) => i.conducteur).join(', ') : 'aucun conducteur absent', COLORS.red));
-  grid.appendChild(statTile('À venir', fmt(DB.indisponibilites.filter((i) => etatIndisponibilite(i, jour) === 'à venir').length),
+  grid.appendChild(statTile('À venir', fmt(filtrer('CONGES', DB.indisponibilites).filter((i) => etatIndisponibilite(i, jour) === 'à venir').length),
     'départs programmés', COLORS.orange));
   grid.appendChild(statTile('Indisponibilités', fmt(list.length), 'dans la liste filtrée', COLORS.purple));
   page.appendChild(grid);
@@ -463,11 +470,11 @@ function indisponibiliteFields(i = {}) {
       options: nomsUtilisateurs().slice().sort((a, b) => a.localeCompare(b, 'fr')),
       emptyLabel: '— aucun —', addLabel: 'Autre personne',
       hint: 'Agent qui assure le remplacement pendant l’absence' },
-    { key: 'validee', label: 'Validation', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
+    ...(!peutValider() ? [] : [{ key: 'validee', label: 'Validation', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
       options: ['Oui', 'Non'], value: valeurValidation(i),
       hint: demandeDeLAbsence(i)
         ? 'Reprise de la demande liée, et reportée sur elle si vous la changez ici'
-        : 'Sans objet pour un repos maladie' },
+        : 'Sans objet pour un repos maladie' }]),
     { key: 'images', label: 'Ajout d’image', type: 'images', full: true, value: i.images,
       hint: 'Titre de congé, autorisation de permission, certificat médical (JPEG ou PNG)' }
   ];
@@ -521,6 +528,12 @@ function openIndisponibiliteForm(i) {
       if (autre) {
         return `${conducteur} est déjà indisponible du ${dateFR(autre.dateDepart)} au ${dateFR(autre.dateReprise) || '…'} (${autre.motif || '—'}).`;
       }
+      // Le champ « Validation » n'est propose qu'a qui peut valider : absent,
+      // la decision deja prise reste telle quelle.
+      const decide = values.validee !== undefined;
+      if (decide && values.validee && !peutValiderPour(conducteur)) {
+        return 'Vous ne pouvez pas décider de votre propre absence : un autre responsable doit la valider.';
+      }
       const payload = {
         conducteur,
         motif: values.motif,
@@ -528,12 +541,13 @@ function openIndisponibiliteForm(i) {
         dateReprise: values.dateReprise,
         duree: d,
         interimaire,
-        validee: MOTIFS_SANS_VALIDATION.includes(values.motif) ? '' : values.validee || '',
+        validee: MOTIFS_SANS_VALIDATION.includes(values.motif) ? ''
+          : decide ? values.validee || '' : (i && i.validee) || '',
         images: values.images
       };
       // La decision suit la demande liee : les deux tableaux disent la meme chose.
       const demande = isEdit ? demandeDeLAbsence(i) : null;
-      if (demande && !MOTIFS_SANS_VALIDATION.includes(values.motif)) {
+      if (decide && demande && !MOTIFS_SANS_VALIDATION.includes(values.motif)) {
         update('demandes', demande.id, decisionPourDemande(demande, payload.validee));
       }
       if (isEdit) update('indisponibilites', i.id, payload);
@@ -562,12 +576,12 @@ function renderDemandes(page) {
   );
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Demande de congé', cls: 'addBtn', color: COLORS.blue, write: true, onClick: () => openDemandeForm('conge', null) },
-      canWrite() && { label: '+ Demande d’absence', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openDemandeForm('absence', null) }
+      peutDeposer() && { label: '+ Demande de congé', cls: 'addBtn', color: COLORS.blue, write: true, onClick: () => openDemandeForm('conge', null) },
+      peutDeposer() && { label: '+ Demande d’absence', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openDemandeForm('absence', null) }
     ])
   );
 
-  const list = (DB.demandes || []).slice()
+  const list = filtrer('CONGES', (DB.demandes || []).slice())
     .sort((a, b) => String(b.dateDemande || b.createdAt || '').localeCompare(String(a.dateDemande || a.createdAt || '')));
   if (!list.length) {
     page.appendChild(emptyState('Aucune demande enregistrée.'));
@@ -595,7 +609,7 @@ function renderDemandes(page) {
       auTableau ? '✓' : '<span style="color:#8aa0a6">—</span>',
       `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche${(d.images || []).length ? ` 📎${(d.images || []).length}` : ''}</button> ` +
       `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-pdf title="Exporter l’imprimé">📄 PDF</button> ` +
-      (canWrite()
+      (demandeModifiable(d)
         ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
           `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
         : '')
@@ -691,7 +705,7 @@ function openFicheDemande(d) {
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
       { label: '📄 Imprimé PDF', cls: 'ok', onClick: () => exporterImprime(d) },
-      ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openDemandeForm(d.type, d); } }] : [])
+      ...(demandeModifiable(d) ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openDemandeForm(d.type, d); } }] : [])
     ]
   });
 }
@@ -787,11 +801,32 @@ function derniereDemandeDe(nom) {
 
 const OUI_NON = [{ value: 'Oui', label: 'Oui' }, { value: 'Non', label: 'Non' }];
 
+/** Deposer une demande : en saisie, ou pour soi-meme quand on ne voit que ses fiches. */
+function peutDeposer() {
+  return canWrite() || (seulementSiennes('CONGES') && !!agentConnecte());
+}
+
+/**
+ * Modifier une demande : en saisie, ou la sienne tant qu'aucune decision
+ * n'est prise.
+ */
+function demandeModifiable(d) {
+  if (canWrite()) return true;
+  return peutModifier('CONGES', d) && etatValidation(d) === 'en cours';
+}
+
 function demandeFields(type, d) {
   const agents = nomsUtilisateurs().slice().sort((a, b) => a.localeCompare(b, 'fr'));
-  const agent = { key: 'agent', label: 'Agent (demandeur)', type: 'selectAdd', required: true, value: d.agent,
-    options: agents, emptyLabel: '— choisir un agent —', addLabel: 'Autre personne',
-    hint: 'Nom, fonction et service se remplissent depuis UTILISATEURS' };
+  // Qui ne voit que ses fiches depose ses demandes a son nom, et a lui seul.
+  const pourSoi = seulementSiennes('CONGES');
+  const agent = pourSoi
+    ? { key: 'agent', label: 'Agent (demandeur)', type: 'static', value: d.agent || agentConnecte() }
+    : { key: 'agent', label: 'Agent (demandeur)', type: 'selectAdd', required: true, value: d.agent,
+      options: agents, emptyLabel: '— choisir un agent —', addLabel: 'Autre personne',
+      hint: 'Nom, fonction et service se remplissent depuis UTILISATEURS' };
+  // La decision n'est proposee qu'a qui peut valider, et jamais sur sa
+  // propre demande.
+  const decide = peutValider() && (!d.agent || peutValiderPour(d.agent));
   const inscrire = { key: 'inscrire', label: 'Inscrire au tableau des congés et absences', type: 'select', options: OUI_NON,
     value: d.inscrire || 'Oui', hint: 'Le conducteur sort du tour de rôle pendant son absence' };
   const dateDemande = { key: 'dateDemande', label: 'Date de la demande', type: 'date', value: d.dateDemande || todayISO() };
@@ -812,8 +847,8 @@ function demandeFields(type, d) {
       { key: 'duree', label: 'Durée du congé', value: d.duree, hint: 'Calculée du début à la fin, modifiable' },
       { key: 'faitA', label: 'Fait à', value: d.faitA || DB.settings.ville || 'Abidjan' },
       dateDemande,
-      { key: 'validee', label: 'Demande validée', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
-        options: ['Oui', 'Non'], value: d.validee, hint: 'Voyant vert si oui, rouge si non dans le tableau' },
+      ...(decide ? [{ key: 'validee', label: 'Demande validée', type: 'select', allowEmpty: true, emptyLabel: '— en cours —',
+        options: ['Oui', 'Non'], value: d.validee, hint: 'Voyant vert si oui, rouge si non dans le tableau' }] : []),
       { key: 'interimaire', label: 'Intérimaire (fiche d’intérim)', type: 'selectAdd', value: d.interimaire,
         options: agents, emptyLabel: '— aucun —', addLabel: 'Autre personne' },
       { key: 'activites', label: 'Activités principales en cours', type: 'textarea', rows: 6, full: true, value: d.activites,
@@ -834,9 +869,9 @@ function demandeFields(type, d) {
     { key: 'dateRetour', label: 'Retour — date', type: 'date', value: d.dateRetour },
     { key: 'heureRetour', label: 'Retour — heure', type: 'time', value: d.heureRetour },
     { key: 'total', label: 'Total jour/heures demandés', value: d.total, hint: 'Calculé, modifiable' },
-    { key: 'autorisee', label: 'Absence autorisée', type: 'select', allowEmpty: true, emptyLabel: '— pas encore décidé —',
+    ...(decide ? [{ key: 'autorisee', label: 'Absence autorisée', type: 'select', allowEmpty: true, emptyLabel: '— pas encore décidé —',
       options: ['OUI', 'NON'], value: d.autorisee,
-      hint: 'Voyant vert ou rouge dans le tableau ; vide : « en cours », case à cocher à la main sur l’imprimé' },
+      hint: 'Voyant vert ou rouge dans le tableau ; vide : « en cours », case à cocher à la main sur l’imprimé' }] : []),
     { key: 'motif', label: 'Motif de la demande', type: 'textarea', rows: 3, full: true, required: true, value: d.motif },
     { key: 'commentaires', label: 'Commentaires', full: true, value: d.commentaires },
     dateDemande,
@@ -893,6 +928,12 @@ function openDemandeForm(type, d) {
     },
     onSubmit: (values) => {
       const agentNom = String(values.agent || '').trim();
+      if (seulementSiennes('CONGES') && !estAMoi('CONGES', { agent: agentNom })) {
+        return 'Vous ne pouvez déposer une demande qu’à votre nom.';
+      }
+      if ((values.validee || values.autorisee) && !peutValiderPour(agentNom)) {
+        return 'Vous ne pouvez pas décider de votre propre demande : un autre responsable doit la valider.';
+      }
       if (conge) {
         if (!dureeConge(values.dateDebut, values.dateFin)) return 'La date de fin du congé ne peut pas précéder la date de début.';
         if (values.dateReprise && values.dateReprise <= values.dateFin) return 'La reprise du service doit suivre la fin du congé.';

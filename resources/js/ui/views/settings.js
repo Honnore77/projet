@@ -3,7 +3,8 @@
    Rubrique reservee aux administrateurs (voir MODULES dans shell.js).
    =================================================================== */
 
-import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour } from '../../core/db.js';
+import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour, nomsUtilisateurs } from '../../core/db.js';
+import { ROLES_ACCES, NIVEAUX, RUBRIQUES_ACCES, reglesDuRole, reglesParDefaut } from '../../core/acces.js';
 import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
   createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
@@ -32,6 +33,7 @@ export function renderSettings(page) {
   );
 
   renderAccountsSection(page);
+  renderNiveauxSection(page);
   renderThresholdsSection(page);
   renderApparenceSection(page);
   renderSynchroSection(page);
@@ -219,11 +221,12 @@ function renderAccountsSection(page) {
   const accounts = listAccounts();
   page.appendChild(
     dataTable(
-      ['Identifiant', 'Nom', 'Rôle', 'État', 'Dernière connexion', 'Actions'],
+      ['Identifiant', 'Nom', 'Rôle', 'Agent lié', 'État', 'Dernière connexion', 'Actions'],
       accounts.map((a) => [
         `<b>${esc(a.login)}</b>${a.mustChange ? '<br><small style="color:#F47B20">mot de passe à changer</small>' : ''}`,
         esc(a.nom || ''),
         esc(roleLabel(a.role)),
+        a.agent ? esc(a.agent) : (a.role === 'conducteur' ? '<span style="color:#D32F2F">à lier</span>' : '—'),
         a.actif ? '🟢 Actif' : '🔴 Désactivé',
         a.lastLogin ? new Date(a.lastLogin).toLocaleString('fr-FR') : '—',
         `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit>✎</button> ` +
@@ -248,10 +251,95 @@ function renderAccountsSection(page) {
     el(
       '<div class="card"><h3 style="color:#5b7178">RÔLES</h3><p>' +
         ROLES.map((r) => `${r.label} — ${r.desc}`).join('\n') +
-        '\n\nLe bouton « Continuer en visiteur » de l’écran de connexion ouvre une session ' +
-        'de consultation sans compte.' +
+        '\n\nCe que chaque rôle voit et peut faire, rubrique par rubrique, se règle juste en dessous ' +
+        '(NIVEAUX D’ACCÈS). Un compte « Conducteur » doit être lié à son agent de la liste UTILISATEURS : ' +
+        'c’est ce nom qui lui fait retrouver ses missions, son véhicule et ses demandes.' +
         '</p></div>'
     )
+  );
+}
+
+/* -------------------------- Niveaux d'acces ------------------------- */
+
+/**
+ * Le tableau des droits : une colonne par role, une ligne par rubrique.
+ * Chaque changement s'applique aussitot, et suit la synchronisation.
+ * L'administrateur a toujours tout : sa colonne n'est pas modifiable.
+ */
+function renderNiveauxSection(page) {
+  page.appendChild(sectionLabel('NIVEAUX D’ACCÈS', COLORS.purple));
+  const roles = ROLES_ACCES.filter((r) => r.key !== 'admin');
+  const bloc = document.createElement('div');
+  bloc.className = 'card';
+  const option = (n, choisi) => {
+    const x = NIVEAUX.find((y) => y.key === n);
+    return `<option value="${n}"${n === choisi ? ' selected' : ''}>${x.signe} ${esc(x.label)}</option>`;
+  };
+  bloc.innerHTML =
+    '<h3>QUI VOIT QUOI, QUI FAIT QUOI</h3>' +
+    '<p>Choisissez, pour chaque rôle, son niveau dans chaque rubrique. Le changement vaut tout de suite, ' +
+    'pour tous les comptes de ce rôle, sur le PC comme sur le téléphone après synchronisation.</p>' +
+    '<div class="tableWrap"><table class="dataTable niveauxTable"><thead><tr><th>Rubrique</th>' +
+    '<th>Administrateur</th>' +
+    roles.map((r) => `<th>${esc(r.label)}</th>`).join('') +
+    '</tr></thead><tbody>' +
+    RUBRIQUES_ACCES.map((rub) =>
+      `<tr><td><b>${esc(rub.label)}</b></td><td class="niveauFixe">✅ Complet</td>` +
+      roles.map((r) => {
+        const n = reglesDuRole(r.key).niveaux[rub.key];
+        return `<td><select data-role="${r.key}" data-rub="${esc(rub.key)}">${rub.niveaux.map((x) => option(x, n)).join('')}</select></td>`;
+      }).join('') + '</tr>'
+    ).join('') +
+    '<tr><td><b>Valider les congés et absences</b><br><small>jamais sa propre demande</small></td><td class="niveauFixe">Oui</td>' +
+    roles.map((r) => {
+      const v = reglesDuRole(r.key).valider;
+      return `<td><select data-role="${r.key}" data-valider><option value="oui"${v ? ' selected' : ''}>Oui</option>` +
+        `<option value="non"${v ? '' : ' selected'}>Non</option></select></td>`;
+    }).join('') +
+    '</tr></tbody></table></div>' +
+    '<p class="niveauxLegende">' +
+    NIVEAUX.map((x) => `<span>${x.signe} <b>${esc(x.label)}</b></span>`).join('') +
+    '</p>' +
+    '<p><small>⛔ Masqué : la rubrique n’apparaît pas. 👁 Consultation : tout voir et exporter. ' +
+    '✏️ Saisie : ajouter et modifier, sans supprimer. ✅ Complet : tout, suppression comprise. ' +
+    '👤 Ses fiches : seulement ce qui concerne l’agent lié au compte — ' +
+    RUBRIQUES_ACCES.filter((x) => x.siennes).map((x) => `${x.label.toLowerCase()} : ${x.siennes}`).join(' ; ') +
+    '.</small></p>';
+
+  const enregistrer = (role, modif) => {
+    const acces = JSON.parse(JSON.stringify(DB.settings.acces || {}));
+    const actuel = reglesDuRole(role);
+    acces[role] = modif({ niveaux: Object.assign({}, actuel.niveaux), valider: actuel.valider });
+    saveSettings({ acces });
+    toast(`Niveaux du rôle « ${roleLabel(role)} » enregistrés.`, 'ok');
+  };
+  bloc.querySelectorAll('select[data-rub]').forEach((s) => {
+    s.addEventListener('change', () => enregistrer(s.dataset.role, (r) => { r.niveaux[s.dataset.rub] = s.value; return r; }));
+  });
+  bloc.querySelectorAll('select[data-valider]').forEach((s) => {
+    s.addEventListener('change', () => enregistrer(s.dataset.role, (r) => { r.valider = s.value === 'oui'; return r; }));
+  });
+  page.appendChild(bloc);
+
+  page.appendChild(
+    toolbar([
+      {
+        label: '↺ Rétablir les niveaux par défaut',
+        color: COLORS.grey,
+        onClick: async () => {
+          if (!(await confirmDialog({
+            title: 'Rétablir les niveaux par défaut',
+            message: 'Tous les rôles reprennent les niveaux d’origine. Continuer ?',
+            okLabel: 'Rétablir'
+          }))) return;
+          const acces = {};
+          roles.forEach((r) => { acces[r.key] = reglesParDefaut(r.key); });
+          saveSettings({ acces });
+          toast('Niveaux par défaut rétablis.', 'ok');
+          rerender();
+        }
+      }
+    ])
   );
 }
 
@@ -259,7 +347,10 @@ function accountFields(a = {}, withPassword) {
   return [
     { key: 'login', label: 'Identifiant', required: true, value: a.login, readonly: !!a.id },
     { key: 'nom', label: 'Nom complet', value: a.nom },
-    { key: 'role', label: 'Rôle', type: 'select', options: ROLES.map((r) => ({ value: r.key, label: r.label })), value: a.role || 'visiteur' },
+    { key: 'role', label: 'Rôle', type: 'select', options: ROLES.map((r) => ({ value: r.key, label: r.label })), value: a.role || 'direction' },
+    { key: 'agent', label: 'Agent lié (UTILISATEURS)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
+      options: nomsUtilisateurs().slice().sort((x, y) => x.localeCompare(y, 'fr')), value: a.agent,
+      hint: 'Indispensable pour un conducteur : ses missions, son véhicule et ses demandes se retrouvent par ce nom' },
     ...(withPassword
       ? [
           { key: 'password', label: 'Mot de passe', type: 'password', required: true, full: true, hint: '6 caractères minimum, avec au moins une lettre et un chiffre' },
@@ -277,7 +368,8 @@ function openCreateAccount() {
     okLabel: 'Créer le compte',
     onSubmit: async (v) => {
       if (v.password !== v.password2) return 'Les deux mots de passe ne correspondent pas.';
-      const res = await createAccount({ login: v.login, nom: v.nom, role: v.role, password: v.password });
+      if (v.role === 'conducteur' && !v.agent) return 'Un compte « Conducteur » doit être lié à son agent.';
+      const res = await createAccount({ login: v.login, nom: v.nom, role: v.role, agent: v.agent, password: v.password });
       if (!res.ok) return res.error;
       toast('Compte créé.', 'ok');
       rerender();
@@ -292,7 +384,8 @@ function openEditAccount(a) {
     fields: accountFields(a, false),
     okLabel: 'Enregistrer',
     onSubmit: (v) => {
-      const res = updateAccount(a.id, { nom: v.nom, role: v.role, actif: v.actif === 'oui' });
+      if (v.role === 'conducteur' && !v.agent) return 'Un compte « Conducteur » doit être lié à son agent.';
+      const res = updateAccount(a.id, { nom: v.nom, role: v.role, agent: v.agent || '', actif: v.actif === 'oui' });
       if (!res.ok) return res.error;
       toast('Compte mis à jour.', 'ok');
       rerender();

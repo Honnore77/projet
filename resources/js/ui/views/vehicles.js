@@ -22,6 +22,7 @@ import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsVehicles } from '../../export/datasets.js';
+import { filtrer } from '../../core/acces.js';
 
 const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, stats: COLORS.grey };
 
@@ -154,7 +155,8 @@ export function renderVehicles(page) {
     ])
   );
 
-  let list = DB.vehicles[cat].slice().reverse();
+  // Un conducteur n'y voit que le vehicule qui lui est attribue.
+  let list = filtrer('VEHICULES', DB.vehicles[cat].slice().reverse());
   if (f.statut) list = list.filter((v) => v.statut === f.statut);
   if (f.section) list = list.filter((v) => v.section === f.section);
 

@@ -13,6 +13,7 @@ import { state, rerender, moduleColor } from '../shell.js';
 import { chartCardTypes, destroyCharts, colorsFor } from '../charts.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { voitTout, rubriqueCourante } from '../../core/acces.js';
 
 /** La cle de sous-rubrique commune a toutes les rubriques. */
 export const SOUS_RUBRIQUE_STATS = { key: 'stats', label: 'STATISTIQUES' };
@@ -26,6 +27,10 @@ const COULEURS_TUILES = [COLORS.green, COLORS.blue, COLORS.orange, COLORS.purple
  */
 export function renderStatistiques(page, cle) {
   destroyCharts();
+  if (!voitTout(rubriqueCourante())) {
+    page.appendChild(el('<div class="card"><h3>STATISTIQUES</h3><p>Les statistiques portent sur toute la rubrique : elles ne sont pas ouvertes à votre compte.</p></div>'));
+    return;
+  }
   const def = STATISTIQUES[cle];
   const couleur = moduleColor(cle);
   const f = state.filters.statistiques;

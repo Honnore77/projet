@@ -24,6 +24,7 @@ import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsDecharges, dsDestinataires } from '../../export/datasets.js';
+import { filtrer } from '../../core/acces.js';
 
 const SUBS = [
   { key: 'decharges', label: 'LES DÉCHARGES' },
@@ -84,7 +85,8 @@ function renderListeDecharges(page) {
     ])
   );
 
-  let list = DB.decharges.slice();
+  // Un conducteur n'y voit que les decharges qu'il a deposees.
+  let list = filtrer('DECHARGE', DB.decharges.slice());
   if (f.dateFrom) list = list.filter((d) => !d.date || d.date >= f.dateFrom);
   if (f.dateTo) list = list.filter((d) => !d.date || d.date <= f.dateTo);
   if (f.destinataire) list = list.filter((d) => norm(d.destinataire || '') === norm(f.destinataire));

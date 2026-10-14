@@ -19,6 +19,7 @@ import {
   totaliser, distanceSurPlace
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
+import { filtrer, seulementSiennes, peutModifier } from '../../core/acces.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
@@ -67,7 +68,7 @@ function renderSuivi(page) {
   page.appendChild(filtres());
 
   const list = filtered();
-  const parConducteur = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
+  const parConducteur = groupBy(filtrer('MISSION', DB.missions), (m) => norm(m.conducteur || '—'));
   const missionsDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
 
   const grid = el('<div class="statGrid"></div>');
@@ -253,7 +254,8 @@ function renderRapport(page) {
   }
 
   // Toujours visible sous la liste, quelle que soit la ligne selectionnee.
-  if (canWrite()) {
+  // Un conducteur y remplit le rapport de ses propres missions.
+  if (canWrite() || seulementSiennes('MISSION')) {
     page.appendChild(
       toolbar([
         {
@@ -270,11 +272,12 @@ function renderRapport(page) {
 
 /** Choix de la mission dont on veut remplir le rapport. */
 function choisirMission(onPick) {
-  if (!DB.missions.length) {
-    toast('Créez d’abord une mission dans le tableau de suivi.', 'info');
+  const missions = filtrer('MISSION', DB.missions);
+  if (!missions.length) {
+    toast(seulementSiennes('MISSION') ? 'Aucune mission ne vous est affectée.' : 'Créez d’abord une mission dans le tableau de suivi.', 'info');
     return;
   }
-  const options = DB.missions
+  const options = missions
     .slice()
     .sort((a, b) => String(b.dateDepart).localeCompare(String(a.dateDepart)))
     .map((m) => ({
@@ -367,7 +370,7 @@ function openRapportVue(m) {
           }
         }
       },
-      ...(canWrite()
+      ...(canWrite() || peutModifier('MISSION', m)
         ? [{ label: '✎ Remplir', cls: 'ok', onClick: (close) => { close(); openRapportForm(m); } }]
         : [])
     ]
@@ -563,7 +566,8 @@ function filtres() {
 
 function filtered() {
   const f = state.filters.missions;
-  let list = DB.missions.slice();
+  // Un conducteur ne voit que ses missions.
+  let list = filtrer('MISSION', DB.missions.slice());
   if (f.conducteur) list = list.filter((m) => norm(m.conducteur || '').includes(norm(f.conducteur)));
   if (f.dateFrom) list = list.filter((m) => !m.dateDepart || m.dateDepart >= f.dateFrom);
   if (f.dateTo) list = list.filter((m) => !m.dateDepart || m.dateDepart <= f.dateTo);

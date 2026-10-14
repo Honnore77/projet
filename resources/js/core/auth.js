@@ -10,12 +10,10 @@
 import { DB, persist } from './db.js';
 import { hashPassword, verifyPassword } from './crypto.js';
 import { uid, norm } from './utils.js';
+import { ROLES_ACCES, definirCompte, peutSaisir, roleActuel } from './acces.js';
 
-export const ROLES = [
-  { key: 'admin', label: 'Administrateur', desc: 'Tous les droits, y compris la gestion des comptes' },
-  { key: 'gestionnaire', label: 'Gestionnaire', desc: 'Saisie et modification des données du parc' },
-  { key: 'visiteur', label: 'Visiteur', desc: 'Consultation et exports uniquement' }
-];
+// Les roles et ce qu'ils permettent : voir core/acces.js.
+export const ROLES = ROLES_ACCES;
 
 const SESSION_KEY = 'pdu_session';
 
@@ -29,9 +27,13 @@ export function isLogged() {
   return !!session;
 }
 
-/** Droit d'ecriture sur les donnees du parc. */
+/**
+ * Droit d'ajouter et de modifier dans la rubrique affichee (niveau
+ * « Saisie » ou « Complet »). Les fiches propres d'un conducteur se
+ * reglent a part (acces.js : peutModifier).
+ */
 export function canWrite() {
-  return !!session && (session.role === 'admin' || session.role === 'gestionnaire');
+  return !!session && peutSaisir();
 }
 
 /** Droit d'administration (comptes, reglages, restauration). */
@@ -64,14 +66,9 @@ export async function login(loginName, password) {
   return { ok: true, mustChange: !!acc.mustChange };
 }
 
-/** Connexion en consultation, sans compte. */
-export function loginVisitor() {
-  setSession({ id: 'guest', login: 'visiteur', nom: 'Visiteur', role: 'visiteur', guest: true });
-  return { ok: true };
-}
-
 export function logout() {
   session = null;
+  definirCompte(null);
   try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
   document.body.classList.remove('readonly');
 }
@@ -82,10 +79,8 @@ export function restoreSession() {
     const raw = sessionStorage.getItem(SESSION_KEY);
     if (!raw) return null;
     const saved = JSON.parse(raw);
-    if (saved.guest) {
-      loginVisitor();
-      return session;
-    }
+    // L'ancienne entree « visiteur » sans mot de passe n'existe plus.
+    if (saved.guest) return null;
     const acc = DB.accounts.find((a) => a.id === saved.id && a.actif);
     if (!acc) return null;
     setSession(acc);
@@ -100,11 +95,12 @@ function setSession(acc) {
     id: acc.id,
     login: acc.login,
     nom: acc.nom || acc.login,
-    role: acc.role,
+    role: roleActuel(acc.role),
+    agent: acc.agent || '',
     guest: !!acc.guest,
     mustChange: !!acc.mustChange
   };
-  document.body.classList.toggle('readonly', !canWrite());
+  definirCompte(session);
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ }
 }
 
@@ -117,7 +113,7 @@ export function listAccounts() {
   return DB.accounts.slice().sort((a, b) => String(a.login).localeCompare(String(b.login)));
 }
 
-export async function createAccount({ login: loginName, nom, role, password }) {
+export async function createAccount({ login: loginName, nom, role, agent, password }) {
   const key = norm(loginName).trim();
   if (!key) return { ok: false, error: "L'identifiant est obligatoire." };
   if (DB.accounts.some((a) => norm(a.login).trim() === key)) {
@@ -130,7 +126,8 @@ export async function createAccount({ login: loginName, nom, role, password }) {
     id: uid(),
     login: String(loginName).trim(),
     nom: String(nom || '').trim() || String(loginName).trim(),
-    role: role || 'visiteur',
+    role: role || 'direction',
+    agent: String(agent || '').trim(),
     pass: await hashPassword(password),
     actif: true,
     mustChange: true,
