@@ -39,6 +39,11 @@ export function renderSettings(page) {
   renderSynchroSection(page);
   renderAutoBackupSection(page);
   renderBackupSection(page);
+
+  // Mention du createur de l'application, discrete, en bas des reglages.
+  page.appendChild(el(
+    '<p class="mentionCreateur">Application créée par Delon Calixe César le 14/08/2026 — Tous droits réservés</p>'
+  ));
 }
 
 /* ----------------------------- Apparence ---------------------------- */
