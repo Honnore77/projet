@@ -10,7 +10,7 @@ const {
 } = await import('../resources/js/core/demandes.js');
 
 test('le repos maladie n’est pas soumis à validation', () => {
-  assert.equal(validationAbsence({ motif: 'Repos maladie', validee: 'Oui' }), 'non soumis');
+  assert.equal(validationAbsence({ motif: 'Repos maladie', validee: 'Oui' }), 'information');
   assert.equal(validationAbsence({ motif: 'En congé', validee: 'Oui' }), 'oui');
   assert.equal(validationAbsence({ motif: 'Permissionnaire', validee: 'Non' }), 'non');
   assert.equal(validationAbsence({ motif: 'En congé' }), 'en cours');
@@ -97,4 +97,25 @@ test('les images d’une demande sont gardées par le ménage et la sauvegarde',
     demandes: [{ id: 'd1', type: 'absence', agent: 'DOSSO YAYA', images: [{ id: 'img-demande', nom: 'certificat.jpg' }] }]
   });
   assert.ok(db.imagesCitees().has('img-demande'));
+});
+
+test('une absence refusee est terminee et laisse le conducteur au tour de role', async () => {
+  await charger({
+    users: [{ id: 'u1', nom: 'DOSSO', prenoms: 'YAYA', poolConducteur: 'Oui' }],
+    indisponibilites: [
+      { id: 'i1', conducteur: 'DOSSO YAYA', motif: 'Permissionnaire', dateDepart: '2026-10-10', dateReprise: '2026-10-20', validee: 'Non' },
+      { id: 'i2', conducteur: 'DOSSO YAYA', motif: 'En congé', dateDepart: '2026-11-02', dateReprise: '2026-11-10', demandeId: 'd1' }
+    ],
+    demandes: [{ id: 'd1', type: 'conge', indispoId: 'i2', validee: 'Non' }]
+  });
+  const [refusee, congeRefuse] = db.DB.indisponibilites;
+  assert.equal(db.etatIndisponibilite(refusee, '2026-10-15'), 'terminée');
+  assert.equal(db.etatIndisponibilite(congeRefuse, '2026-10-15'), 'terminée');
+  assert.equal(db.indisponibilitesEnCours('2026-10-15').length, 0);
+  assert.equal(db.chevauchementIndisponibilite('DOSSO YAYA', '2026-10-12', '2026-10-14'), null);
+  assert.equal(db.indisponibiliteSurMission('DOSSO YAYA', '2026-11-03', '2026-11-04'), null);
+  // Validee, la meme absence reprend son cours.
+  refusee.validee = 'Oui';
+  assert.equal(db.etatIndisponibilite(refusee, '2026-10-15'), 'en cours');
+  assert.equal(db.indisponibilitesEnCours('2026-10-15').length, 1);
 });

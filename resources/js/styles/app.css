@@ -843,3 +843,7 @@ html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,
 .ficheDemandeGrille dd{margin:2px 0 0;font-size:14px;color:var(--text);overflow-wrap:anywhere;}
 .ficheDemandeGrille .vide{color:var(--muted);}
 .ficheDemandeTitre{margin:18px 0 6px;font-size:12.5px;letter-spacing:.4px;color:var(--green);}
+
+/* Repos maladie : une information, pas une demande a valider. */
+.voyantInfo{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:700;
+  color:#1565C0;background:color-mix(in srgb,#1976D2 12%,transparent);}

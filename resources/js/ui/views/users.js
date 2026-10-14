@@ -489,7 +489,7 @@ function valeurValidation(i) {
 function voyantValidation(v) {
   if (v === 'oui') return '<span class="voyant vert" title="Validée"></span><span class="voyantTexte">Validée</span>';
   if (v === 'non') return '<span class="voyant rouge" title="Refusée"></span><span class="voyantTexte">Refusée</span>';
-  if (v === 'non soumis') return '<span class="voyantTexte">Non soumis</span>';
+  if (v === 'information') return '<span class="voyantInfo">ℹ Information</span>';
   return '<em class="voyantAttente">En cours…</em>';
 }
 

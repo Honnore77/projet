@@ -100,12 +100,12 @@ export const MOTIFS_SANS_VALIDATION = ['Repos maladie'];
 
 /**
  * La décision sur une absence du tableau : 'oui', 'non', 'en cours', ou
- * 'non soumis' pour un repos maladie. Une absence née d'une demande prend
+ * 'information' pour un repos maladie (une information, pas une demande). Une absence née d'une demande prend
  * la décision de sa demande ; une absence saisie à la main porte la sienne.
  */
 export function validationAbsence(i, demandes = []) {
   if (!i) return 'en cours';
-  if (MOTIFS_SANS_VALIDATION.includes(i.motif)) return 'non soumis';
+  if (MOTIFS_SANS_VALIDATION.includes(i.motif)) return 'information';
   const d = demandes.find((x) => x.id === i.demandeId || (x.indispoId && x.indispoId === i.id));
   if (d) return etatValidation(d);
   const v = String(i.validee || '').toLowerCase();

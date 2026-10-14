@@ -11,6 +11,7 @@ import { readDB, writeDB, readLegacy, platformName } from './storage.js';
 import { empreintesDe, estampiller } from './synchro.js';
 import { uid, num, norm, sum, daysBetween, francSup, todayISO } from './utils.js';
 import { hashPassword } from './crypto.js';
+import { validationAbsence } from './demandes.js';
 
 export const SCHEMA_VERSION = 4;
 
@@ -2028,11 +2029,21 @@ export function dureeIndisponibilite(dateDepart, dateReprise) {
 }
 
 /**
- * Ou en est une indisponibilite a une date donnee.
+ * Une absence refusee n'a pas lieu : elle ne sort pas le conducteur du
+ * tour de role et n'occupe pas ses dates.
+ */
+export function absenceRefusee(i, db = DB) {
+  return validationAbsence(i, (db && db.demandes) || []) === 'non';
+}
+
+/**
+ * Ou en est une indisponibilite a une date donnee. Refusee, elle est
+ * terminee d'emblee, quelles que soient ses dates.
  * @returns {'à venir'|'en cours'|'terminée'|''}
  */
-export function etatIndisponibilite(i, jour = todayISO()) {
+export function etatIndisponibilite(i, jour = todayISO(), db = DB) {
   if (!i || !i.dateDepart) return '';
+  if (absenceRefusee(i, db)) return 'terminée';
   if (jour < i.dateDepart) return 'à venir';
   if (!i.dateReprise || jour < i.dateReprise) return 'en cours';
   return 'terminée';
@@ -2058,6 +2069,7 @@ export function chevauchementIndisponibilite(conducteur, dateDepart, dateReprise
   const fin = dateReprise || '9999-12-31';
   return (db.indisponibilites || []).find((i) =>
     i.id !== exclureId &&
+    !absenceRefusee(i, db) &&
     norm(i.conducteur || '') === cle &&
     i.dateDepart < fin &&
     dateDepart < (i.dateReprise || '9999-12-31')) || null;
@@ -2073,6 +2085,7 @@ export function indisponibiliteSurMission(conducteur, dateDepart, dateRetour, db
   if (!cle || !dateDepart) return null;
   const fin = dateRetour || dateDepart;
   return (db.indisponibilites || []).find((i) =>
+    !absenceRefusee(i, db) &&
     norm(i.conducteur || '') === cle &&
     i.dateDepart && i.dateDepart <= fin &&
     dateDepart < (i.dateReprise || '9999-12-31')) || null;
@@ -2080,7 +2093,7 @@ export function indisponibiliteSurMission(conducteur, dateDepart, dateRetour, db
 
 /** Les indisponibilites en cours a une date donnee. */
 export function indisponibilitesEnCours(jour = todayISO(), db = DB) {
-  return (db.indisponibilites || []).filter((i) => etatIndisponibilite(i, jour) === 'en cours');
+  return (db.indisponibilites || []).filter((i) => etatIndisponibilite(i, jour, db) === 'en cours');
 }
 
 /** Reporte le nouveau nom d'un agent sur ses indisponibilites et ses interims. */
