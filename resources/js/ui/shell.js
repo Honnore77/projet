@@ -21,6 +21,7 @@ import { renderDecharges } from './views/decharges.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
+import { renderPredefinis } from './views/predefinis.js';
 import { ouvrirApparence } from './apparence.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
@@ -42,6 +43,8 @@ export const MODULES = [
   { key: 'DECHARGE', label: 'DÉCHARGE', color: '#8D6E63' },
   { key: 'SIMULATION', label: 'SIMULATION', color: '#3949AB' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
+  // Ouverte a tous les comptes : style et taille de l'affichage.
+  { key: 'PREDEFINIS', label: 'RÉGLAGES PRÉDÉFINIS', color: '#00897B', pourTous: true },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
 ];
 
@@ -61,6 +64,7 @@ const TITLES = {
   DECHARGE: 'DÉCHARGE',
   SIMULATION: 'SIMULATION',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
+  PREDEFINIS: 'RÉGLAGES PRÉDÉFINIS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
   FICHE_UTILISATEUR: 'FICHE UTILISATEUR',
@@ -190,6 +194,7 @@ export function mountShell(appRoot, { onLogout }) {
  * l'est aussi pour qui ne voit que CONGES ET ABSENCES.
  */
 function rubriqueOuverte(m) {
+  if (m.pourTous) return true;
   if (m.adminOnly) return canAdmin();
   if (m.key === 'UTILISATEURS') return voit('UTILISATEURS') || voit('CONGES');
   return voit(m.key);
@@ -372,7 +377,9 @@ export function rerender() {
   // niveau du compte dans la rubrique affichee. Un conducteur garde les
   // siens dans MISSION (rapport) et CONGES (ses demandes).
   const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
-  document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches);
+  // RÉGLAGES PRÉDÉFINIS ne touche pas aux donnees : jamais en lecture seule.
+  const reglagesPerso = rub === 'PREDEFINIS';
+  document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches && !reglagesPerso);
   document.body.classList.toggle('sansSuppression', !peutSupprimer(rub));
   if (pageAutorisee(rub)) {
     const renderer = ROUTES[state.module] || renderDashboard;
@@ -401,6 +408,7 @@ function rubriqueDeLaPage() {
 function pageAutorisee(rub) {
   const m = state.module;
   if (m === 'REGLAGES') return canAdmin();
+  if (m === 'PREDEFINIS') return true;
   if (m === 'RECHERCHE_GLOBALE') return true;
   if (m === 'FICHE_VEHICULE') {
     return voitTout('VEHICULES') || (seulementSiennes('VEHICULES') && estAMoi('VEHICULES', vehicleByImmat(state.vehicleSheetImmat)));
@@ -423,6 +431,7 @@ const ROUTES = {
   DECHARGE: renderDecharges,
   SIMULATION: renderSimulation,
   RAPPORTS: renderReports,
+  PREDEFINIS: renderPredefinis,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,
   FICHE_UTILISATEUR: renderUserSheet,
