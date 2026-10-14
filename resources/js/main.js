@@ -11,6 +11,11 @@ import { mountShell } from './ui/shell.js';
 import { destroyCharts } from './ui/charts.js';
 import { toast } from './ui/components.js';
 import { traiterDemandePC } from './core/synchroClient.js';
+import { appliquerTheme } from './ui/theme.js';
+
+// Le style choisi sur cet appareil, avant tout affichage (ecran de
+// connexion compris).
+appliquerTheme();
 
 const root = document.getElementById('app');
 

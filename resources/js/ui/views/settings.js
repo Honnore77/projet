@@ -19,6 +19,7 @@ import {
 } from '../components.js';
 import { rerender } from '../shell.js';
 import { renderSynchroSection } from './synchroUI.js';
+import { THEMES, themeActuel, appliquerTheme } from '../theme.js';
 
 export function renderSettings(page) {
   if (!canAdmin()) {
@@ -32,9 +33,48 @@ export function renderSettings(page) {
 
   renderAccountsSection(page);
   renderThresholdsSection(page);
+  renderApparenceSection(page);
   renderSynchroSection(page);
   renderAutoBackupSection(page);
   renderBackupSection(page);
+}
+
+/* ----------------------------- Apparence ---------------------------- */
+
+/**
+ * Le style de l'interface, propre a cet appareil (voir ui/theme.js).
+ * Un clic l'applique tout de suite : on voit le resultat sans quitter
+ * la page.
+ */
+function renderApparenceSection(page) {
+  page.appendChild(sectionLabel('APPARENCE', COLORS.green));
+  const bloc = document.createElement('div');
+  bloc.className = 'card';
+  bloc.innerHTML =
+    '<h3>STYLE DE L’INTERFACE</h3>' +
+    '<p>Choisissez l’allure de l’application. Le choix ne vaut que pour cet appareil : ' +
+    'le PC et le téléphone peuvent avoir chacun le leur. Les données ne changent pas.</p>';
+  const grille = document.createElement('div');
+  grille.className = 'themeChoix';
+  const actuel = themeActuel();
+  THEMES.forEach((t) => {
+    const b = document.createElement('button');
+    b.className = 'themeCarte' + (t.id === actuel ? ' choisi' : '');
+    b.type = 'button';
+    b.innerHTML =
+      '<div class="nuancier">' + t.apercu.map((c) => `<span style="background:${c}"></span>`).join('') + '</div>' +
+      (t.id === actuel ? '<span class="coche">✓ Actif</span>' : '') +
+      `<b>${esc(t.nom)}</b><small>${esc(t.detail)}</small>`;
+    b.addEventListener('click', () => {
+      if (t.id === themeActuel()) return;
+      appliquerTheme(t.id);
+      rerender();
+      toast(`Style « ${t.nom} » appliqué.`);
+    });
+    grille.appendChild(b);
+  });
+  bloc.appendChild(grille);
+  page.appendChild(bloc);
 }
 
 /* ------------------- Sauvegarde automatique datee ------------------ */

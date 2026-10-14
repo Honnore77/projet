@@ -193,7 +193,9 @@ export function navigate(moduleKey, params = {}) {
     if (globalBtn) globalBtn.style.display = 'none';
   }
   titleEl.textContent = TITLES[moduleKey] || moduleKey;
-  const onglet = moduleKey === 'FICHE_UTILISATEUR' ? 'UTILISATEURS' : moduleKey;
+  const onglet = moduleKey === 'FICHE_UTILISATEUR' ? 'UTILISATEURS' : moduleKey === 'FICHE_VEHICULE' ? 'VEHICULES' : moduleKey;
+  // La couleur de la rubrique ouverte, pour les styles qui s'y accordent.
+  document.documentElement.style.setProperty('--couleur-rubrique', moduleColor(onglet));
   [...tabsEl.children].forEach((b) => b.classList.toggle('active', b.dataset.mod === onglet));
   rerender();
   contentEl.scrollTop = 0;

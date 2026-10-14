@@ -491,7 +491,7 @@ export function card(heading, body, color = COLORS.green) {
 
 export function statTile(k, v, s, color = COLORS.green) {
   return el(
-    `<div class="stat" style="border-left-color:${color}">` +
+    `<div class="stat" style="border-left-color:${color};--c:${color}">` +
       `<div class="k">${esc(k)}</div><div class="v" style="color:${color}">${esc(v)}</div>` +
       `<div class="s">${esc(s || '')}</div></div>`
   );
@@ -561,8 +561,10 @@ export function subtabs(items, activeKey, onClick, colorMap = {}) {
   items.forEach((it) => {
     const active = it.key === activeKey;
     const b = el(`<button type="button" class="subtab">${esc(it.label)}</button>`);
-    b.style.background = active ? colorMap[it.key] || COLORS.green : '#e4ecee';
-    b.style.color = active ? '#fff' : '#17313B';
+    // La couleur passe par la feuille de style : chaque style d'interface
+    // (REGLAGES → Apparence) dessine la sous-rubrique active a sa facon.
+    b.classList.toggle('active', active);
+    b.style.setProperty('--c', colorMap[it.key] || COLORS.green);
     b.onclick = () => onClick(it.key);
     bar.appendChild(b);
   });

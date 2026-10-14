@@ -259,6 +259,7 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--white);
 .subtabs::-webkit-scrollbar{display:none;}
 .subtab{flex:0 0 auto;border:none;padding:9px 15px;border-radius:11px;font-size:12.5px;font-weight:600;
   background:#e4ecee;color:var(--text);}
+.subtab.active{background:var(--c,var(--green));color:#fff;}
 
 .tableWrap{overflow-x:auto;background:var(--white);border-radius:var(--radius);box-shadow:var(--shadow);
   margin:8px 2px;-webkit-overflow-scrolling:touch;}
@@ -602,3 +603,208 @@ table.dataTable th{box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -2px 0
   .tab.active,.tab:active,.subtab:active{transform:none;}
   .toolbar button,.miniBtn,.globalBtn,.modal .foot button,#logoutBtn,.cxBouton{transition:none;}
 }
+
+/* ===================================================================
+   STYLES D'INTERFACE — choisis dans REGLAGES → Apparence (ui/theme.js).
+
+   Sans choix (ou « Lumineux 3D »), l'interface est celle definie plus
+   haut. Chaque autre style ne fait que surcharger, sous
+   html[data-theme="…"] : rien ne change dans la page, seulement son
+   apparence.
+   =================================================================== */
+
+/* Icones du menu, pour les styles qui en portent. */
+html[data-theme="moderne"] .tab::before,html[data-theme="colore"] .tab::before,html[data-theme="sombre"] .tab::before{
+  display:inline-block;width:1.45em;}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="TABLEAU DE BORD"]::before{content:"🏠";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="VEHICULES"]::before{content:"🚗";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="UTILISATEURS"]::before{content:"👥";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="DOTATION"]::before{content:"⛽";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="MISSION"]::before{content:"🧭";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="ENTRETIEN"]::before{content:"🔧";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="DECHARGE"]::before{content:"📄";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="SIMULATION"]::before{content:"🧮";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="RAPPORTS"]::before{content:"📊";}
+html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="REGLAGES"]::before{content:"⚙️";}
+
+/* Le logo garde son fond blanc sur un en-tete colore. */
+html[data-theme="moderne"] header.top img,html[data-theme="institutionnel"] header.top img,
+html[data-theme="colore"] header.top img,html[data-theme="sombre"] header.top img{
+  background:#fff;border-radius:9px;padding:3px 6px;filter:none;}
+html[data-theme="moderne"] header.top::after,html[data-theme="colore"] header.top::after,
+html[data-theme="sombre"] header.top::after{display:none;}
+html[data-theme="moderne"] header.top h2,html[data-theme="institutionnel"] header.top h2,
+html[data-theme="colore"] header.top h2,html[data-theme="sombre"] header.top h2{
+  background:none;-webkit-background-clip:border-box;background-clip:border-box;color:#fff;}
+html[data-theme="moderne"] .userChip b,html[data-theme="institutionnel"] .userChip b,
+html[data-theme="colore"] .userChip b,html[data-theme="sombre"] .userChip b{color:#fff;}
+
+/* -------------------------- 2 · MODERNE --------------------------- */
+html[data-theme="moderne"]{--bg:#f4f7f8;}
+html[data-theme="moderne"] body{background:#f4f7f8;}
+html[data-theme="moderne"] header.top{background:linear-gradient(120deg,#007a34,#00a650 60%,#3cc47a);
+  box-shadow:0 4px 18px rgba(0,122,52,.25);}
+html[data-theme="moderne"] #logoutBtn{background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.4);
+  box-shadow:none;}
+html[data-theme="moderne"] nav.tabs{background:#fff;box-shadow:1px 0 0 #e3eaec;}
+html[data-theme="moderne"] .tab{background:transparent;border-left:none;color:#3b5560;box-shadow:none;}
+html[data-theme="moderne"] .tab:hover{background:#f1f6f4;}
+html[data-theme="moderne"] .tab.active{background:#e7f6ee;color:#007a34;font-weight:700;transform:none;
+  box-shadow:inset 3px 0 0 #00a650;}
+html[data-theme="moderne"] .card,html[data-theme="moderne"] .stat,html[data-theme="moderne"] .entry,
+html[data-theme="moderne"] .chartCard,html[data-theme="moderne"] .tableWrap,html[data-theme="moderne"] .alertItem{
+  background:#fff;outline:none;box-shadow:0 2px 10px rgba(23,49,59,.07);border-radius:14px;}
+html[data-theme="moderne"] .stat{border-left:none;box-shadow:inset 0 3px 0 var(--c,#00a650),0 2px 10px rgba(23,49,59,.07);}
+html[data-theme="moderne"] .stat:hover,html[data-theme="moderne"] .chartCard:hover,
+html[data-theme="moderne"] .alertItem:hover,html[data-theme="moderne"] .entry:hover{transform:translateY(-2px);}
+html[data-theme="moderne"] .stat .v{transform:none;text-shadow:none;}
+html[data-theme="moderne"] .toolbar button,html[data-theme="moderne"] .miniBtn,html[data-theme="moderne"] .modal .foot button{
+  box-shadow:0 2px 8px rgba(23,49,59,.15);}
+html[data-theme="moderne"] .toolbar button:active,html[data-theme="moderne"] .miniBtn:active,
+html[data-theme="moderne"] .modal .foot button:active{transform:translateY(1px);box-shadow:none;}
+html[data-theme="moderne"] .subtab{background:#fff;border:1px solid #dbe5e8;color:#3b5560;box-shadow:none;}
+html[data-theme="moderne"] .subtab.active{background:var(--c);border-color:var(--c);color:#fff;
+  box-shadow:0 3px 10px color-mix(in srgb,var(--c) 35%,transparent);}
+html[data-theme="moderne"] table.dataTable th{background:#f7fafb;color:#6b8590;text-transform:uppercase;
+  text-shadow:none;box-shadow:inset 0 -1px 0 #e8eef0;}
+html[data-theme="moderne"] .badge{box-shadow:none;}
+
+/* ------------------------ 3 · INSTITUTIONNEL ----------------------- */
+html[data-theme="institutionnel"] body{background:#fff;}
+html[data-theme="institutionnel"] header.top{background:#00632b;box-shadow:none;}
+html[data-theme="institutionnel"] header.top::after{height:4px;background:#F47B20;}
+html[data-theme="institutionnel"] header.top h2{text-transform:uppercase;letter-spacing:1px;}
+html[data-theme="institutionnel"] #logoutBtn{background:#F47B20;border-radius:4px;box-shadow:none;transform:none;}
+html[data-theme="institutionnel"] nav.tabs{background:#f3f5f4;box-shadow:1px 0 0 #d6dcda;}
+html[data-theme="institutionnel"] .tabsScroll{gap:0;}
+html[data-theme="institutionnel"] .tab{background:transparent;border-radius:0;border-left:4px solid transparent;
+  border-bottom:1px solid #e1e6e4;color:#2f4a3c;text-transform:uppercase;font-size:11.5px;letter-spacing:.6px;
+  box-shadow:none;transform:none;}
+html[data-theme="institutionnel"] .tab:hover{background:#eaefec;transform:none;}
+html[data-theme="institutionnel"] .tab.active{background:#fff;color:#00632b;font-weight:700;border-left-color:#F47B20;
+  box-shadow:none;transform:none;}
+html[data-theme="institutionnel"] .card,html[data-theme="institutionnel"] .stat,html[data-theme="institutionnel"] .entry,
+html[data-theme="institutionnel"] .chartCard,html[data-theme="institutionnel"] .tableWrap,html[data-theme="institutionnel"] .alertItem{
+  background:#fff;border-radius:4px;box-shadow:none;outline:1px solid #d6dcda;outline-offset:-1px;}
+html[data-theme="institutionnel"] .stat{border-left-width:5px;}
+html[data-theme="institutionnel"] .stat:hover,html[data-theme="institutionnel"] .chartCard:hover,
+html[data-theme="institutionnel"] .alertItem:hover,html[data-theme="institutionnel"] .entry:hover{transform:none;box-shadow:none;}
+html[data-theme="institutionnel"] .stat .v{transform:none;text-shadow:none;}
+html[data-theme="institutionnel"] .card h3{text-transform:uppercase;letter-spacing:.6px;}
+html[data-theme="institutionnel"] .toolbar button,html[data-theme="institutionnel"] .miniBtn,
+html[data-theme="institutionnel"] .modal .foot button,html[data-theme="institutionnel"] .globalBtn{
+  border-radius:4px;box-shadow:none;transform:none;}
+html[data-theme="institutionnel"] .toolbar button:hover,html[data-theme="institutionnel"] .miniBtn:hover,
+html[data-theme="institutionnel"] .modal .foot button:hover{transform:none;box-shadow:none;filter:brightness(1.08);}
+html[data-theme="institutionnel"] .toolbar button:active,html[data-theme="institutionnel"] .miniBtn:active,
+html[data-theme="institutionnel"] .modal .foot button:active{transform:none;box-shadow:none;}
+html[data-theme="institutionnel"] .subtab{border-radius:0;border:1px solid #c8d1cd;background:#fff;color:#2f4a3c;
+  text-transform:uppercase;font-size:11.5px;box-shadow:none;}
+html[data-theme="institutionnel"] .subtab:hover{transform:none;}
+html[data-theme="institutionnel"] .subtab.active{background:var(--c);border-color:var(--c);color:#fff;}
+html[data-theme="institutionnel"] table.dataTable th{background:#00632b;text-shadow:none;box-shadow:none;
+  text-transform:uppercase;}
+html[data-theme="institutionnel"] table.dataTable tbody tr:nth-child(even){background:#f6f8f7;}
+html[data-theme="institutionnel"] .fRow input,html[data-theme="institutionnel"] .fRow select,
+html[data-theme="institutionnel"] .fRow textarea,html[data-theme="institutionnel"] .filterBar input,
+html[data-theme="institutionnel"] .filterBar select,html[data-theme="institutionnel"] .searchWrap input{
+  border-radius:4px;box-shadow:none;}
+html[data-theme="institutionnel"] .groupHeader{border-radius:4px;background:#eef2f0;box-shadow:none;}
+html[data-theme="institutionnel"] .modal{border-radius:6px;}
+html[data-theme="institutionnel"] .modal header{border-radius:6px 6px 0 0;background:#fff;}
+html[data-theme="institutionnel"] .modal header h3{background:none;-webkit-background-clip:border-box;
+  background-clip:border-box;color:#00632b;text-transform:uppercase;letter-spacing:.6px;}
+html[data-theme="institutionnel"] .badge{border-radius:3px;box-shadow:none;}
+
+/* --------------------------- 4 · COLORE --------------------------- */
+html[data-theme="colore"] body{background:color-mix(in srgb,var(--couleur-rubrique,#C2185B) 7%,#fff);}
+html[data-theme="colore"] header.top{background:var(--couleur-rubrique,#C2185B);box-shadow:0 4px 16px rgba(0,0,0,.18);}
+html[data-theme="colore"] #logoutBtn{background:#fff;color:var(--couleur-rubrique,#C2185B);font-weight:800;
+  border-radius:999px;box-shadow:0 3px 0 rgba(0,0,0,.18);}
+html[data-theme="colore"] nav.tabs{background:#fff;}
+html[data-theme="colore"] .tab{background:var(--tabColor);color:#fff;border-left:none;font-weight:700;
+  box-shadow:0 3px 0 rgba(0,0,0,.18);}
+html[data-theme="colore"] .tab:hover{background:var(--tabColor);filter:brightness(1.1);}
+html[data-theme="colore"] .tab.active{outline:3px solid #17313B;outline-offset:-3px;transform:scale(1.02);}
+html[data-theme="colore"] .stat{background:var(--c);border-left:none;color:#fff;text-align:center;border-radius:18px;
+  outline:none;box-shadow:0 4px 0 rgba(0,0,0,.15),0 8px 18px color-mix(in srgb,var(--c) 35%,transparent);}
+html[data-theme="colore"] .stat .k,html[data-theme="colore"] .stat .s{color:rgba(255,255,255,.92);}
+html[data-theme="colore"] .stat .v{color:#fff !important;font-size:30px;transform:none;text-shadow:0 2px 4px rgba(0,0,0,.2);}
+html[data-theme="colore"] .card,html[data-theme="colore"] .entry,html[data-theme="colore"] .chartCard,
+html[data-theme="colore"] .alertItem{border-radius:18px;outline:2px solid color-mix(in srgb,var(--couleur-rubrique,#C2185B) 22%,#fff);
+  outline-offset:-2px;}
+html[data-theme="colore"] .tableWrap{border-radius:16px;outline:2px solid color-mix(in srgb,var(--couleur-rubrique,#C2185B) 25%,#fff);outline-offset:-2px;}
+html[data-theme="colore"] table.dataTable th{background:color-mix(in srgb,var(--couleur-rubrique,#C2185B) 16%,#fff);
+  color:color-mix(in srgb,var(--couleur-rubrique,#C2185B) 80%,#000);text-shadow:none;box-shadow:none;font-weight:800;}
+html[data-theme="colore"] table.dataTable tbody tr:hover{background:color-mix(in srgb,var(--couleur-rubrique,#C2185B) 7%,#fff);}
+html[data-theme="colore"] .subtab{border-radius:12px;background:color-mix(in srgb,var(--c) 15%,#fff);color:var(--c);
+  font-weight:700;box-shadow:none;}
+html[data-theme="colore"] .subtab.active{background:var(--c);color:#fff;box-shadow:0 3px 0 rgba(0,0,0,.18);}
+html[data-theme="colore"] .toolbar button,html[data-theme="colore"] .miniBtn,html[data-theme="colore"] .modal .foot button{border-radius:14px;}
+html[data-theme="colore"] .groupHeader{background:color-mix(in srgb,var(--couleur-rubrique,#C2185B) 12%,#fff);}
+
+/* ---------------------------- 5 · SOMBRE --------------------------- */
+html[data-theme="sombre"]{--bg:#0f1a1e;--text:#e3ecef;--muted:#9fb4bc;--line:#2a3f47;--white:#16262d;color-scheme:dark;}
+html[data-theme="sombre"] body{background:#0f1a1e;color:#e3ecef;}
+html[data-theme="sombre"] header.top{background:linear-gradient(120deg,#05391b,#0b6b35);box-shadow:0 4px 18px rgba(0,0,0,.4);}
+html[data-theme="sombre"] #logoutBtn{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);box-shadow:none;}
+html[data-theme="sombre"] nav.tabs{background:#14232a;box-shadow:1px 0 0 #22353d;}
+html[data-theme="sombre"] .tab{background:transparent;color:#9fb4bc;border-left:none;box-shadow:none;}
+html[data-theme="sombre"] .tab:hover{background:#18282f;}
+html[data-theme="sombre"] .tab.active{background:#173a2a;color:#5fe39a;font-weight:700;transform:none;box-shadow:inset 3px 0 0 #3cc47a;}
+html[data-theme="sombre"] .card,html[data-theme="sombre"] .stat,html[data-theme="sombre"] .entry,
+html[data-theme="sombre"] .chartCard,html[data-theme="sombre"] .tableWrap,html[data-theme="sombre"] .alertItem{
+  background:#16262d;outline:1px solid #22353d;outline-offset:-1px;box-shadow:0 4px 14px rgba(0,0,0,.25);}
+html[data-theme="sombre"] .stat .v{transform:none;text-shadow:none;}
+html[data-theme="sombre"] .card p,html[data-theme="sombre"] .entry .fields,html[data-theme="sombre"] .modalMsg{color:#b9cbd1;}
+html[data-theme="sombre"] .entry .fields b{color:#e3ecef;}
+html[data-theme="sombre"] .chartCard h3{color:#e3ecef;}
+html[data-theme="sombre"] .groupHeader{background:#1b2e36;color:#e3ecef;box-shadow:none;}
+html[data-theme="sombre"] .subBlock{background:#13222a;border-color:#22353d;}
+html[data-theme="sombre"] .subEntryRow{border-bottom-color:#22353d;}
+html[data-theme="sombre"] .subtab{background:#18282f;color:#9fb4bc;box-shadow:none;}
+html[data-theme="sombre"] .subtab.active{background:var(--c);color:#fff;}
+html[data-theme="sombre"] .fRow input,html[data-theme="sombre"] .fRow select,html[data-theme="sombre"] .fRow textarea,
+html[data-theme="sombre"] .filterBar input,html[data-theme="sombre"] .filterBar select,html[data-theme="sombre"] .searchWrap input,
+html[data-theme="sombre"] .addField input{background:#0f1c21;color:#e3ecef;border-color:#2a3f47;box-shadow:none;outline:none;}
+html[data-theme="sombre"] .fRow input[readonly],html[data-theme="sombre"] .fRow textarea[readonly],
+html[data-theme="sombre"] .fRow.readonly input,html[data-theme="sombre"] .fRow.readonly textarea{background:#13222a;color:#8aa3ac;}
+html[data-theme="sombre"] input::placeholder,html[data-theme="sombre"] textarea::placeholder{color:#6f8790;}
+html[data-theme="sombre"] table.dataTable th{background:#1b2e36;color:#8aa3ac;text-shadow:none;box-shadow:none;}
+html[data-theme="sombre"] table.dataTable td{border-bottom-color:#1f3239;}
+html[data-theme="sombre"] table.dataTable tbody tr:nth-child(even){background:#142228;}
+html[data-theme="sombre"] table.dataTable tbody tr:hover{background:#18332a;}
+html[data-theme="sombre"] .modal{background:#0f1a1e;box-shadow:0 30px 70px rgba(0,0,0,.6);}
+html[data-theme="sombre"] .modal header{background:#16262d;border-bottom-color:#22353d;}
+html[data-theme="sombre"] .modal header h3{background:none;-webkit-background-clip:border-box;background-clip:border-box;color:#5fe39a;}
+html[data-theme="sombre"] .modal header button{background:#22353d;color:#e3ecef;}
+html[data-theme="sombre"] .modal .foot{background:#16262d;border-top-color:#22353d;}
+html[data-theme="sombre"] .modal .foot .cancel{background:#22353d;color:#e3ecef;}
+html[data-theme="sombre"] .empty{color:#6f8790;}
+html[data-theme="sombre"] .imgChamp{background:#13222a;border-color:#22353d;}
+html[data-theme="sombre"] .apercuEntete{background:#16262d;border-bottom-color:#22353d;}
+html[data-theme="sombre"] .smallBtn{border-color:#3a5560;color:#9fb4bc;}
+html[data-theme="sombre"] a{color:#64b0ff;}
+/* Connexion */
+html[data-theme="sombre"] #login,html[data-theme="sombre"] .cxEntete{background:#0f1a1e;}
+html[data-theme="sombre"] .cxEtat small{color:#e3ecef;}
+html[data-theme="sombre"] .cxChamp{background:#16262d;border-color:#2a3f47;}
+html[data-theme="sombre"] .cxChamp input{color:#e3ecef;}
+html[data-theme="sombre"] .cxCase{color:#e3ecef;}
+html[data-theme="sombre"] .cxPied{background:#13222a;color:#9fb4bc;}
+html[data-theme="sombre"] .cxIllustration{background:linear-gradient(180deg,#0f1a1e 0%,#1b2e36 100%);}
+html[data-theme="sombre"] .btnGhost{background:#16262d;color:#e3ecef;border-color:#2a3f47;}
+html[data-theme="sombre"] .cxBadge{background:radial-gradient(circle at 35% 30%,#1f3a2c,#13261c 70%);}
+
+/* Section Apparence de REGLAGES : les cinq styles en vignettes. */
+.themeChoix{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:12px;margin-top:10px;}
+.themeCarte{text-align:left;padding:12px;border-radius:12px;border:2px solid var(--line);background:var(--white);
+  color:var(--text);cursor:pointer;font:inherit;}
+.themeCarte:hover{border-color:var(--green);}
+.themeCarte.choisi{border-color:var(--green);box-shadow:0 0 0 3px color-mix(in srgb,var(--green) 25%,transparent);}
+.themeCarte .nuancier{display:flex;height:34px;border-radius:8px;overflow:hidden;margin-bottom:8px;
+  outline:1px solid rgba(0,0,0,.08);}
+.themeCarte .nuancier span{flex:1;}
+.themeCarte b{display:block;font-size:14px;}
+.themeCarte small{display:block;color:var(--muted);margin-top:3px;line-height:1.35;}
+.themeCarte .coche{float:right;color:var(--green);font-weight:800;}
