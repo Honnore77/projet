@@ -94,8 +94,8 @@ input,select,textarea{font-family:inherit;}
    inclinaison vers l'arriere, qui se redresse et se souleve au survol. */
 .cxIllustration{flex-shrink:0;display:flex;justify-content:center;padding:6px 16px 26px;
   background:transparent;perspective:1000px;}
-.cxPhoto{display:block;width:100%;max-width:420px;aspect-ratio:396 / 154;border-radius:24px;
-  background:#fff url('./bandeau-connexion.png') center / cover no-repeat;
+.cxPhoto{display:block;width:100%;max-width:420px;aspect-ratio:1596 / 628;border-radius:24px;
+  background:#fff url('./bandeau-connexion.jpg') center / cover no-repeat;
   border:3px solid #fff;
   box-shadow:0 2px 0 rgba(255,255,255,.9) inset,0 18px 40px rgba(23,49,59,.22),0 6px 12px rgba(23,49,59,.12);
   transform:rotateX(9deg);transform-origin:center bottom;
