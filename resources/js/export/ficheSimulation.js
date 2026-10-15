@@ -12,6 +12,7 @@ import * as sheetjs from 'xlsx-js-style';
 import { DB, parcoursDe, vehicleByImmat } from '../core/db.js';
 import { dateFR, todayISO, mentionLieuDate } from '../core/utils.js';
 import { previewAndSave } from './preview.js';
+import { miseEnPageA4 } from './excel.js';
 import { toWinAnsi as clean } from './winansi.js';
 
 const XLSX = sheetjs && sheetjs.utils ? sheetjs : sheetjs.default;
@@ -299,6 +300,16 @@ export function buildFicheExcel(modele) {
 
 /* ============================= Exports ============================= */
 
+/**
+ * Version simple de la fiche : la mission et l'estimation des frais, sans
+ * le detail du parcours.
+ */
+export function modeleSimple(modele) {
+  return Object.assign({}, modele, {
+    sections: modele.sections.filter((sec) => !/^Parcours/i.test(sec.titre))
+  });
+}
+
 export function exportFichePdf(modele, baseName) {
   return previewAndSave({
     kind: 'pdf',
@@ -309,7 +320,7 @@ export function exportFichePdf(modele, baseName) {
   });
 }
 
-export function exportFicheExcel(modele, baseName) {
+export async function exportFicheExcel(modele, baseName) {
   // L'apercu du classeur reprend les lignes de la fiche, section par section.
   const apercu = modele.sections.map((sec) => ({
     title: sec.titre,
@@ -318,7 +329,7 @@ export function exportFicheExcel(modele, baseName) {
   }));
   return previewAndSave({
     kind: 'excel',
-    bytes: buildFicheExcel(modele),
+    bytes: await miseEnPageA4(buildFicheExcel(modele), [{ columns: [1, 2] }], { fiche: true }).catch(() => buildFicheExcel(modele)),
     filename: `${baseName}_${todayISO()}.xlsx`,
     mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     datasets: apercu,

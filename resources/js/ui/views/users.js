@@ -23,6 +23,7 @@ import {
   validationAbsence, decisionPourDemande, MOTIFS_SANS_VALIDATION
 } from '../../core/demandes.js';
 import { exporterDemande } from '../../export/demandes.js';
+import { exporterFicheInfos, nomFichier } from '../ficheLigne.js';
 import { urlImage } from '../../core/images.js';
 import { canWrite } from '../../core/auth.js';
 import {
@@ -37,6 +38,7 @@ import { state, rerender, openUserSheet } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsUsers, dsIncidents, dsIndisponibilites } from '../../export/datasets.js';
 
 function userFields(u = {}) {
@@ -148,7 +150,8 @@ function renderListe(page) {
         onClick: () => openUserForm(null)
       },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
   );
 
@@ -391,7 +394,8 @@ function renderTableauAbsences(page) {
     toolbar([
       canWrite() && { label: '+ Ajout d’indisponibilité', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openIndisponibiliteForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportIndisponibilites('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportIndisponibilites('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportIndisponibilites('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => exportIndisponibilites('word', list) }
     ])
   );
 
@@ -705,6 +709,16 @@ function openFicheDemande(d) {
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
       { label: '📄 Imprimé PDF', cls: 'ok', onClick: () => exporterImprime(d) },
+      ...boutonsExportFiche({
+        titreDocument: `Fiche — ${TYPES_DEMANDE[d.type] || 'Demande'}`,
+        titre: d.agent || d.nomPrenoms || `${d.nom || ''} ${d.prenoms || ''}`.trim(),
+        sousTitre: TYPES_DEMANDE[d.type] || '',
+        infos: lignes.map(([k, v]) => ({ libelle: k, valeur: v ? String(v) : '—' })).concat([
+          { libelle: 'Décision', valeur: etat === 'oui' ? 'Validée' : etat === 'non' ? 'Refusée' : 'En cours' },
+          { libelle: 'Au tableau des absences', valeur: auTableau ? 'Oui — sort du tour de rôle' : 'Non' },
+          { libelle: 'Images jointes', valeur: (d.images || []).map((x) => x.nom || 'image').join('\n') || 'Aucune' }
+        ])
+      }),
       ...(demandeModifiable(d) ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openDemandeForm(d.type, d); } }] : [])
     ]
   });
@@ -748,10 +762,29 @@ function openFicheIndisponibilite(i) {
     bodyNode: corps,
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
+      ...boutonsExportFiche({
+        titreDocument: 'Fiche — Absence',
+        titre: i.conducteur || '',
+        sousTitre: i.motif || 'Absence',
+        infos: lignes.map(([k, v]) => ({ libelle: k, valeur: v ? String(v) : '—' })).concat([
+          { libelle: 'État', valeur: etat || '—' },
+          { libelle: 'Justificatif', valeur: (i.images || []).map((x) => x.nom || 'image').join('\n') || 'Aucun' }
+        ])
+      }),
       ...(demande ? [{ label: '📋 Voir la demande', cls: 'ok', onClick: (close) => { close(); openFicheDemande(demande); } }] : []),
       ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openIndisponibiliteForm(i); } }] : [])
     ]
   });
+}
+
+/** Excel, PDF et Word d'une fiche de demande ou d'absence, en A4. */
+function boutonsExportFiche(fiche) {
+  const base = `PDU_fiche_${nomFichier(`${fiche.titreDocument}_${fiche.titre}`)}`;
+  return ['excel', 'pdf', 'word'].map((kind) => ({
+    label: `⬇ ${{ excel: 'Excel', pdf: 'PDF', word: 'Word' }[kind]}`,
+    cls: 'ok',
+    onClick: () => exporterFicheInfos(kind, fiche, base)
+  }));
 }
 
 /** Les images d'une demande, en vignettes : un toucher les agrandit. */
@@ -987,7 +1020,9 @@ async function exportIndisponibilites(kind, list) {
     const datasets = [dsIndisponibilites(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_conges_et_absences_au_pool')
-      : await exportPdf(datasets, 'PDU_conges_et_absences_au_pool', { title: 'Congés et absences au pool' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_conges_et_absences_au_pool', { title: 'Congés et absences au pool' })
+        : await exportPdf(datasets, 'PDU_conges_et_absences_au_pool', { title: 'Congés et absences au pool' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);
@@ -1000,7 +1035,9 @@ async function doExport(kind, list) {
     const datasets = [dsUsers(list), dsIncidents(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_utilisateurs')
-      : await exportPdf(datasets, 'PDU_utilisateurs', { title: 'Utilisateurs du parc' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_utilisateurs', { title: 'Utilisateurs du parc' })
+        : await exportPdf(datasets, 'PDU_utilisateurs', { title: 'Utilisateurs du parc' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

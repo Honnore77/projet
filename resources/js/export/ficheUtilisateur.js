@@ -138,7 +138,8 @@ function tableau(doc, options) {
  * @param {object} u       l'agent
  * @param {Uint8Array|null} photo  octets JPEG de sa photo
  */
-export function buildFicheAgentPdf(u, photo) {
+/** @param {boolean} [simple]  la carte seule, sans les historiques */
+export function buildFicheAgentPdf(u, photo, simple = false) {
   const d = dossierAgent(u);
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
   const W = doc.internal.pageSize.getWidth();
@@ -248,7 +249,7 @@ export function buildFicheAgentPdf(u, photo) {
     yy += 6 + lignes.length * 3.8;
   }
 
-  historiquesAgent(d).forEach((h) => {
+  (simple ? [] : historiquesAgent(d)).forEach((h) => {
     if (yy > H - 40) { doc.addPage(); yy = 16; }
     doc.setTextColor(...VERT);
     doc.setFont('helvetica', 'bold');
@@ -279,10 +280,10 @@ export function buildFicheAgentPdf(u, photo) {
   return new Uint8Array(doc.output('arraybuffer'));
 }
 
-export function exportFicheAgentPdf(u, photo, baseName) {
+export function exportFicheAgentPdf(u, photo, baseName, simple = false) {
   return previewAndSave({
     kind: 'pdf',
-    bytes: buildFicheAgentPdf(u, photo),
+    bytes: buildFicheAgentPdf(u, photo, simple),
     filename: `${baseName}_${todayISO()}.pdf`,
     mime: 'application/pdf',
     title: 'Aperçu avant export PDF'

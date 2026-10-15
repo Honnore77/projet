@@ -16,6 +16,7 @@ import { state, rerender, openVehicleSheet } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
 
 function ficheFields(m = {}) {
@@ -109,7 +110,8 @@ export function renderMaintenance(page) {
     toolbar([
       canWrite() && { label: '+ Nouvelle fiche d’entretien', cls: 'addBtn', color: COLORS.green, write: true, onClick: () => openFicheForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', retenus) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', retenus) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', retenus) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', retenus) }
     ])
   );
 
@@ -391,7 +393,9 @@ async function doExport(kind, list = DB.maintenance) {
     const datasets = [dsMaintenance(list), dsInterventions(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_entretien')
-      : await exportPdf(datasets, 'PDU_entretien', { title: 'Entretien du parc' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_entretien', { title: 'Entretien du parc' })
+        : await exportPdf(datasets, 'PDU_entretien', { title: 'Entretien du parc' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

@@ -27,8 +27,10 @@ import { cablerParcours, enregistrerParcours, openMissionForm } from './missions
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord, exportModeleWord } from '../../export/word.js';
+import { menusExportFiche } from '../ficheExports.js';
 import { dsSimulations } from '../../export/datasets.js';
-import { modeleFicheSimulation, ficheHtml, exportFichePdf, exportFicheExcel } from '../../export/ficheSimulation.js';
+import { modeleFicheSimulation, ficheHtml, exportFichePdf, exportFicheExcel, modeleSimple } from '../../export/ficheSimulation.js';
 
 const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }, SOUS_RUBRIQUE_STATS];
 
@@ -61,7 +63,8 @@ function renderListe(page) {
     toolbar([
       canWrite() && { label: '+ Nouvelle simulation', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openSimulationForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
   );
 
@@ -166,9 +169,18 @@ function openFiche(s) {
   const nom = `PDU_simulation_${(s.destinations || []).join('-')
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
     .replace(/[^A-Za-z0-9-]+/g, '_').slice(0, 40) || 'mission'}`;
-  const exporter = async (kind) => {
+  const exporter = async (kind, mode = 'complet') => {
     try {
-      const res = kind === 'excel' ? await exportFicheExcel(modele, nom) : await exportFichePdf(modele, nom);
+      const m = mode === 'simple' ? modeleSimple(modele) : modele;
+      const n = mode === 'simple' ? `${nom}_simple` : nom;
+      const apercu = m.sections.map((sec) => ({
+        title: sec.titre,
+        columns: [{ key: 'libelle', label: 'Libellé' }, { key: 'detail', label: 'Détail' }, { key: 'valeur', label: 'Valeur' }],
+        rows: sec.lignes.map((l) => ({ libelle: l.libelle, detail: l.detail || '', valeur: l.valeur }))
+      }));
+      const res = kind === 'excel' ? await exportFicheExcel(m, n)
+        : kind === 'word' ? await exportModeleWord(m, n, apercu)
+          : await exportFichePdf(m, n);
       toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
     } catch (e) {
       console.error(e);
@@ -180,8 +192,7 @@ function openFiche(s) {
     bodyNode: corps,
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
-      { label: '⬇ Excel', cls: 'ok', onClick: () => exporter('excel') },
-      { label: '⬇ PDF', cls: 'ok', onClick: () => exporter('pdf') },
+      ...menusExportFiche(exporter).map((b) => ({ label: b.label, cls: 'ok', menu: b.menu })),
       ...(canWrite() ? [{ label: '✎ Modifier', cls: 'ok', onClick: (close) => { close(); openSimulationForm(s); } }] : [])
     ]
   });
@@ -566,7 +577,9 @@ async function doExport(kind, list) {
     const datasets = [dsSimulations(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_simulations_mission')
-      : await exportPdf(datasets, 'PDU_simulations_mission', { title: 'Simulations de mission' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_simulations_mission', { title: 'Simulations de mission' })
+        : await exportPdf(datasets, 'PDU_simulations_mission', { title: 'Simulations de mission' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

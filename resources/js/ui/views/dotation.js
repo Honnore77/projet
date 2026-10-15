@@ -23,6 +23,7 @@ import { state, navigate, rerender } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsDotationPool, dsCarburantMissions, dsRavitaillementsMissions } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
 
@@ -151,7 +152,8 @@ function renderPool(page) {
     toolbar([
       canWrite() && { label: '+ Ajouter une dotation pool', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openPoolForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', 'pool', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'pool', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'pool', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'pool', list) }
     ])
   );
 
@@ -343,7 +345,8 @@ function renderMission(page) {
         onClick: () => { state.sub.MISSION = 'rapport'; navigate('MISSION'); }
       },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', 'mission', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'mission', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'mission', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'mission', list) }
     ])
   );
 
@@ -400,7 +403,9 @@ async function doExport(kind, sub, list) {
     const titre = sub === 'pool' ? 'Dotation carburant — pool' : 'Dotation carburant — missions';
     const res = kind === 'excel'
       ? await exportExcel(datasets, name)
-      : await exportPdf(datasets, name, { title: titre });
+      : kind === 'word'
+        ? await exportWord(datasets, name, { title: titre })
+        : await exportPdf(datasets, name, { title: titre });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

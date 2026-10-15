@@ -203,8 +203,9 @@ export function buildFicheVehiculePdf(f) {
   }
 
   // Historiques, sans montants (voir l'en-tete du module).
+  // Version simple : la carte de la fiche seule, sans les historiques.
   const section = (titreSection, entetes, lignes) => {
-    if (!lignes.length) return;
+    if (f.simple || !lignes.length) return;
     if (yy > H - 40) { doc.addPage(); yy = 16; }
     doc.setTextColor(...VERT);
     doc.setFont('helvetica', 'bold');

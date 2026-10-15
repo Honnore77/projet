@@ -12,6 +12,8 @@ import { statutColor, openVehicleForm } from './vehicles.js';
 import { openReformeForm } from './vehiculesReformes.js';
 import { renderMaintenanceEntries, openFicheForm } from './maintenance.js';
 import { exportExcel } from '../../export/excel.js';
+import { exportFicheWord } from '../../export/word.js';
+import { menusExportFiche } from '../ficheExports.js';
 import { infosVehicule, activiteVehicule, exportFicheVehiculePdf } from '../../export/ficheVehicule.js';
 
 export function renderVehicleSheet(page) {
@@ -31,8 +33,7 @@ export function renderVehicleSheet(page) {
       { label: '← Retour aux véhicules', color: COLORS.blue, onClick: () => navigate('VEHICULES') },
       canWrite() && vehicle && { label: '✎ Modifier le véhicule', color: COLORS.green, write: true, onClick: () => (cat === 'reforme' ? openReformeForm(stripCat(vehicle), 'reforme') : openVehicleForm(stripCat(vehicle), cat)) },
       canWrite() && cat !== 'reforme' && { label: '+ Fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) }
+      ...menusExportFiche((kind, mode) => doExport(kind, { immat, vehicle, cat, dots, missionsCarburant, missions, maint }, mode))
     ])
   );
 
@@ -197,14 +198,20 @@ function stripCat(v) {
   return copy;
 }
 
-async function doExport(kind, f) {
+/**
+ * @param {'excel'|'pdf'|'word'} kind
+ * @param {'simple'|'complet'} mode  simple : la carte de la fiche seule,
+ *        comme a l'ecran ; complet : la carte puis tous les historiques.
+ */
+async function doExport(kind, f, mode = 'complet') {
   try {
-    const safe = String(f.immat || 'vehicule').replace(/[^A-Za-z0-9_-]+/g, '_');
+    const simple = mode === 'simple';
+    const safe = `${String(f.immat || 'vehicule').replace(/[^A-Za-z0-9_-]+/g, '_')}${simple ? '_simple' : ''}`;
+    // La premiere photo de la fiche, comme a l'ecran.
+    const premiere = f.vehicle && (f.vehicle.images || [])[0];
+    const photo = kind !== 'excel' && premiere ? await octetsImage(premiere.id) : null;
     if (kind === 'pdf') {
-      // La premiere photo de la fiche, comme a l'ecran.
-      const premiere = f.vehicle && (f.vehicle.images || [])[0];
-      const photo = premiere ? await octetsImage(premiere.id) : null;
-      const res = await exportFicheVehiculePdf(Object.assign({ photo }, f), `PDU_fiche_${safe}`);
+      const res = await exportFicheVehiculePdf(Object.assign({ photo, simple }, f), `PDU_fiche_${safe}`);
       toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
       return;
     }
@@ -244,7 +251,23 @@ async function doExport(kind, f) {
       toast('Rien à exporter pour ce véhicule.', 'info');
       return;
     }
-    const res = await exportExcel(datasets, `PDU_fiche_${safe}`);
+    const historiques = f.vehicle ? datasets.slice(1) : datasets;
+    let res;
+    if (kind === 'word') {
+      const v = f.vehicle || {};
+      res = await exportFicheWord({
+        titreDocument: f.cat === 'reforme' ? 'Fiche de réforme' : 'Fiche véhicule',
+        titre: `${v.marque || ''} ${v.modele || ''}`.trim() || 'Véhicule',
+        sousTitre: f.immat || '',
+        infos: f.vehicle ? infosVehicule(v, f.cat) : [{ libelle: 'Fiche', valeur: 'Aucune fiche dans VÉHICULES pour cette immatriculation.' }],
+        compteurs: activiteVehicule(f),
+        photo,
+        observations: v.observations,
+        datasets: simple ? [] : historiques
+      }, `PDU_fiche_${safe}`, simple ? datasets.slice(0, 1) : datasets);
+    } else {
+      res = await exportExcel(simple ? datasets.slice(0, 1) : datasets, `PDU_fiche_${safe}`, { fiche: true });
+    }
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

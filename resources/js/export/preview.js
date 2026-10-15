@@ -7,7 +7,7 @@
    déjà envoyé.
 
    - PDF   : le document lui-même, rendu dans le lecteur intégré.
-   - Excel : les feuilles telles qu'elles seront écrites. Un classeur ne
+   - Excel et Word : les tableaux tels qu'ils seront écrits. Un classeur ne
              se rend pas dans une fenêtre ; on montre donc son contenu,
              feuille par feuille, avec les mêmes colonnes.
    =================================================================== */
@@ -24,7 +24,7 @@ const LIGNES_APERCU = 150;
  * Montre le document puis, si l'utilisateur confirme, l'enregistre.
  *
  * @param {object} cfg
- * @param {'pdf'|'excel'} cfg.kind
+ * @param {'pdf'|'excel'|'word'} cfg.kind
  * @param {Uint8Array} cfg.bytes      contenu du fichier
  * @param {string} cfg.filename       nom proposé à l'enregistrement
  * @param {string} cfg.mime
@@ -40,9 +40,10 @@ export function previewAndSave({ kind, bytes, filename, mime, datasets = [], tit
     const entete = el(
       '<div class="apercuEntete">' +
         `<span>Fichier : <b>${esc(filename)}</b></span>` +
-        `<span>Format : <b>${kind === 'pdf' ? 'PDF' : 'Classeur Excel'}</b></span>` +
+        `<span>Format : <b>${kind === 'pdf' ? 'PDF' : kind === 'word' ? 'Document Word' : 'Classeur Excel'}</b></span>` +
         `<span>Taille : <b>${esc(poids)}</b></span>` +
         (kind === 'excel' ? `<span>Feuilles : <b>${datasets.length}</b></span>` : '') +
+        (kind === 'word' ? `<span>Tableaux : <b>${datasets.length}</b></span>` : '') +
       '</div>'
     );
     corps.appendChild(entete);

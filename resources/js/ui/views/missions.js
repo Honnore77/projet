@@ -29,6 +29,7 @@ import { state, rerender, openVehicleSheet } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsSuiviMissions, dsMissions, dsMissionsParConducteur, dsDestinationsMission } from '../../export/datasets.js';
 import { exportMissionReport, printMissionReport, reportData } from '../../export/missionReport.js';
 
@@ -82,7 +83,8 @@ function renderSuivi(page) {
     toolbar([
       canWrite() && { label: '+ Ajouter une mission', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openMissionForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
   );
 
@@ -1065,7 +1067,8 @@ function renderDestinations(page) {
     toolbar([
       canWrite() && { label: '+ Nouvelle destination', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openDestinationForm(null) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportDestinations('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportDestinations('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exportDestinations('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => exportDestinations('word', list) }
     ])
   );
 
@@ -1306,7 +1309,9 @@ async function exportDestinations(kind, list) {
     const datasets = [dsDestinationsMission(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_destinations_missions')
-      : await exportPdf(datasets, 'PDU_destinations_missions', { title: 'Destinations des missions' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_destinations_missions', { title: 'Destinations des missions' })
+        : await exportPdf(datasets, 'PDU_destinations_missions', { title: 'Destinations des missions' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);
@@ -1319,7 +1324,9 @@ async function doExport(kind, list) {
     const datasets = [dsSuiviMissions(list), dsMissions(list), dsMissionsParConducteur(list)];
     const res = kind === 'excel'
       ? await exportExcel(datasets, 'PDU_suivi_des_missions')
-      : await exportPdf(datasets, 'PDU_suivi_des_missions', { title: 'Tableau de suivi des missions' });
+      : kind === 'word'
+        ? await exportWord(datasets, 'PDU_suivi_des_missions', { title: 'Tableau de suivi des missions' })
+        : await exportPdf(datasets, 'PDU_suivi_des_missions', { title: 'Tableau de suivi des missions' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

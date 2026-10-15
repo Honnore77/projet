@@ -12,6 +12,8 @@ import { card, toolbar, statTile, sectionLabel, dataTable, toast, openModal, COL
 import { state, navigate } from '../shell.js';
 import { openUserForm } from './users.js';
 import { exportExcel } from '../../export/excel.js';
+import { exportFicheWord } from '../../export/word.js';
+import { menusExportFiche } from '../ficheExports.js';
 import {
   dossierAgent, infosAgent, activiteAgent, historiquesAgent, exportFicheAgentPdf, datasetsFicheAgent, estLigneNumeroPoste
 } from '../../export/ficheUtilisateur.js';
@@ -23,8 +25,7 @@ export function renderUserSheet(page) {
     toolbar([
       { label: '← Retour aux utilisateurs', color: COLORS.blue, onClick: () => { state.sub.UTILISATEURS = 'liste'; navigate('UTILISATEURS'); } },
       canWrite() && u && { label: '✎ Modifier l’utilisateur', color: COLORS.green, write: true, onClick: () => openUserForm(u) },
-      u && { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', u) },
-      u && { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', u) }
+      ...(u ? menusExportFiche((kind, mode) => doExport(kind, u, mode)) : [])
     ])
   );
 
@@ -123,18 +124,36 @@ function agrandir(img, url) {
   });
 }
 
-async function doExport(kind, u) {
+/**
+ * @param {'excel'|'pdf'|'word'} kind
+ * @param {'simple'|'complet'} mode  simple : la carte seule ; complet : avec les historiques
+ */
+async function doExport(kind, u, mode = 'complet') {
   try {
-    const nom = `PDU_fiche_${`${u.nom || ''}_${u.prenoms || ''}`
+    const simple = mode === 'simple';
+    const nom = `PDU_fiche${simple ? '_simple' : ''}_${`${u.nom || ''}_${u.prenoms || ''}`
       .normalize('NFD').replace(/[̀-ͯ]/g, '')
       .replace(/[^A-Za-z0-9_-]+/g, '_').replace(/_+$/, '') || 'utilisateur'}`;
     let res;
+    const premiere = (u.images || [])[0];
+    const photo = kind !== 'excel' && premiere ? await octetsImage(premiere.id) : null;
+    const datasets = datasetsFicheAgent(u);
     if (kind === 'pdf') {
-      const premiere = (u.images || [])[0];
-      const photo = premiere ? await octetsImage(premiere.id) : null;
-      res = await exportFicheAgentPdf(u, photo, nom);
+      res = await exportFicheAgentPdf(u, photo, nom, simple);
+    } else if (kind === 'word') {
+      const d = dossierAgent(u);
+      res = await exportFicheWord({
+        titreDocument: 'Fiche agent',
+        titre: u.fonction || 'Agent',
+        sousTitre: d.nom,
+        infos: infosAgent(u, d).map((l) => (l.libelle === 'Téléphone' ? Object.assign({ rougeSi: estLigneNumeroPoste }, l) : l)),
+        compteurs: activiteAgent(d),
+        photo,
+        observations: u.observations,
+        datasets: simple ? [] : datasets.slice(1)
+      }, nom, simple ? datasets.slice(0, 1) : datasets);
     } else {
-      res = await exportExcel(datasetsFicheAgent(u), nom);
+      res = await exportExcel(simple ? datasets.slice(0, 1) : datasets, nom, { fiche: true });
     }
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {

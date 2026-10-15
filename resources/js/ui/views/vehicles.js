@@ -21,6 +21,7 @@ import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsVehicles } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
 import { renderReformes, openReformeForm } from './vehiculesReformes.js';
@@ -183,7 +184,8 @@ export function renderVehicles(page) {
         onClick: () => openVehicleForm(null, cat)
       },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list, cat) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list, cat) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list, cat) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list, cat) }
     ])
   );
 
@@ -423,7 +425,9 @@ async function doExport(kind, list, cat) {
   try {
     const res = kind === 'excel'
       ? await exportExcel([ds], `PDU_vehicules_${cat}`)
-      : await exportPdf([ds], `PDU_vehicules_${cat}`, { title: 'État du parc automobile' });
+      : kind === 'word'
+        ? await exportWord([ds], `PDU_vehicules_${cat}`, { title: 'État du parc automobile' })
+        : await exportPdf([ds], `PDU_vehicules_${cat}`, { title: 'État du parc automobile' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

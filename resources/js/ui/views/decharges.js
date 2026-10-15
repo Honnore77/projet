@@ -23,6 +23,7 @@ import { state, rerender, moduleColor } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { dsDecharges, dsDestinataires } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
 
@@ -107,7 +108,8 @@ function renderListeDecharges(page) {
     toolbar([
       canWrite() && { label: '+ Nouvelle décharge', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDechargeForm(null) },
       { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'decharges', list) },
-      { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'decharges', list) }
+      { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'decharges', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'decharges', list) }
     ])
   );
 
@@ -270,7 +272,8 @@ function renderDestinataires(page) {
     toolbar([
       canWrite() && { label: '+ Nouveau destinataire', cls: 'addBtn', color: COULEUR_DEST, write: true, onClick: () => openDestinataireForm(null) },
       { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'destinataires', list) },
-      { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'destinataires', list) }
+      { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'destinataires', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'destinataires', list) }
     ])
   );
 
@@ -403,7 +406,9 @@ async function doExport(kind, sub, list) {
     const titre = sub === 'decharges' ? 'Décharges' : 'Destinataires des décharges';
     const res = kind === 'excel'
       ? await exportExcel(datasets, name)
-      : await exportPdf(datasets, name, { title: titre });
+      : kind === 'word'
+        ? await exportWord(datasets, name, { title: titre })
+        : await exportPdf(datasets, name, { title: titre });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

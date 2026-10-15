@@ -6,6 +6,7 @@
 import { esc, el } from '../core/utils.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 import { voitTout, rubriqueCourante } from '../core/acces.js';
+import { ouvrirFicheLigne, texteEntete } from './ficheLigne.js';
 
 export const COLORS = {
   green: '#008A3B',
@@ -55,8 +56,10 @@ export function openModal({ title, bodyHtml = '', bodyNode = null, buttons = [],
   };
 
   buttons.forEach((b) => {
-    const btn = el(`<button type="button" class="${b.cls || 'ok'}">${esc(b.label)}</button>`);
-    btn.onclick = () => b.onClick(close, body);
+    const btn = el(`<button type="button" class="${b.cls || 'ok'}">${esc(b.label)}${b.menu ? ' ▾' : ''}</button>`);
+    btn.onclick = b.menu
+      ? (ev) => { ev.stopPropagation(); ouvrirMenuChoix(btn, b.menu); }
+      : () => b.onClick(close, body);
     foot.appendChild(btn);
   });
   if (!buttons.length) foot.remove();
@@ -523,12 +526,66 @@ export function toolbar(buttons) {
   buttons.forEach((b) => {
     if (!b) return;
     const btn = el(
-      `<button type="button" class="${b.cls || ''}" style="background:${b.color || COLORS.blue}"${b.write ? ' data-write' : ''}>${esc(b.label)}</button>`
+      `<button type="button" class="${b.cls || ''}" style="background:${b.color || COLORS.blue}"${b.write ? ' data-write' : ''}` +
+      `${b.menu ? ' aria-haspopup="true" aria-expanded="false"' : ''}>${esc(b.label)}${b.menu ? ' ▾' : ''}</button>`
     );
-    btn.onclick = b.onClick;
+    // Un bouton a plusieurs variantes (« Excel simple / complet ») ouvre une
+    // liste deroulante au lieu d'agir tout de suite.
+    btn.onclick = b.menu ? (ev) => { ev.stopPropagation(); ouvrirMenuChoix(btn, b.menu); } : b.onClick;
     bar.appendChild(btn);
   });
   return bar;
+}
+
+let menuOuvert = null;
+
+function fermerMenuChoix() {
+  if (!menuOuvert) return;
+  menuOuvert.menu.remove();
+  menuOuvert.bouton.setAttribute('aria-expanded', 'false');
+  menuOuvert = null;
+  document.removeEventListener('click', fermerMenuChoix);
+  document.removeEventListener('keydown', echapMenuChoix);
+  window.removeEventListener('resize', fermerMenuChoix);
+}
+
+function echapMenuChoix(e) {
+  if (e.key === 'Escape') fermerMenuChoix();
+}
+
+/**
+ * Liste deroulante sous un bouton.
+ * @param {HTMLElement} bouton
+ * @param {{label:string, detail?:string, onClick:Function}[]} choix
+ */
+export function ouvrirMenuChoix(bouton, choix) {
+  const deja = menuOuvert && menuOuvert.bouton === bouton;
+  fermerMenuChoix();
+  if (deja) return;
+  const menu = el('<div class="menuChoix" role="menu"></div>');
+  choix.filter(Boolean).forEach((c) => {
+    const ligne = el(
+      `<button type="button" role="menuitem" class="menuChoixLigne"><b>${esc(c.label)}</b>` +
+      `${c.detail ? `<small>${esc(c.detail)}</small>` : ''}</button>`
+    );
+    ligne.onclick = () => { fermerMenuChoix(); c.onClick(); };
+    menu.appendChild(ligne);
+  });
+  menu.onclick = (ev) => ev.stopPropagation();
+  document.body.appendChild(menu);
+  const r = bouton.getBoundingClientRect();
+  const largeur = menu.offsetWidth;
+  const hauteur = menu.offsetHeight;
+  const enBas = r.bottom + 6 + hauteur < window.innerHeight;
+  menu.style.top = `${Math.round(enBas ? r.bottom + 6 : Math.max(8, r.top - 6 - hauteur))}px`;
+  menu.style.left = `${Math.round(Math.max(8, Math.min(r.left, window.innerWidth - largeur - 8)))}px`;
+  bouton.setAttribute('aria-expanded', 'true');
+  menuOuvert = { bouton, menu };
+  setTimeout(() => {
+    document.addEventListener('click', fermerMenuChoix);
+    document.addEventListener('keydown', echapMenuChoix);
+    window.addEventListener('resize', fermerMenuChoix);
+  }, 0);
 }
 
 /** Barre de filtres : liste de champs (input/select) rendus a plat. */
@@ -583,16 +640,32 @@ export function subtabs(items, activeKey, onClick, colorMap = {}) {
  * @param {Array<Array<string>>} rows  cellules en HTML deja echappe
  * @param {Function} [decorate] (tr, index) => void
  */
-export function dataTable(headers, rows, decorate) {
+export function dataTable(headers, rows, decorate, opts = {}) {
   const wrap = el('<div class="tableWrap"></div>');
   const table = el('<table class="dataTable"><thead></thead><tbody></tbody></table>');
+  // Chaque ligne s'ouvre en fiche. Les tableaux qui ont deja la leur
+  // (vehicule, agent, demande...) la gardent ; les autres recoivent un
+  // bouton « Fiche » dans la colonne d'actions, creee au besoin.
+  const sansFiche = (cells) => !/data-sheet|data-fiche|>\s*Fiche\s*</.test(cells.join(''));
+  const avecFiche = opts.fiche !== false && rows.some(sansFiche);
+  const colonneActions = headers.length && /^\s*(actions?)?\s*$/i.test(headers[headers.length - 1]);
+  const entetes = avecFiche && !colonneActions ? headers.concat(['']) : headers;
   table.querySelector('thead').appendChild(
-    el(`<tr>${headers.map((h) => `<th>${h}</th>`).join('')}</tr>`)
+    el(`<tr>${entetes.map((h) => `<th>${h}</th>`).join('')}</tr>`)
   );
+  const textes = avecFiche ? entetes.map(texteEntete) : null;
   const tbody = table.querySelector('tbody');
   rows.forEach((cells, i) => {
-    const tr = el(`<tr>${cells.map((c) => `<td>${c}</td>`).join('')}</tr>`);
+    const tr = el(`<tr>${(entetes.length > cells.length ? cells.concat(['']) : cells).map((c) => `<td>${c}</td>`).join('')}</tr>`);
     if (decorate) decorate(tr, i);
+    if (avecFiche && sansFiche(cells)) {
+      const b = el(`<button type="button" class="miniBtn" data-fiche style="background:${COLORS.blue};padding:5px 8px">Fiche</button>`);
+      b.onclick = (ev) => { ev.stopPropagation(); ouvrirFicheLigne(tr, textes); };
+      const derniere = tr.lastElementChild;
+      derniere.style.whiteSpace = 'nowrap';
+      derniere.prepend(' ');
+      derniere.prepend(b);
+    }
     tbody.appendChild(tr);
   });
   wrap.appendChild(table);

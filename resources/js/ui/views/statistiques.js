@@ -13,6 +13,7 @@ import { state, rerender, moduleColor } from '../shell.js';
 import { chartCardTypes, destroyCharts, colorsFor } from '../charts.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { voitTout, rubriqueCourante } from '../../core/acces.js';
 
 /** La cle de sous-rubrique commune a toutes les rubriques. */
@@ -65,7 +66,8 @@ export function renderStatistiques(page, cle) {
   page.appendChild(
     toolbar([
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', def, stats, annee) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', def, stats, annee) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', def, stats, annee) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', def, stats, annee) }
     ])
   );
 
@@ -103,7 +105,7 @@ export function renderStatistiques(page, cle) {
     // Les chiffres, et leur en-tete, au centre de leur colonne.
     const centre = (x) => `<span style="display:block;text-align:center">${x}</span>`;
     page.appendChild(dataTable(b.entetes.map((h, i) => (i === 0 ? esc(h) : centre(esc(h)))), b.lignes.map((l) => l.map((c, i) =>
-      (i === 0 ? `<b>${esc(c)}</b>` : centre(esc(c)))))));
+      (i === 0 ? `<b>${esc(c)}</b>` : centre(esc(c))))), null, { fiche: false }));
   });
 
   if (vides.length) {
@@ -253,7 +255,9 @@ async function exporter(kind, def, stats, annee) {
     const nom = `PDU_statistiques_${def.titre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')}_${annee || 'toutes'}`;
     const res = kind === 'excel'
       ? await exportExcel(datasets, nom)
-      : await exportPdf(datasets, nom, { title: `Statistiques ${def.titre.toLowerCase()} — ${periode}`, orientation: 'p', enchaine: true });
+      : kind === 'word'
+        ? await exportWord(datasets, nom, { title: `Statistiques ${def.titre.toLowerCase()} — ${periode}`, orientation: 'p', enchaine: true })
+        : await exportPdf(datasets, nom, { title: `Statistiques ${def.titre.toLowerCase()} — ${periode}`, orientation: 'p', enchaine: true });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

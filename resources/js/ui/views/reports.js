@@ -7,6 +7,7 @@ import { el, fmt, esc, escLignes, sum, mentionLieuDate } from '../../core/utils.
 import { card, statTile, dataTable, emptyState, toast, COLORS, sectionLabel } from '../components.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import {
   dsAll, dsVehicles, dsUsers, dsIncidents, dsDotationPool, dsCarburantMissions,
   dsRavitaillementsMissions, dsMissions, dsMissionsParConducteur, dsSuiviMissions, dsMaintenance,
@@ -50,10 +51,12 @@ export function renderReports(page) {
       '<div class="actions">' +
       `<button class="miniBtn" style="background:${COLORS.green}" data-x>⬇ Excel (.xlsx)</button>` +
       `<button class="miniBtn" style="background:${COLORS.red}" data-p>⬇ PDF</button>` +
+      '<button class="miniBtn" style="background:#2B579A" data-w>⬇ Word</button>' +
       `<button class="miniBtn" style="background:${COLORS.blue}" data-print>🖨 Imprimer</button>` +
       '</div>';
     e.querySelector('[data-x]').onclick = () => run(r, 'excel');
     e.querySelector('[data-p]').onclick = () => run(r, 'pdf');
+    e.querySelector('[data-w]').onclick = () => run(r, 'word');
     e.querySelector('[data-print]').onclick = () => printReport(r);
     page.appendChild(e);
   });
@@ -108,7 +111,9 @@ async function run(rapport, kind) {
     }
     const res = kind === 'excel'
       ? await exportExcel(datasets, rapport.file)
-      : await exportPdf(datasets, rapport.file, { title: rapport.label });
+      : kind === 'word'
+        ? await exportWord(datasets, rapport.file, { title: rapport.label })
+        : await exportPdf(datasets, rapport.file, { title: rapport.label });
     toast(res ? `Rapport « ${rapport.label} » enregistré.` : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);

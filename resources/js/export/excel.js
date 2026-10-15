@@ -17,6 +17,7 @@ if (!XLSX || !XLSX.utils) throw new Error('SheetJS introuvable : export Excel in
 import { todayISO, mentionLieuDate } from '../core/utils.js';
 import { DB } from '../core/db.js';
 import { previewAndSave } from './preview.js';
+import JSZip from 'jszip';
 
 const MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -104,6 +105,8 @@ export function buildExcel(datasets) {
       ref: XLSX.utils.encode_range({ s: { r: 0, c: 0 }, e: { r: Math.max(body.length, 1), c: ds.columns.length - 1 } })
     };
     ws['!freeze'] = { xSplit: 0, ySplit: 1 };
+    // Marges d'une feuille A4 (en pouces) : la mise en page les complete.
+    ws['!margins'] = { left: 0.4, right: 0.4, top: 0.5, bottom: 0.5, header: 0.25, footer: 0.25 };
     XLSX.utils.book_append_sheet(wb, ws, sheetName(ds.title));
   });
 
@@ -111,15 +114,60 @@ export function buildExcel(datasets) {
 }
 
 /**
+ * Mise en page A4 de chaque onglet : a l'impression, le tableau occupe
+ * toute la largeur de la feuille (« ajuster a une page de large »), centre,
+ * en portrait pour une fiche ou un tableau etroit, en paysage au-dela de
+ * sept colonnes. SheetJS n'ecrit pas ces reglages : on les pose dans le
+ * classeur deja produit.
+ * @param {Uint8Array} octets
+ * @param {Dataset[]} datasets
+ * @param {{fiche?:boolean}} [opts]
+ * @returns {Promise<Uint8Array>}
+ */
+export async function miseEnPageA4(octets, datasets, opts = {}) {
+  const zip = await JSZip.loadAsync(octets);
+  await Promise.all(datasets.map(async (ds, i) => {
+    const chemin = `xl/worksheets/sheet${i + 1}.xml`;
+    const fichier = zip.file(chemin);
+    if (!fichier) return;
+    let xml = await fichier.async('string');
+    const paysage = !opts.fiche && ds.columns.length > 7;
+    const ajuster = '<pageSetUpPr fitToPage="1"/>';
+    if (/<sheetPr\b[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/<sheetPr\b([^>]*)\/>/, `<sheetPr$1>${ajuster}</sheetPr>`);
+    } else if (/<sheetPr\b[^>]*>/.test(xml)) {
+      xml = xml.replace(/<sheetPr\b([^>]*)>/, `<sheetPr$1>${ajuster}`);
+    } else {
+      xml = xml.replace(/(<worksheet\b[^>]*>)/, `$1<sheetPr>${ajuster}</sheetPr>`);
+    }
+    const page = `<printOptions horizontalCentered="1"/>`;
+    const format = `<pageSetup paperSize="9" orientation="${paysage ? 'landscape' : 'portrait'}" fitToWidth="1" fitToHeight="0"/>`;
+    if (/<pageMargins\b[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/(<pageMargins\b[^>]*\/>)/, `${page}$1${format}`);
+    }
+    zip.file(chemin, xml);
+  }));
+  return new Uint8Array(await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }));
+}
+
+/**
  * Montre le contenu du classeur, puis l'ecrit si l'utilisateur confirme.
  * @param {Dataset[]} datasets
  * @param {string} baseName nom de fichier sans extension
+ * @param {{fiche?:boolean}} [opts]  fiche : feuille A4 en portrait
  * @returns {Promise<string|null>} chemin ecrit, ou null si annule
  */
-export async function exportExcel(datasets, baseName) {
+export async function exportExcel(datasets, baseName, opts = {}) {
+  let octets = buildExcel(datasets);
+  try {
+    octets = await miseEnPageA4(octets, datasets, opts);
+  } catch (e) {
+    // Sans mise en page, le classeur reste juste : on l'enregistre tel quel.
+    console.error('Mise en page A4 du classeur', e);
+  }
   return previewAndSave({
     kind: 'excel',
-    bytes: buildExcel(datasets),
+    bytes: octets,
     filename: `${baseName}_${todayISO()}.xlsx`,
     mime: MIME,
     datasets,

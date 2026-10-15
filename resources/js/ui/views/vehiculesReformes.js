@@ -17,6 +17,7 @@ import { toolbar, emptyState, openForm, confirmDialog, toast, dataTable, COLORS 
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
+import { exportWord } from '../../export/word.js';
 import { filtrer } from '../../core/acces.js';
 
 const libelleCat = (k) => (CATEGORIES.find((c) => c.key === k) || { label: '' }).label;
@@ -144,7 +145,8 @@ export function renderReformes(page) {
         onClick: () => openReformeForm(null, CAT_REFORME)
       },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', list) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) }
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }
     ])
   );
 
@@ -277,7 +279,9 @@ async function exporter(kind, list) {
   try {
     const res = kind === 'excel'
       ? await exportExcel([ds], 'PDU_vehicules_reformes')
-      : await exportPdf([ds], 'PDU_vehicules_reformes', { title: 'Véhicules réformés' });
+      : kind === 'word'
+        ? await exportWord([ds], 'PDU_vehicules_reformes', { title: 'Véhicules réformés' })
+        : await exportPdf([ds], 'PDU_vehicules_reformes', { title: 'Véhicules réformés' });
     toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
   } catch (e) {
     console.error(e);
