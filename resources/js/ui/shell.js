@@ -295,8 +295,21 @@ function renderAlertBar() {
   if (entete) entete.classList.toggle('hasAlerts', voyants.length > 0);
   if (!voyants.length) return;
 
-  if (window.innerWidth <= LARGEUR_COMPACTE) rendreCompact(voyants);
-  else rendreDetaille(voyants, window.innerWidth <= 820 ? 3 : MAX_VOYANTS);
+  if (window.innerWidth <= LARGEUR_COMPACTE) {
+    rendreCompact(voyants);
+    return;
+  }
+  // Autant de voyants detailles que la place le permet (le bandeau partage
+  // sa ligne avec le logo, le titre, le compte et les boutons) : un voyant
+  // coupe ne se lirait plus. Si meme un seul ne tient pas, les comptes.
+  const deborde = () => alertBarEl.scrollWidth > alertBarEl.clientWidth + 1;
+  for (let max = Math.min(MAX_VOYANTS, voyants.length); max >= 1; max -= 1) {
+    alertBarEl.innerHTML = '';
+    rendreDetaille(voyants, max);
+    if (!deborde()) return;
+  }
+  alertBarEl.innerHTML = '';
+  rendreCompact(voyants);
 }
 
 /** Un voyant par vehicule : immatriculation et kilometres restants. */

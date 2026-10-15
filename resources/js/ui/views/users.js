@@ -494,8 +494,8 @@ function valeurValidation(i) {
 
 /** Voyant de validation, ou mention quand rien n'est decide ou a decider. */
 function voyantValidation(v) {
-  if (v === 'oui') return '<span class="voyant vert" title="Validée"></span><span class="voyantTexte">Validée</span>';
-  if (v === 'non') return '<span class="voyant rouge" title="Refusée"></span><span class="voyantTexte">Refusée</span>';
+  if (v === 'oui') return '<span class="voyantValid vert" title="Validée"></span><span class="voyantTexte">Validée</span>';
+  if (v === 'non') return '<span class="voyantValid rouge" title="Refusée"></span><span class="voyantTexte">Refusée</span>';
   if (v === 'information') return '<span class="voyantInfo">ℹ Information</span>';
   return '<em class="voyantAttente">En cours…</em>';
 }
@@ -594,9 +594,9 @@ function renderDemandes(page) {
     const auTableau = d.indispoId && DB.indisponibilites.some((i) => i.id === d.indispoId);
     const etat = etatValidation(d);
     const validation = etat === 'oui'
-      ? '<span class="voyant vert" title="Demande validée"></span><span class="voyantTexte">Validée</span>'
+      ? '<span class="voyantValid vert" title="Demande validée"></span><span class="voyantTexte">Validée</span>'
       : etat === 'non'
-        ? '<span class="voyant rouge" title="Demande refusée"></span><span class="voyantTexte">Refusée</span>'
+        ? '<span class="voyantValid rouge" title="Demande refusée"></span><span class="voyantTexte">Refusée</span>'
         : '<em class="voyantAttente">En cours…</em>';
     return [
       `<span class="badge" style="background:${COULEUR_DEMANDE[d.type] || COLORS.grey}">${esc(TYPES_DEMANDE[d.type] || '')}</span>`,
@@ -678,8 +678,8 @@ function openFicheDemande(d) {
       ['Motif', d.motif, true], ['Commentaires', d.commentaires, true]
     ];
   const decision = etat === 'oui'
-    ? '<span class="voyant vert"></span>Validée'
-    : etat === 'non' ? '<span class="voyant rouge"></span>Refusée' : '<em class="voyantAttente">En cours…</em>';
+    ? '<span class="voyantValid vert"></span>Validée'
+    : etat === 'non' ? '<span class="voyantValid rouge"></span>Refusée' : '<em class="voyantAttente">En cours…</em>';
 
   const corps = el(
     '<div class="ficheDemande">' +
