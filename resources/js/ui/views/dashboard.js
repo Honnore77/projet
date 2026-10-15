@@ -4,12 +4,13 @@
 
 import {
   DB, allVehicles, openMaintenance, unpaidMissions, immatOf,
-  maintenanceCost, fuelCost, computeAlerts, STATUTS_VEHICULE, STATUT_NON_ATTRIBUE
+  maintenanceCost, fuelCost, computeAlerts, STATUTS_VEHICULE, STATUT_NON_ATTRIBUE, STATUT_REFORME
 } from '../../core/db.js';
 import { fmt, fmtF, num, sum, groupBy, monthKey, monthLabel, esc, el } from '../../core/utils.js';
 import { statTile, card, COLORS } from '../components.js';
 import { chartCard, destroyCharts, colorsFor } from '../charts.js';
 import { navigate } from '../shell.js';
+import { COULEUR_NON_ATTRIBUE, COULEUR_REFORME } from './vehicles.js';
 
 export function renderDashboard(page) {
   destroyCharts();
@@ -60,7 +61,7 @@ export function renderDashboard(page) {
   const charts = el('<div class="chartGrid"></div>');
 
   // Répartition des statuts
-  const statuts = STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE]);
+  const statuts = STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE, STATUT_REFORME]);
   const parStatut = statuts.map((s) => vehicles.filter((v) => v.statut === s).length);
   const sansStatut = vehicles.filter((v) => !statuts.includes(v.statut)).length;
   if (nbVeh) {
@@ -71,7 +72,7 @@ export function renderDashboard(page) {
           labels: statuts.concat(sansStatut ? ['Non renseigné'] : []),
           datasets: [{
             data: parStatut.concat(sansStatut ? [sansStatut] : []),
-            backgroundColor: [COLORS.green, COLORS.orange, COLORS.red, COLORS.grey, '#9aa'],
+            backgroundColor: [COLORS.green, COLORS.orange, COLORS.red, COULEUR_NON_ATTRIBUE, COULEUR_REFORME, '#9aa'],
             borderWidth: 0
           }]
         },

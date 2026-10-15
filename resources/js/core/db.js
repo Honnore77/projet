@@ -29,9 +29,17 @@ export const STATUTS_VEHICULE = ['Disponible', 'En entretien', 'Immobilisé'];
  */
 export const STATUT_NON_ATTRIBUE = 'Non attribué';
 
+/**
+ * Vehicule retire du parc pour de bon. Il reste dans la liste pour garder son
+ * historique, mais ne declenche plus de voyant de vidange.
+ */
+export const STATUT_REFORME = 'Réformé';
+
 /** Statuts proposes dans le formulaire d'une sous-rubrique de VEHICULES. */
 export function statutsVehicule(cat) {
-  return cat === 'mission' ? STATUTS_VEHICULE : STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE]);
+  return cat === 'mission'
+    ? STATUTS_VEHICULE.concat([STATUT_REFORME])
+    : STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE, STATUT_REFORME]);
 }
 
 /**
@@ -1144,6 +1152,7 @@ export function niveauVoyantVidange(restant) {
  */
 export function voyantsVidange() {
   return allVehicles()
+    .filter((v) => v.statut !== STATUT_REFORME)
     .map((v) => {
       const etat = etatVidange(v);
       return { vehicule: v, immat: immatOf(v), etat, niveau: niveauVoyantVidange(etat.restant) };

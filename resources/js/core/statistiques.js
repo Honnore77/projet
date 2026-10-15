@@ -132,7 +132,7 @@ export function statsVehicules() {
     tuiles: [
       { titre: 'Véhicules', valeur: fmt(tous.length), detail: 'dans le parc' },
       { titre: 'Disponibles', valeur: fmt(tous.filter((v) => v.statut === 'Disponible').length), detail: pct(tous.filter((v) => v.statut === 'Disponible').length, tous.length) },
-      { titre: 'Au garage ou immobilisés', valeur: fmt(tous.filter((v) => v.statut && v.statut !== 'Disponible' && v.statut !== 'Non attribué').length), detail: 'en entretien ou immobilisés' },
+      { titre: 'Au garage ou immobilisés', valeur: fmt(tous.filter((v) => v.statut && ['En entretien', 'Immobilisé'].includes(v.statut)).length), detail: 'en entretien ou immobilisés' },
       { titre: 'Vidanges à surveiller', valeur: fmt(vid.filter((s) => s === 'proche' || s === 'depassee').length), detail: `${fmt(vid.filter((s) => s === 'depassee').length)} dépassée(s)` },
       { titre: 'Kilométrage moyen', valeur: `${fmt(kms.length ? Math.round(sum(kms, (k) => k) / kms.length) : 0)} km`, detail: `${kms.length} véhicule(s) relevé(s)` },
       { titre: 'Consommation moyenne', valeur: avecConso.length ? `${(sum(avecConso, (v) => v.consommation) / avecConso.length).toFixed(1).replace('.', ',')} L/100` : '—', detail: `${avecConso.length} véhicule(s) renseigné(s)` }

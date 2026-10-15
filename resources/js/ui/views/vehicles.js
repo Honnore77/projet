@@ -6,7 +6,7 @@
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUT_NON_ATTRIBUE, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
+  DB, CATEGORIES, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange,
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
@@ -26,11 +26,16 @@ import { filtrer } from '../../core/acces.js';
 
 const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, stats: COLORS.grey };
 
+/** Memes teintes que la pastille du bandeau (bleu) et que le graphique. */
+export const COULEUR_NON_ATTRIBUE = '#1e6fd9';
+export const COULEUR_REFORME = '#3e2723';
+
 export function statutColor(s) {
   if (s === 'Disponible') return COLORS.green;
   if (s === 'En mission') return COLORS.blue;
   if (s === 'En entretien') return COLORS.orange;
-  if (s === STATUT_NON_ATTRIBUE) return COLORS.grey;
+  if (s === STATUT_NON_ATTRIBUE) return COULEUR_NON_ATTRIBUE;
+  if (s === STATUT_REFORME) return COULEUR_REFORME;
   return COLORS.red;
 }
 
