@@ -9,7 +9,7 @@
 
 import {
   DB, CATEGORIES, CAT_REFORME, ETATS_REFORME, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
-  insert, update, remove, reformerVehicule, remettreEnService, immatOf, kmCourant, valeursVehicules
+  insert, update, remove, reformerVehicule, remettreEnService, anneesDeService, immatOf, kmCourant, valeursVehicules
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm, dateFR, todayISO } from '../../core/utils.js';
@@ -159,7 +159,7 @@ export function renderReformes(page) {
   const headers = [
     'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie',
     'Conso.<br>L/100 km', 'Catégorie<br>d’origine', 'Section', 'Dernier<br>utilisateur',
-    'Mise en<br>service', 'Date de<br>réforme', 'Bénéficiaire', 'Km à la<br>réforme', 'État à la<br>réforme', 'Observations', ''
+    'Mise en<br>service', 'Date de<br>réforme', 'Années de<br>service', 'Bénéficiaire', 'Km à la<br>réforme', 'État à la<br>réforme', 'Observations', ''
   ];
   const rows = list.map((v) => [
     `<b>${esc(v.marque || '')}</b>`,
@@ -175,6 +175,7 @@ export function renderReformes(page) {
     esc(v.utilisateur || ''),
     droite(esc(v.anneeMiseService ? String(v.anneeMiseService) : '—')),
     `<span style="white-space:nowrap">${esc(dateFR(v.dateReforme) || '—')}</span>`,
+    droite(anneesDeService(v) === null ? '—' : `${anneesDeService(v)} an${anneesDeService(v) > 1 ? 's' : ''}`),
     esc(v.beneficiaire || ''),
     droite(vide(v.kmReforme) ? '—' : fmt(v.kmReforme)),
     esc(v.etatReforme || ''),
@@ -245,7 +246,7 @@ export function dsVehiculesReformes(list) {
       C('immatAncienne', 'Immat. ancienne', 16), C('numeroChassis', 'N° de châssis', 20), C('couleur', 'Couleur', 12),
       C('energie', 'Énergie', 11), C('consommation', 'Consommation (L/100 km)', 14), C('origine', 'Catégorie d’origine', 14),
       C('section', 'Section', 18), C('utilisateur', 'Dernier utilisateur', 20), C('anneeMiseService', 'Mise en service', 12),
-      C('dateReforme', 'Date de réforme', 13), C('beneficiaire', 'Bénéficiaire', 22), C('kmReforme', 'Km à la réforme', 14),
+      C('dateReforme', 'Date de réforme', 13), C('anneesService', 'Années de service', 12), C('beneficiaire', 'Bénéficiaire', 22), C('kmReforme', 'Km à la réforme', 14),
       C('etatReforme', 'État à la réforme', 18), C('observations', 'Observations', 30)
     ],
     rows: list.map((v) => ({
@@ -262,6 +263,7 @@ export function dsVehiculesReformes(list) {
       utilisateur: v.utilisateur || '',
       anneeMiseService: v.anneeMiseService || '',
       dateReforme: dateFR(v.dateReforme) || '',
+      anneesService: anneesDeService(v) === null ? '' : anneesDeService(v),
       beneficiaire: v.beneficiaire || '',
       kmReforme: vide(v.kmReforme) ? '' : num(v.kmReforme),
       etatReforme: v.etatReforme || '',

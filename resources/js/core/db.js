@@ -688,6 +688,17 @@ export function reformerVehicule(id, fromCat, infos) {
   return v;
 }
 
+/**
+ * Annees de service d'un vehicule reforme : annee de la reforme moins annee
+ * de mise en service. null si l'une des deux manque.
+ */
+export function anneesDeService(v) {
+  const debut = Number(v && v.anneeMiseService);
+  const fin = Number(String((v && v.dateReforme) || '').slice(0, 4));
+  if (!debut || !fin) return null;
+  return Math.max(0, fin - debut);
+}
+
 /** Annule une reforme : le vehicule retourne dans sa categorie d'origine. */
 export function remettreEnService(id) {
   const list = DB.vehicles[CAT_REFORME];

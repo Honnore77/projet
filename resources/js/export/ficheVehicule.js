@@ -12,7 +12,7 @@
 
 import { jsPDF } from 'jspdf';
 import autoTableModule from 'jspdf-autotable';
-import { DB, kmCourant, etatVidange } from '../core/db.js';
+import { DB, kmCourant, etatVidange, anneesDeService } from '../core/db.js';
 import { dateFR, fmt, sum, todayISO, mentionLieuDate } from '../core/utils.js';
 import { previewAndSave } from './preview.js';
 import { toWinAnsi as clean } from './winansi.js';
@@ -47,6 +47,7 @@ export function infosVehicule(v, cat) {
       ? [
           { libelle: 'Année de mise en service', valeur: v.anneeMiseService ? String(v.anneeMiseService) : '—' },
           { libelle: 'Date de la réforme', valeur: v.dateReforme ? v.dateReforme.split('-').reverse().join('/') : '—' },
+          { libelle: 'Années de service', valeur: anneesDeService(v) === null ? '—' : `${anneesDeService(v)} an${anneesDeService(v) > 1 ? 's' : ''}` },
           { libelle: 'Bénéficiaire', valeur: v.beneficiaire || '—' },
           { libelle: 'Kilométrage à la réforme', valeur: v.kmReforme === '' || v.kmReforme === undefined ? '—' : `${fmt(v.kmReforme)} km` },
           { libelle: 'État à la réforme', valeur: v.etatReforme || '—' }

@@ -64,3 +64,9 @@ test('la reforme faite sur un appareil passe sur l’autre a la synchronisation'
   assert.equal(fusion.vehicles.pool.length, 0);
   assert.equal(fusion.vehicles.reforme[0].id, 'v1');
 });
+
+test('les annees de service vont de la mise en service a l’annee de la reforme', () => {
+  assert.equal(db.anneesDeService({ anneeMiseService: 2014, dateReforme: '2026-10-15' }), 12);
+  assert.equal(db.anneesDeService({ anneeMiseService: 2014, dateReforme: '' }), null);
+  assert.equal(db.anneesDeService({ dateReforme: '2026-10-15' }), null);
+});
