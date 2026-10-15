@@ -540,7 +540,7 @@ function renderBackupSection(page) {
 
 function countRecords() {
   return (
-    DB.vehicles.pool.length + DB.vehicles.mission.length + DB.vehicles.service.length +
+    DB.vehicles.pool.length + DB.vehicles.mission.length + DB.vehicles.service.length + DB.vehicles.reforme.length +
     DB.users.length + DB.dotationPool.length +
     DB.missions.length + DB.maintenance.length
   );
@@ -589,7 +589,8 @@ async function doRestore() {
     return;
   }
   const nb =
-    (parsed.vehicles.pool || []).length + (parsed.vehicles.mission || []).length + (parsed.vehicles.service || []).length;
+    (parsed.vehicles.pool || []).length + (parsed.vehicles.mission || []).length + (parsed.vehicles.service || []).length +
+    (parsed.vehicles.reforme || []).length;
   const ok = await confirmDialog({
     title: 'Restaurer la sauvegarde',
     message:

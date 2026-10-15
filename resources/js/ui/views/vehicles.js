@@ -6,7 +6,7 @@
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
+  DB, CATEGORIES, CAT_REFORME, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange,
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
@@ -23,8 +23,9 @@ import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { dsVehicles } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
+import { renderReformes, openReformeForm } from './vehiculesReformes.js';
 
-const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, stats: COLORS.grey };
+const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, reforme: '#3e2723', stats: COLORS.grey };
 
 /** Memes teintes que la pastille du bandeau (bleu) et que le graphique. */
 export const COULEUR_NON_ATTRIBUE = '#1e6fd9';
@@ -137,13 +138,18 @@ export function renderVehicles(page) {
 
   page.appendChild(
     subtabs(
-      [...CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })), SOUS_RUBRIQUE_STATS],
+      [
+        ...CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })),
+        { key: CAT_REFORME, label: `VÉHICULES RÉFORMÉS (${DB.vehicles[CAT_REFORME].length})` },
+        SOUS_RUBRIQUE_STATS
+      ],
       cat,
       (k) => { state.sub.VEHICULES = k; rerender(); },
       CAT_COLORS
     )
   );
   if (cat === 'stats') return renderStatistiques(page, 'VEHICULES');
+  if (cat === CAT_REFORME) return renderReformes(page);
 
   page.appendChild(
     filterBar([
@@ -342,7 +348,7 @@ export function openVehicleForm(vehicle, cat) {
       // controle ne porte que sur une plaque effectivement saisie.
       if (immat) {
         const doublon = DB.vehicles.pool
-          .concat(DB.vehicles.mission, DB.vehicles.service)
+          .concat(DB.vehicles.mission, DB.vehicles.service, DB.vehicles[CAT_REFORME])
           .find((x) => x.id !== (vehicle && vehicle.id) && String(x.immatNouvelle || '').trim().toUpperCase() === immat);
         if (doublon) return `L'immatriculation ${immat} est déjà utilisée par un autre véhicule.`;
       }
@@ -352,7 +358,7 @@ export function openVehicleForm(vehicle, cat) {
       const chassis = String(values.numeroChassis || '').replace(/\s+/g, '').toUpperCase();
       if (chassis) {
         const meme = DB.vehicles.pool
-          .concat(DB.vehicles.mission, DB.vehicles.service)
+          .concat(DB.vehicles.mission, DB.vehicles.service, DB.vehicles[CAT_REFORME])
           .find((x) => x.id !== (vehicle && vehicle.id) && String(x.numeroChassis || '').replace(/\s+/g, '').toUpperCase() === chassis);
         if (meme) {
           return `Le n° de châssis ${chassis} est déjà celui de ${`${meme.marque || ''} ${meme.modele || ''}`.trim() || 'un autre véhicule'}` +
@@ -385,19 +391,27 @@ export function openVehicleForm(vehicle, cat) {
         images: values.images
       };
 
+      let enregistre;
       if (isEdit) {
         update(`vehicles.${cat}`, vehicle.id, payload);
         if (targetCat !== cat) {
           moveVehicle(vehicle.id, cat, targetCat);
           state.sub.VEHICULES = targetCat;
         }
+        enregistre = Object.assign({}, vehicle, payload);
         toast('Véhicule mis à jour.', 'ok');
       } else {
-        insert(`vehicles.${targetCat}`, payload);
+        enregistre = insert(`vehicles.${targetCat}`, payload);
         state.sub.VEHICULES = targetCat;
         toast('Véhicule enregistré.', 'ok');
       }
       rerender();
+      // Un vehicule reforme sort du parc : on demande aussitot les
+      // informations de la reforme. Sans elles (Annuler), il reste dans sa
+      // sous-rubrique avec le statut « Réformé », sans voyant de vidange.
+      if (payload.statut === STATUT_REFORME && cat !== CAT_REFORME) {
+        setTimeout(() => openReformeForm(enregistre, targetCat), 0);
+      }
       return null;
     }
   });

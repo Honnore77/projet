@@ -32,7 +32,9 @@ export function infosVehicule(v, cat) {
   return [
     { libelle: 'N° de châssis', valeur: v.numeroChassis || '—' },
     { libelle: 'Ancienne immatriculation', valeur: v.immatAncienne || '—' },
-    { libelle: 'Catégorie', valeur: String(cat || '').toUpperCase() || '—' },
+    { libelle: 'Catégorie', valeur: cat === 'reforme'
+      ? `RÉFORMÉ${v.origine ? ` (ex-${String(v.origine).toUpperCase()})` : ''}`
+      : String(cat || '').toUpperCase() || '—' },
     { libelle: 'Statut', valeur: v.statut || '—' },
     { libelle: 'Énergie', valeur: v.energie || '—' },
     { libelle: 'Consommation', valeur: conso },
@@ -41,12 +43,20 @@ export function infosVehicule(v, cat) {
     ...(v.utilisateur ? [{ libelle: 'Utilisateur', valeur: v.utilisateur }] : []),
     ...(v.groupe ? [{ libelle: 'Groupe', valeur: v.groupe }] : []),
     { libelle: 'Kilométrage', valeur: `${fmt(kmCourant(v))} km` },
-    {
-      libelle: 'Prochaine vidange',
-      valeur: vid.statut === 'inconnu'
-        ? 'non suivie'
-        : `${fmt(vid.cible)} km — ${LIBELLE_VIDANGE[vid.statut]}`
-    }
+    ...(cat === 'reforme'
+      ? [
+          { libelle: 'Année de mise en service', valeur: v.anneeMiseService ? String(v.anneeMiseService) : '—' },
+          { libelle: 'Date de la réforme', valeur: v.dateReforme ? v.dateReforme.split('-').reverse().join('/') : '—' },
+          { libelle: 'Bénéficiaire', valeur: v.beneficiaire || '—' },
+          { libelle: 'Kilométrage à la réforme', valeur: v.kmReforme === '' || v.kmReforme === undefined ? '—' : `${fmt(v.kmReforme)} km` },
+          { libelle: 'État à la réforme', valeur: v.etatReforme || '—' }
+        ]
+      : [{
+          libelle: 'Prochaine vidange',
+          valeur: vid.statut === 'inconnu'
+            ? 'non suivie'
+            : `${fmt(vid.cible)} km — ${LIBELLE_VIDANGE[vid.statut]}`
+        }])
   ];
 }
 
@@ -90,7 +100,7 @@ export function buildFicheVehiculePdf(f) {
   doc.setTextColor(255);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
-  doc.text(clean(`${org} - Fiche véhicule`), M, 8);
+  doc.text(clean(`${org} - ${f.cat === 'reforme' ? 'Fiche de réforme' : 'Fiche véhicule'}`), M, 8);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(clean(`${titre} - ${f.immat || ''}`), M, 14);

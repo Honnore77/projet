@@ -2,20 +2,22 @@
    FICHE VÉHICULE — tout ce que l application sait d une immatriculation.
    =================================================================== */
 
-import { DB, vehicleByImmat, kmCourant, ravMontant } from '../../core/db.js';
+import { DB, vehicleByImmat, vehiculeReformeParImmat, kmCourant, ravMontant } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, esc, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { urlImage, octetsImage } from '../../core/images.js';
 import { card, toolbar, statTile, sectionLabel, emptyState, toast, openModal, COLORS } from '../components.js';
 import { state, navigate } from '../shell.js';
 import { statutColor, openVehicleForm } from './vehicles.js';
+import { openReformeForm } from './vehiculesReformes.js';
 import { renderMaintenanceEntries, openFicheForm } from './maintenance.js';
 import { exportExcel } from '../../export/excel.js';
 import { infosVehicule, activiteVehicule, exportFicheVehiculePdf } from '../../export/ficheVehicule.js';
 
 export function renderVehicleSheet(page) {
   const immat = state.vehicleSheetImmat;
-  const vehicle = vehicleByImmat(immat);
+  // Un vehicule reforme n'est plus dans le parc, mais sa fiche reste lisible.
+  const vehicle = vehicleByImmat(immat) || vehiculeReformeParImmat(immat);
   const cat = vehicle ? vehicle._cat : null;
 
   const dots = DB.dotationPool.filter((d) => same(d.immat, immat));
@@ -27,8 +29,8 @@ export function renderVehicleSheet(page) {
   page.appendChild(
     toolbar([
       { label: '← Retour aux véhicules', color: COLORS.blue, onClick: () => navigate('VEHICULES') },
-      canWrite() && vehicle && { label: '✎ Modifier le véhicule', color: COLORS.green, write: true, onClick: () => openVehicleForm(stripCat(vehicle), cat) },
-      canWrite() && { label: '+ Fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
+      canWrite() && vehicle && { label: '✎ Modifier le véhicule', color: COLORS.green, write: true, onClick: () => (cat === 'reforme' ? openReformeForm(stripCat(vehicle), 'reforme') : openVehicleForm(stripCat(vehicle), cat)) },
+      canWrite() && cat !== 'reforme' && { label: '+ Fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
       { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', { immat, vehicle, cat, dots, missionsCarburant, missions, maint }) }
     ])
@@ -159,7 +161,7 @@ function carteIdentite(vehicle, cat, immat) {
         `<h3 style="margin:0;color:${COLORS.green}">${esc(`${vehicle.marque || ''} ${vehicle.modele || ''}`.trim() || 'Véhicule')}</h3>` +
         `<div style="font-size:1.7em;font-weight:800;letter-spacing:1px;margin:2px 0 6px">${esc(vehicle.immatNouvelle || vehicle.immatAncienne || '—')}</div>` +
         '<div style="margin-bottom:8px">' +
-          `<span class="badge" style="background:${COLORS.blue}">${esc(String(cat || '').toUpperCase())}</span> ` +
+          `<span class="badge" style="background:${COLORS.blue}">${esc(cat === 'reforme' ? `VÉHICULE RÉFORMÉ${vehicle.origine ? ` · ex-${String(vehicle.origine).toUpperCase()}` : ''}` : String(cat || '').toUpperCase())}</span> ` +
           `<span class="badge" style="background:${couleur}">${esc(vehicle.statut || '')}</span>` +
         '</div>' +
         '<div style="display:grid;grid-template-columns:minmax(120px,auto) 1fr;gap:3px 14px;font-size:13.5px">' +

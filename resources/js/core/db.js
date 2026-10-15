@@ -35,6 +35,17 @@ export const STATUT_NON_ATTRIBUE = 'Non attribué';
  */
 export const STATUT_REFORME = 'Réformé';
 
+/**
+ * Sous-rubrique VEHICULES REFORMES. Un vehicule reforme sort du parc : il
+ * quitte POOL, MISSION ou SERVICE pour cette liste a part, que allVehicles
+ * ne parcourt pas. Il n'apparait donc plus dans les voyants, les missions,
+ * la dotation ni les statistiques du parc, mais garde son historique.
+ */
+export const CAT_REFORME = 'reforme';
+
+/** Etat du vehicule au moment de la reforme (liste ouverte a la saisie). */
+export const ETATS_REFORME = ['Bon état', 'État moyen', 'Mauvais état', 'Hors d’usage (épave)'];
+
 /** Statuts proposes dans le formulaire d'une sous-rubrique de VEHICULES. */
 export function statutsVehicule(cat) {
   return cat === 'mission'
@@ -296,8 +307,8 @@ export function normalize(raw) {
   const base = emptyDB();
   const db = Object.assign(base, raw || {});
   db.version = SCHEMA_VERSION;
-  db.vehicles = Object.assign({ pool: [], mission: [], service: [] }, raw && raw.vehicles);
-  ['pool', 'mission', 'service'].forEach((k) => {
+  db.vehicles = Object.assign({ pool: [], mission: [], service: [], reforme: [] }, raw && raw.vehicles);
+  ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
   ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes'].forEach((k) => {
@@ -439,6 +450,7 @@ export function fichesAImages(db = DB) {
     ...(db.vehicles.pool || []),
     ...(db.vehicles.mission || []),
     ...(db.vehicles.service || []),
+    ...(db.vehicles.reforme || []),
     ...db.users,
     ...db.maintenance,
     ...db.missions,
@@ -477,7 +489,7 @@ function migrerSectionsRenommees(db) {
     if (cible) o.section = cible;
   };
   db.users.forEach(reporter);
-  ['pool', 'mission', 'service'].forEach((cat) => (db.vehicles[cat] || []).forEach(reporter));
+  ['pool', 'mission', 'service', 'reforme'].forEach((cat) => (db.vehicles[cat] || []).forEach(reporter));
 }
 
 /**
@@ -658,6 +670,47 @@ export function moveVehicle(id, fromCat, toCat) {
   const [v] = list.splice(i, 1);
   DB.vehicles[toCat].push(v);
   persist();
+}
+
+/**
+ * Sort un vehicule du parc : il passe de sa categorie a VEHICULES REFORMES,
+ * avec les informations de la reforme. La categorie d'origine est gardee
+ * pour pouvoir l'y remettre.
+ */
+export function reformerVehicule(id, fromCat, infos) {
+  const list = DB.vehicles[fromCat];
+  const i = list ? list.findIndex((v) => v.id === id) : -1;
+  if (i < 0) return null;
+  const [v] = list.splice(i, 1);
+  Object.assign(v, infos, { statut: STATUT_REFORME, origine: fromCat });
+  DB.vehicles[CAT_REFORME].push(v);
+  persist();
+  return v;
+}
+
+/** Annule une reforme : le vehicule retourne dans sa categorie d'origine. */
+export function remettreEnService(id) {
+  const list = DB.vehicles[CAT_REFORME];
+  const i = list.findIndex((v) => v.id === id);
+  if (i < 0) return null;
+  const [v] = list.splice(i, 1);
+  const cat = CATEGORIES.some((c) => c.key === v.origine) ? v.origine : 'pool';
+  v.statut = 'Disponible';
+  DB.vehicles[cat].push(v);
+  persist();
+  return cat;
+}
+
+/** Vehicule reforme portant cette immatriculation (nouvelle ou ancienne). */
+export function vehiculeReformeParImmat(immat) {
+  if (!immat) return null;
+  const key = String(immat).trim().toUpperCase();
+  const v = (DB.vehicles[CAT_REFORME] || []).find(
+    (x) =>
+      String(x.immatNouvelle || '').trim().toUpperCase() === key ||
+      String(x.immatAncienne || '').trim().toUpperCase() === key
+  );
+  return v ? Object.assign({ _cat: CAT_REFORME }, v) : null;
 }
 
 /* ------------------------------------------------------------------ */

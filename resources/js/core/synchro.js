@@ -31,7 +31,7 @@ export const COLLECTIONS_SYNCHRO = [
 
 /** Les vehicules, ranges par categorie, se synchronisent comme une seule liste. */
 const VEHICULES = 'vehicules';
-const CATEGORIES = ['pool', 'mission', 'service'];
+const CATEGORIES = ['pool', 'mission', 'service', 'reforme'];
 
 /**
  * Reglages propres a chaque appareil : le dossier de sauvegarde d'un PC n'a
@@ -289,7 +289,7 @@ export function fusionner(ici, laBrute, opts) {
     });
 
     if (c === VEHICULES) {
-      db.vehicles = { pool: [], mission: [], service: [] };
+      db.vehicles = { pool: [], mission: [], service: [], reforme: [] };
       resultat.forEach((e) => db.vehicles[CATEGORIES.includes(e.cat) ? e.cat : 'pool'].push(e.fiche));
     } else {
       db[c] = resultat.map((e) => e.fiche);
