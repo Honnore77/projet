@@ -23,6 +23,7 @@ import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
 import { renderPredefinis } from './views/predefinis.js';
 import { ouvrirApparence } from './apparence.js';
+import { annulerApercuTheme } from './theme.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
@@ -219,6 +220,8 @@ function buildTabs() {
 
 /** Change de rubrique. */
 export function navigate(moduleKey, params = {}) {
+  // Un style seulement apercu (RÉGLAGES PRÉDÉFINIS) ne survit pas a la page.
+  annulerApercuTheme();
   state.module = moduleKey;
   if (params.immat !== undefined) state.vehicleSheetImmat = params.immat;
   if (params.userId !== undefined) state.userSheetId = params.userId;

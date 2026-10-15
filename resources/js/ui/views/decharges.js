@@ -183,12 +183,25 @@ function dechargeFields(d = {}) {
       hint: 'Un nouveau destinataire est ajouté à la liste des destinataires' },
     { key: 'objet', label: 'Objet(s)', type: 'textarea', required: true, full: true, lignesTiret: true, rows: 3, value: d.objet,
       hint: 'Un objet par ligne' },
-    { key: 'recuperePar', label: 'Décharge récupérée par', value: d.recuperePar, list: nomsUtilisateurs() },
+    // Les agents, plus les noms deja saisis sur une decharge : un nom ajoute
+    // par « + Ajouter un nom » est repropose la fois suivante.
+    { key: 'recuperePar', label: 'Décharge récupérée par', type: 'selectAdd', value: d.recuperePar,
+      options: nomsRecuperePar(), emptyLabel: '— choisir —', addLabel: 'Ajouter un nom' },
     { key: 'conducteur', label: 'Nom du conducteur', value: d.conducteur, list: knownDrivers() },
     { key: 'immat', label: 'Immatriculation du véhicule', value: d.immat, list: knownImmats() },
     { key: 'images', label: 'Photo de la décharge signée', type: 'images', full: true, value: d.images,
       hint: 'Photo ou scan de la décharge signée par le destinataire (JPEG ou PNG)' }
   ];
+}
+
+/** Noms proposes pour « Décharge récupérée par », sans doublon, dans l'ordre alphabetique. */
+function nomsRecuperePar() {
+  const vus = new Map();
+  nomsUtilisateurs().concat(DB.decharges.map((x) => x.recuperePar)).forEach((n) => {
+    const nom = String(n || '').trim();
+    if (nom && !vus.has(nom.toUpperCase())) vus.set(nom.toUpperCase(), nom);
+  });
+  return [...vus.values()].sort((x, y) => x.localeCompare(y, 'fr'));
 }
 
 function openDechargeForm(d) {

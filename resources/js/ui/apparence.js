@@ -11,7 +11,7 @@
 import { esc } from '../core/utils.js';
 import { openModal, toast } from './components.js';
 import {
-  THEMES, themeActuel, appliquerTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS,
+  THEMES, themeActuel, appliquerTheme, apercuTheme, annulerApercuTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS,
   DECORS, decorActuel, choisirDecor
 } from './theme.js';
 
@@ -22,28 +22,43 @@ function carte(titre, texte) {
   return c;
 }
 
-function blocStyle(refaire, surChoix) {
+/**
+ * Comme pour le fond : un clic montre le style sur toute l'application,
+ * un double clic le valide (et ferme la fenetre). Sans validation, le style
+ * retenu revient a la fermeture.
+ */
+function blocStyle(refaire, o) {
   const bloc = carte('STYLE DE L’INTERFACE',
-    'Choisissez l’allure de l’application. Le choix ne vaut que pour cet appareil : ' +
+    'Un clic pour voir un style, <b>double clic pour le valider</b>. Le choix ne vaut que pour cet appareil : ' +
     'le PC et le téléphone peuvent avoir chacun le leur. Les données ne changent pas.');
   const grille = document.createElement('div');
   grille.className = 'themeChoix';
   const actuel = themeActuel();
+  const cartes = [];
   THEMES.forEach((t) => {
     const b = document.createElement('button');
     b.className = 'themeCarte' + (t.id === actuel ? ' choisi' : '');
     b.type = 'button';
+    b.title = 'Clic : aperçu — double clic : valider';
     b.innerHTML =
       '<div class="nuancier">' + t.apercu.map((c) => `<span style="background:${c}"></span>`).join('') + '</div>' +
-      (t.id === actuel ? '<span class="coche">✓ Actif</span>' : '') +
+      (t.id === actuel ? '<span class="coche">✓ Actif</span>' : '<span class="coche apercuMarque">👁 Aperçu</span>') +
       `<b>${esc(t.nom)}</b><small>${esc(t.detail)}</small>`;
+    // Pas de redessin au simple clic : le double clic doit tomber sur la
+    // meme carte que les deux clics qui le composent.
     b.addEventListener('click', () => {
-      if (t.id === themeActuel()) return;
-      appliquerTheme(t.id);
-      toast(`Style « ${t.nom} » appliqué.`);
-      refaire();
-      if (surChoix) surChoix();
+      cartes.forEach((c) => c.classList.toggle('apercu', c === b && t.id !== themeActuel()));
+      apercuTheme(t.id);
     });
+    b.addEventListener('dblclick', () => {
+      const change = t.id !== themeActuel();
+      appliquerTheme(t.id);
+      if (change) toast(`Style « ${t.nom} » validé.`);
+      if (o.surChoix) o.surChoix();
+      if (o.fermer) o.fermer();
+      else refaire();
+    });
+    cartes.push(b);
     grille.appendChild(b);
   });
   bloc.appendChild(grille);
@@ -133,7 +148,7 @@ export function apparenceNode(o = {}) {
   const zone = document.createElement('div');
   const refaire = () => {
     zone.innerHTML = '';
-    if (o.style !== false) zone.appendChild(blocStyle(refaire, o.surChoix));
+    if (o.style !== false) zone.appendChild(blocStyle(refaire, o));
     if (o.taille !== false) zone.appendChild(blocTaille());
     if (o.decor !== false) zone.appendChild(blocDecor(refaire, o));
   };
@@ -150,7 +165,10 @@ export function ouvrirApparence(o = {}) {
     bodyNode: apparenceNode(options),
     wide: true,
     // Un apercu non valide s'efface a la fermeture : le fond retenu revient.
-    onClose: () => { if (o.surApercu && o.surDecor) o.surDecor(decorActuel()); },
+    onClose: () => {
+      annulerApercuTheme();
+      if (o.surApercu && o.surDecor) o.surDecor(decorActuel());
+    },
     buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }]
   });
 }

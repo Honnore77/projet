@@ -134,6 +134,16 @@ if (typeof window !== 'undefined') {
 }
 
 /** Le style retenu sur cet appareil. */
+/** Montre un style sans le retenir : un double clic le validera. */
+export function apercuTheme(id) {
+  return appliquerTheme(id, false);
+}
+
+/** Efface un apercu non valide : le style retenu revient. */
+export function annulerApercuTheme() {
+  if (document.documentElement.dataset.theme !== themeActuel()) appliquerTheme(themeActuel(), false);
+}
+
 export function themeActuel() {
   try {
     const t = localStorage.getItem(CLE);
@@ -144,10 +154,12 @@ export function themeActuel() {
 }
 
 /** Applique un style et le retient sur cet appareil. */
-export function appliquerTheme(id = themeActuel()) {
+export function appliquerTheme(id = themeActuel(), garder = true) {
   const t = THEMES.some((x) => x.id === id) ? id : 'classique';
   document.documentElement.dataset.theme = t;
-  try { localStorage.setItem(CLE, t); } catch (e) { /* stockage indisponible : le style vaut pour la session */ }
+  if (garder) {
+    try { localStorage.setItem(CLE, t); } catch (e) { /* stockage indisponible : le style vaut pour la session */ }
+  }
   // Les graphiques ne lisent pas la feuille de style : on leur passe la
   // couleur du texte et des lignes du style choisi.
   const sombre = t === 'sombre';
