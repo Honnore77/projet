@@ -4,7 +4,7 @@
 
 import { el, debounce, norm, fmt } from '../core/utils.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
-import { DB, onChange, voyantsVidange, vehiculesImmobilises, vehicleByImmat } from '../core/db.js';
+import { DB, onChange, voyantsVidange, vehiculesImmobilises, vehicleByImmat, allVehicles, immatOf, STATUT_NON_ATTRIBUE } from '../core/db.js';
 import {
   voit, voitTout, seulementSiennes, peutSaisir, peutSupprimer, estAMoi, definirRubrique
 } from '../core/acces.js';
@@ -255,6 +255,7 @@ function renderAlertBar() {
 
   const vidanges = voyantsVidange();
   const immobilises = vehiculesImmobilises();
+  const nonAttribues = allVehicles().filter((v) => v.statut === STATUT_NON_ATTRIBUE);
 
   // Les vidanges d'abord : elles se comptent en kilometres qui defilent, alors
   // qu'un vehicule au garage y reste tant qu'on n'a rien fait.
@@ -278,6 +279,17 @@ function renderAlertBar() {
       texte: x.jours === null ? 'immobilisé' : `${x.jours} j`,
       titre: x.motif ? `Immobilisé — ${x.motif.split('\n')[0]}` : 'Véhicule immobilisé',
       go: x.immat
+    })),
+    // Un vehicule qui n'est confie a personne n'est pas une panne : il a sa
+    // propre couleur, le bleu, et ne clignote pas.
+    ...nonAttribues.map((v) => ({
+      classe: 'libre',
+      clignote: false,
+      icone: '🚗',
+      immat: immatOf(v) || '(sans immat.)',
+      texte: `${String(v._cat).toUpperCase()}${v.modele ? ` · ${v.modele}` : ''}`,
+      titre: 'Véhicule non attribué',
+      go: immatOf(v)
     }))
   ];
 
@@ -294,7 +306,8 @@ const GROUPES_ALERTE = [
   { classe: 'rouge', libelle: 'Vidange urgente', court: 'Urgent' },
   { classe: 'orange', libelle: 'Vidange proche', court: 'Proche' },
   { classe: 'jaune', libelle: 'Vidange à prévoir', court: 'À prévoir' },
-  { classe: 'garage', libelle: 'Au garage', court: 'Garage' }
+  { classe: 'garage', libelle: 'Au garage', court: 'Garage' },
+  { classe: 'libre', libelle: 'Non attribué', court: 'Libre' }
 ];
 
 /**

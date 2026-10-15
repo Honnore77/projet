@@ -139,6 +139,8 @@ header.top h2{flex:0 1 auto;min-width:0;font-size:16px;font-weight:700;color:var
    il garde une teinte neutre, pour que le jaune, l'orange et le rouge ne
    veuillent dire qu'une seule chose — l'echeance de vidange. */
 .voyant.garage{background:var(--muted);}
+/* Vehicule POOL ou SERVICE confie a personne : bleu, ce n'est pas une alerte. */
+.voyant.libre{background:#1e6fd9;}
 .voyant.autres{background:var(--line);color:var(--text);}
 .voyant.clignote{animation:voyantClignote 1.15s ease-in-out infinite;}
 @keyframes voyantClignote{0%,100%{opacity:1;}50%{opacity:.28;}}
@@ -932,6 +934,7 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 .voyant.orange .voyantNombre{color:#d35400;}
 .voyant.jaune .voyantNombre{color:#8a6d00;}
 .voyant.garage .voyantNombre{color:#455a64;}
+.voyant.libre .voyantNombre{color:#1e6fd9;}
 .voyantFleche{font-size:10px;opacity:.85;}
 .voyantMenu{position:fixed;z-index:3000;min-width:230px;max-width:min(360px,calc(100vw - 16px));
   max-height:min(60vh,420px);overflow:auto;background:var(--white);color:var(--text);border-radius:12px;
@@ -939,6 +942,7 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 .voyantMenuTitre{font-size:12px;font-weight:800;padding:6px 10px;border-radius:8px;color:#fff;margin-bottom:4px;}
 .voyantMenuTitre.rouge{background:var(--red);} .voyantMenuTitre.orange{background:var(--orange);}
 .voyantMenuTitre.jaune{background:var(--yellow);color:#4a3a00;} .voyantMenuTitre.garage{background:var(--muted);}
+.voyantMenuTitre.libre{background:#1e6fd9;}
 .voyantLigne{display:flex;justify-content:space-between;gap:12px;width:100%;border:0;background:transparent;
   padding:8px 10px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;color:inherit;text-align:left;}
 .voyantLigne:hover{background:var(--bg);}
