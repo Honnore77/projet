@@ -448,7 +448,7 @@ function renderThresholdsSection(page) {
         `Devise : ${esc(s.devise)}\n` +
         `Prix du litre (Essence) : ${s.prixLitreEssence ? `${num(s.prixLitreEssence)} ${esc(s.devise)}` : 'non renseigné'}\n` +
         `Prix du litre (Diesel) : ${s.prixLitreDiesel ? `${num(s.prixLitreDiesel)} ${esc(s.devise)}` : 'non renseigné'}\n` +
-        `Frais OM par participant (simulations) : ${num(fraisOmParParticipant())} ${esc(s.devise)}\n` +
+        `Frais OM par participant et par destination (simulations) : ${num(fraisOmParParticipant())} ${esc(s.devise)}\n` +
         `Parcours en interne (simulations) : ${kmInterneParJour() ? `${num(kmInterneParJour())} km par jour` : 'non réglé'}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
@@ -479,7 +479,7 @@ function openSettingsForm() {
         hint: 'Proposé dans le champ « Prix / L » des dotations et des rapports de mission' },
       { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'number', value: s.prixLitreDiesel,
         hint: 'Laisser à 0 tant que le prix n’est pas connu : il n’est alors pas proposé' },
-      { key: 'fraisOmParParticipant', label: 'Frais OM par participant', type: 'number', value: fraisOmParParticipant(),
+      { key: 'fraisOmParParticipant', label: 'Frais OM par participant et par destination', type: 'number', value: fraisOmParParticipant(),
         hint: 'Utilisé par SIMULATION : frais OM = participants × ce montant' },
       { key: 'parcoursInterneKmParJour', label: 'Parcours en interne (km par jour)', type: 'number', value: kmInterneParJour(),
         hint: 'Utilisé par SIMULATION : km à l’intérieur d’une destination = jours sur place × ce nombre. 0 = non réglé' },

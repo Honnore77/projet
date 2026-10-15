@@ -13,7 +13,7 @@ import { state, navigate } from '../shell.js';
 import { openUserForm } from './users.js';
 import { exportExcel } from '../../export/excel.js';
 import {
-  dossierAgent, infosAgent, activiteAgent, historiquesAgent, exportFicheAgentPdf, datasetsFicheAgent
+  dossierAgent, infosAgent, activiteAgent, historiquesAgent, exportFicheAgentPdf, datasetsFicheAgent, estLigneNumeroPoste
 } from '../../export/ficheUtilisateur.js';
 
 export function renderUserSheet(page) {
@@ -95,7 +95,8 @@ function carteIdentite(u, d) {
         '</div>' +
         '<div style="display:grid;grid-template-columns:minmax(130px,auto) 1fr;gap:3px 14px;font-size:13.5px">' +
           lignes.map((l) => `<span style="color:#5b7178">${esc(l.libelle)}</span>` +
-            `<b style="overflow-wrap:anywhere;white-space:pre-line">${esc(l.valeur)}</b>`).join('') +
+            `<b style="overflow-wrap:anywhere;white-space:pre-line">${String(l.valeur).split('\n')
+              .map((x) => (estLigneNumeroPoste(x) ? `<span style="color:#c62828">${esc(x)}</span>` : esc(x))).join('\n')}</b>`).join('') +
         '</div>' +
         (u.observations ? `<p style="margin:10px 0 0"><span style="color:#5b7178">Observations : </span>${esc(u.observations)}</p>` : '') +
       '</div>' +

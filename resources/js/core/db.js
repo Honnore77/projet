@@ -2012,7 +2012,7 @@ export function lienItineraire(d) {
      estimation = frais OM + frais de peage + carburant
      carburant  = (parcours aller-retour + parcours en interne)
                   x consommation / 100 x prix du litre
-     frais OM   = participants x 1 000 F
+     frais OM   = participants x destinations x 1 000 F
 
    Le parcours se calcule comme celui d'une mission, etape par etape.
    ================================================================= */
@@ -2041,6 +2041,8 @@ export function fraisOmParParticipant(db = DB) {
  * @param {number} s.participants
  * @param {number} s.fraisPeage  montant total des peages, saisi tel quel
  * @param {number} [s.fraisOmUnitaire]  frais OM par participant (RÉGLAGES par defaut)
+ * @param {number} [s.nbDestinations]  nombre de destinations ; a defaut, une par
+ *        ligne de `interne` (une ligne par destination), et au moins une.
  */
 export function calculerSimulation(s) {
   const parcoursKm = num(s.parcoursKm);
@@ -2052,7 +2054,11 @@ export function calculerSimulation(s) {
   const fraisOmUnitaire = s.fraisOmUnitaire === undefined || s.fraisOmUnitaire === ''
     ? fraisOmParParticipant()
     : num(s.fraisOmUnitaire);
-  const fraisOm = participants * fraisOmUnitaire;
+  // Les frais OM se paient par destination : X destinations, X frais OM.
+  const nbDestinations = Math.max(1, Math.floor(num(
+    s.nbDestinations === undefined ? (s.interne || []).length : s.nbDestinations
+  )));
+  const fraisOm = participants * nbDestinations * fraisOmUnitaire;
   const fraisPeage = francSup(s.fraisPeage);
   return {
     parcoursKm,
@@ -2061,6 +2067,7 @@ export function calculerSimulation(s) {
     litres: Math.round(litresExacts * 10) / 10,
     montantCarburant,
     participants,
+    nbDestinations,
     fraisOmUnitaire,
     fraisOm,
     fraisPeage,

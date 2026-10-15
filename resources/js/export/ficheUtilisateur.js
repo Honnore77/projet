@@ -50,6 +50,9 @@ function telephones(u) {
     .filter((l) => l && !/:\s*$/.test(l));
 }
 
+/** Le numero de poste se lit en rouge sur la fiche, a l'ecran comme en PDF. */
+export const estLigneNumeroPoste = (ligne) => /^\s*-?\s*N°\s*de\s*poste/i.test(String(ligne || ''));
+
 /** L'agent, ligne par ligne, a droite de la photo. */
 export function infosAgent(u, d) {
   const tel = telephones(u);
@@ -204,8 +207,11 @@ export function buildFicheAgentPdf(u, photo) {
     doc.setTextColor(...GRIS);
     doc.text(clean(l.libelle), xInfos, y);
     doc.setFont('helvetica', 'bold');
-    doc.setTextColor(...ENCRE);
-    doc.text(valeurs[i], xValeur, y);
+    // Ligne par ligne : le N° de Poste en rouge, le reste a l'encre.
+    valeurs[i].forEach((ligne, k) => {
+      doc.setTextColor(...(estLigneNumeroPoste(ligne) ? [198, 40, 40] : ENCRE));
+      doc.text(ligne, xValeur, y + k * 4.2);
+    });
     y += Math.max(1, valeurs[i].length) * 4.2 + 1;
   });
 

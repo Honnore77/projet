@@ -48,7 +48,7 @@ function renderListe(page) {
     card(
       'SIMULATION DE MISSION',
       'Estimez les frais d’une mission avant le départ : frais OM (' + fmt(fraisOmParParticipant()) +
-      ' F par participant, réglable dans RÉGLAGES) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations. « Créer la mission » reprend une simulation dans MISSION.',
+      ' F par participant et par destination, réglable dans RÉGLAGES) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations. « Créer la mission » reprend une simulation dans MISSION.',
       COULEUR()
     )
   );
@@ -258,7 +258,7 @@ function simulationFields(s = {}) {
     { key: 'participants', label: 'Total participants', type: 'number', required: true, value: s.participants,
       hint: 'Nombre total de personnes qui prennent part à la mission' },
     { key: 'fraisOm', label: 'Frais OM', type: 'static', value: '',
-      hint: `Participants × ${fmt(fraisOmParParticipant())} F — réglable dans RÉGLAGES` },
+      hint: `Participants × destinations × ${fmt(fraisOmParParticipant())} F — réglable dans RÉGLAGES` },
     // Saisis tels quels : le montant total des peages du trajet.
     { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'number', value: s.fraisPeage,
       hint: 'Montant total des péages, aller et retour' },
@@ -318,7 +318,7 @@ function openSimulationForm(sim) {
       const surPlace = parcours.reduce((s2, e) => s2 + num(ligneInterne(e.nom).jours), 0);
       jSurPlace.textContent = `${fmt(surPlace)} jour(s) sur place` + (j !== null && j > 0 ? ` — la mission dure ${j} jour(s)` : '');
     }
-    champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(r.fraisOmUnitaire)} F)`;
+    champ('fraisOm').value = `${fmt(r.fraisOm)} F  (${fmt(r.participants)} × ${fmt(r.nbDestinations)} destination(s) × ${fmt(r.fraisOmUnitaire)} F)`;
     const incomplet = parcoursCalcule.etapes.length && !parcoursCalcule.complet;
     champ('carburant').value =
       `${fmt(r.montantCarburant)} F  —  ${fmt(r.litres)} L pour ${fmt(r.distanceTotale)} km ` +
@@ -339,7 +339,7 @@ function openSimulationForm(sim) {
           `<span>${libelle}${precision ? `<br><small>${precision}</small>` : ''}</span>` +
           `<b style="white-space:nowrap">${fmt(montant)} F</b></div>`;
       detail.innerHTML =
-        ligne('Frais OM =', r.fraisOm, `${fmt(r.participants)} participant(s) × ${fmt(r.fraisOmUnitaire)} F`) +
+        ligne('Frais OM =', r.fraisOm, `${fmt(r.participants)} participant(s) × ${fmt(r.nbDestinations)} destination(s) × ${fmt(r.fraisOmUnitaire)} F`) +
         ligne('Frais de péage =', r.fraisPeage, 'montant saisi') +
         ligne('Carburant =', r.montantCarburant,
           `${fmt(r.litres)} L × ${fmt(valeur('prixL') === '__ajout__' ? 0 : valeur('prixL'))} F — ${fmt(r.distanceTotale)} km`) +

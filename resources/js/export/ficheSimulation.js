@@ -52,7 +52,10 @@ export function etapesSimulation(s) {
  */
 export function modeleFicheSimulation(s) {
   const v = vehicule(s);
-  const unitaire = s.fraisOmUnitaire || (s.participants ? s.fraisOm / s.participants : 0);
+  // Une simulation enregistree avant le calcul par destination n'a pas de
+  // nombre de destinations : elle comptait un seul frais OM par participant.
+  const nbDest = s.nbDestinations || 1;
+  const unitaire = s.fraisOmUnitaire || (s.participants ? s.fraisOm / s.participants / nbDest : 0);
   const etapes = etapesSimulation(s);
   const km = (e) => (e.km === null || e.km === undefined ? '? km' : `${f(e.km)} km`);
   const noteEtape = (e) => (e.km === null || e.km === undefined ? 'distance inconnue' : e.estimee ? 'distance estimée' : '');
@@ -100,7 +103,7 @@ export function modeleFicheSimulation(s) {
       {
         titre: 'Estimation des frais de mission',
         lignes: [
-          { libelle: 'Frais OM =', detail: `${f(s.participants)} participant(s) x ${f(unitaire)} F`, valeur: `${f(s.fraisOm)} F` },
+          { libelle: 'Frais OM =', detail: `${f(s.participants)} participant(s) x ${f(nbDest)} destination(s) x ${f(unitaire)} F`, valeur: `${f(s.fraisOm)} F` },
           { libelle: 'Frais de péage =', detail: 'montant saisi', valeur: `${f(s.fraisPeage)} F` },
           { libelle: 'Carburant =', detail: `${virgule(s.litres)} L x ${f(s.prixL)} F pour ${f(s.distanceTotale)} km`, valeur: `${f(s.montantCarburant)} F` },
           { libelle: 'TOTAL', detail: 'Frais OM + frais de péage + carburant', valeur: `${f(s.estimation)} F`, total: true }

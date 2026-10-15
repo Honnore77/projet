@@ -11,6 +11,13 @@ test('les frais OM valent 1 000 F par participant', () => {
   assert.equal(calculerSimulation({ participants: 4 }).fraisOm, 4000);
 });
 
+test('les frais OM se paient par destination : participants x destinations x 1 000 F', () => {
+  const r = calculerSimulation({ participants: 3, interne: [{ km: 0 }, { km: 0 }] });
+  assert.equal(r.nbDestinations, 2);
+  assert.equal(r.fraisOm, 6000);
+  assert.equal(calculerSimulation({ participants: 3, nbDestinations: 4 }).fraisOm, 12000);
+});
+
 test('estimation = frais OM + peages + (parcours + interne) x consommation / 100 x prix', () => {
   const r = calculerSimulation({
     parcoursKm: 1735,
@@ -24,9 +31,10 @@ test('estimation = frais OM + peages + (parcours + interne) x consommation / 100
   assert.equal(r.distanceTotale, 1800);
   assert.equal(r.litres, 180);
   assert.equal(r.montantCarburant, 157500);
-  assert.equal(r.fraisOm, 4000);
+  // 4 participants, 4 destinations.
+  assert.equal(r.fraisOm, 16000);
   assert.equal(r.fraisPeage, 3000);
-  assert.equal(r.estimation, 4000 + 3000 + 157500);
+  assert.equal(r.estimation, 16000 + 3000 + 157500);
 });
 
 test('le carburant s’arrondit au franc superieur, sur les litres exacts', () => {
