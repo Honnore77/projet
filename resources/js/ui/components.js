@@ -6,6 +6,7 @@
 import { esc, el } from '../core/utils.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 import { voitTout, rubriqueCourante } from '../core/acces.js';
+import { isAndroid } from '../core/storage.js';
 import { ouvrirFicheLigne, texteEntete } from './ficheLigne.js';
 
 export const COLORS = {
@@ -55,7 +56,7 @@ export function openModal({ title, bodyHtml = '', bodyNode = null, buttons = [],
     if (onClose) onClose();
   };
 
-  buttons.forEach((b) => {
+  buttons.filter((b) => !(estPdf(b) && !pdfDisponible())).forEach((b) => {
     const btn = el(`<button type="button" class="${b.cls || 'ok'}">${esc(b.label)}${b.menu ? ' ▾' : ''}</button>`);
     btn.onclick = b.menu
       ? (ev) => { ev.stopPropagation(); ouvrirMenuChoix(btn, b.menu); }
@@ -521,10 +522,17 @@ export function sectionLabel(text, color = COLORS.green) {
 }
 
 /** Barre de boutons (ajout, exports, retour...). */
+/**
+ * Sur le telephone, l'export PDF est retire : le PC le garde. Les boutons
+ * dont le libelle parle de PDF ne sont simplement pas dessines.
+ */
+export const pdfDisponible = () => !isAndroid;
+const estPdf = (b) => !!b && /\bPDF\b/.test(String(b.label || ''));
+
 export function toolbar(buttons) {
   const bar = el('<div class="toolbar"></div>');
   buttons.forEach((b) => {
-    if (!b) return;
+    if (!b || (estPdf(b) && !pdfDisponible())) return;
     const btn = el(
       `<button type="button" class="${b.cls || ''}" style="background:${b.color || COLORS.blue}"${b.write ? ' data-write' : ''}` +
       `${b.menu ? ' aria-haspopup="true" aria-expanded="false"' : ''}>${esc(b.label)}${b.menu ? ' ▾' : ''}</button>`

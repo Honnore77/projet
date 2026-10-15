@@ -14,6 +14,7 @@ import { traiterDemandePC } from './core/synchroClient.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
 import { installerMajuscule } from './ui/majuscule.js';
+import { isAndroid } from './core/storage.js';
 
 // Le style choisi sur cet appareil, avant tout affichage (ecran de
 // connexion compris).
@@ -23,6 +24,10 @@ appliquerZoom();
 // Premiere lettre en majuscule dans les champs de saisie (sauf identifiant,
 // mot de passe, email, liens).
 installerMajuscule();
+
+// Sur le telephone, pas d'export PDF : les boutons ecrits a la main dans
+// les pages (rapports, imprime d'une demande) se cachent par la feuille de style.
+if (isAndroid) document.documentElement.classList.add('sansPdf');
 
 const root = document.getElementById('app');
 
