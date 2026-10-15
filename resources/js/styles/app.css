@@ -960,3 +960,55 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 #login .cxCorps,#login[data-decor] .cxCorps,#login[data-plein] .cxCorps{background:rgba(255,255,255,.55);}
 html[data-theme="sombre"] #login .cxCorps,html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.55);}
 #login .cxPhoto{opacity:.55;}
+
+/* ===================================================================
+   Style « Brillant et scintillant » (REGLAGES → Apparence).
+   Le style lumineux, verni : reflet en haut des boutons et des cartes, un
+   eclat qui traverse les boutons de temps en temps, des etincelles dans
+   l'en-tete. Qui a demande moins d'animation garde le vernis, sans
+   mouvement.
+   =================================================================== */
+html[data-theme="brillant"] body{background:radial-gradient(1200px 600px at 15% -10%,#ffffff,transparent 60%),
+  linear-gradient(160deg,#f4fbf7 0%,#eef6ff 55%,#fff7ee 100%);background-attachment:fixed;}
+/* Vernis : un reflet clair en haut de chaque bouton, quelle que soit sa couleur. */
+html[data-theme="brillant"] :is(.toolbar button,.miniBtn,.subtab,.tab.active,.modal .foot .ok,.modal .foot .danger,.cxBouton,.globalBtn,#logoutBtn,.voyant,.badge){
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.75),inset 0 12px 14px -8px rgba(255,255,255,.55),0 3px 8px rgba(16,60,40,.18);}
+/* L'eclat qui passe. */
+html[data-theme="brillant"] :is(.toolbar button,.miniBtn,.subtab.active,.tab.active,.modal .foot .ok,.cxBouton,.stat){
+  position:relative;overflow:hidden;}
+html[data-theme="brillant"] :is(.toolbar button,.miniBtn,.subtab.active,.tab.active,.modal .foot .ok,.cxBouton,.stat)::after{
+  content:"";position:absolute;top:-10%;left:-70%;width:45%;height:120%;pointer-events:none;
+  background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.65),rgba(255,255,255,0));
+  transform:skewX(-20deg);animation:brillanceEclat 5s ease-in-out infinite;}
+html[data-theme="brillant"] .toolbar button:nth-child(2)::after{animation-delay:.6s;}
+html[data-theme="brillant"] .toolbar button:nth-child(3)::after{animation-delay:1.2s;}
+html[data-theme="brillant"] .toolbar button:nth-child(4)::after{animation-delay:1.8s;}
+html[data-theme="brillant"] .stat:nth-child(2)::after{animation-delay:.8s;}
+html[data-theme="brillant"] .stat:nth-child(3)::after{animation-delay:1.6s;}
+html[data-theme="brillant"] .stat:nth-child(4)::after{animation-delay:2.4s;}
+html[data-theme="brillant"] .stat:nth-child(5)::after{animation-delay:3.2s;}
+@keyframes brillanceEclat{0%{left:-70%;}28%{left:140%;}100%{left:140%;}}
+/* Cartes nacrees. */
+html[data-theme="brillant"] :is(.card,.stat,.chartCard,.tableWrap,.alertItem,.entry){
+  background-image:linear-gradient(180deg,rgba(255,255,255,.95),rgba(255,255,255,0) 45%),
+    linear-gradient(135deg,#ffffff,#f6fbff);
+  box-shadow:inset 0 1px 0 #fff,0 10px 26px rgba(23,49,59,.10),0 2px 6px rgba(23,49,59,.06);}
+html[data-theme="brillant"] .stat .v{background:linear-gradient(90deg,currentColor,currentColor 40%,#ffe082 50%,currentColor 60%,currentColor);
+  background-size:250% 100%;-webkit-background-clip:text;background-clip:text;
+  animation:brillanceChiffre 6s linear infinite;}
+@keyframes brillanceChiffre{0%{background-position:100% 0;}40%,100%{background-position:0 0;}}
+/* Etincelles de l'en-tete. */
+html[data-theme="brillant"] header.top::before{content:"";position:absolute;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(4px 4px at 14% 28%,#ffc107,transparent),radial-gradient(3px 3px at 24% 74%,#3cc47a,transparent),
+    radial-gradient(4px 4px at 33% 18%,#F47B20,transparent),radial-gradient(5px 5px at 47% 80%,#ffca28,transparent),
+    radial-gradient(3px 3px at 62% 20%,#3cc47a,transparent),radial-gradient(4px 4px at 76% 78%,#ffc107,transparent),
+    radial-gradient(3px 3px at 91% 24%,#F47B20,transparent);
+  animation:brillanceEtincelles 2.8s ease-in-out infinite alternate;}
+@keyframes brillanceEtincelles{0%{opacity:.25;}50%{opacity:1;}100%{opacity:.4;}}
+html[data-theme="brillant"] header.top>*{position:relative;z-index:1;}
+html[data-theme="brillant"] .tab.active{background:linear-gradient(135deg,color-mix(in srgb,var(--tabColor,#008A3B) 70%,#fff),var(--tabColor,#008A3B));}
+@media (prefers-reduced-motion:reduce){
+  html[data-theme="brillant"] *::after,html[data-theme="brillant"] header.top::before,html[data-theme="brillant"] .stat .v{animation:none;}
+  html[data-theme="brillant"] :is(.toolbar button,.miniBtn,.subtab.active,.tab.active,.modal .foot .ok,.cxBouton,.stat)::after{display:none;}
+}

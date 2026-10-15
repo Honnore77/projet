@@ -30,6 +30,7 @@ export const THEMES = [
   { id: 'moderne', nom: 'Moderne et lumineux', detail: 'En-tête vert dégradé, icônes, cartes douces et aérées.', apercu: ['#00a650', '#ffffff', '#e7f6ee', '#f4f7f8'] },
   { id: 'institutionnel', nom: 'Institutionnel PDU', detail: 'Sobre et officiel : bandeau vert et filet orange.', apercu: ['#00632b', '#F47B20', '#f3f5f4', '#ffffff'] },
   { id: 'colore', nom: 'Coloré et chaleureux', detail: 'Chaque rubrique dans sa couleur vive, grands chiffres.', apercu: ['#C2185B', '#1976D2', '#F47B20', '#fff5f9'] },
+  { id: 'brillant', nom: 'Brillant et scintillant', detail: 'Le style lumineux, avec boutons vernis, reflets qui passent et étincelles.', apercu: ['#ffffff', '#ffd54f', '#008A3B', '#F47B20'] },
   { id: 'sombre', nom: 'Mode sombre', detail: 'Fond sombre, reposant le soir et en faible lumière.', apercu: ['#0f1a1e', '#16262d', '#3cc47a', '#e04387'] }
 ];
 
