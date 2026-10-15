@@ -236,15 +236,6 @@ export function navigate(moduleKey, params = {}) {
   contentEl.scrollTop = 0;
 }
 
-/**
- * Nombre de voyants affiches avant de replier le reste derriere « +N ».
- *
- * Le bandeau partage sa ligne avec le logo, le titre et le compte connecte :
- * au-dela, il chasse le titre au lieu de prevenir. Les plus urgents passent
- * en premier, le compte final dit ce qui n'a pas tenu.
- */
-const MAX_VOYANTS = 5;
-
 /** En dessous de cette largeur, le bandeau ne donne plus que des comptes. */
 const LARGEUR_COMPACTE = 560;
 
@@ -295,69 +286,96 @@ function renderAlertBar() {
   if (entete) entete.classList.toggle('hasAlerts', voyants.length > 0);
   if (!voyants.length) return;
 
-  if (window.innerWidth <= LARGEUR_COMPACTE) {
-    rendreCompact(voyants);
-    return;
-  }
-  // Autant de voyants detailles que la place le permet (le bandeau partage
-  // sa ligne avec le logo, le titre, le compte et les boutons) : un voyant
-  // coupe ne se lirait plus. Si meme un seul ne tient pas, les comptes.
-  const deborde = () => alertBarEl.scrollWidth > alertBarEl.clientWidth + 1;
-  for (let max = Math.min(MAX_VOYANTS, voyants.length); max >= 1; max -= 1) {
-    alertBarEl.innerHTML = '';
-    rendreDetaille(voyants, max);
-    if (!deborde()) return;
-  }
-  alertBarEl.innerHTML = '';
-  rendreCompact(voyants);
+  rendreGroupes(voyants);
 }
 
-/** Un voyant par vehicule : immatriculation et kilometres restants. */
-function rendreDetaille(voyants, max) {
-  voyants.slice(0, max).forEach((v) => {
-    const b = el(
-      `<button type="button" class="voyant ${v.classe}${v.clignote ? ' clignote' : ''}" title="${escapeText(v.titre)}">` +
-        `<span aria-hidden="true">${v.icone}</span><b>${escapeText(v.immat)}</b><span>${escapeText(v.texte)}</span>` +
-        '</button>'
-    );
-    b.onclick = () => openVehicleSheet(v.go);
-    alertBarEl.appendChild(b);
-  });
-
-  const reste = voyants.length - max;
-  if (reste > 0) {
-    const plus = el(`<button type="button" class="voyant autres" title="Voir tous les véhicules concernés">+${reste}</button>`);
-    plus.onclick = () => navigate('VEHICULES');
-    alertBarEl.appendChild(plus);
-  }
-}
+/** Les types d'alerte, du plus grave au moins grave. */
+const GROUPES_ALERTE = [
+  { classe: 'rouge', libelle: 'Vidange urgente', court: 'Urgent' },
+  { classe: 'orange', libelle: 'Vidange proche', court: 'Proche' },
+  { classe: 'jaune', libelle: 'Vidange à prévoir', court: 'À prévoir' },
+  { classe: 'garage', libelle: 'Au garage', court: 'Garage' }
+];
 
 /**
- * Sur un ecran etroit, un voyant par vehicule ne tient pas : les
- * immatriculations se retrouvaient coupees des deux cotes, et une alerte
- * tronquee vaut moins que pas d'alerte du tout.
- *
- * On donne alors le nombre par couleur. La couleur previent, le compte dit
- * l'ampleur, et le doigt fait le reste : on touche pour savoir lesquels.
+ * Une pastille par type d'alerte, et non plus par vehicule : la couleur et
+ * le libelle disent la nature de l'alerte, la bulle au-dessus le nombre de
+ * vehicules concernes. Un clic deroule la liste ; un clic sur un vehicule
+ * ouvre sa fiche. Sur un ecran etroit, la pastille ne garde que son icone.
  */
-function rendreCompact(voyants) {
-  const libelles = {
-    rouge: 'à vidanger sans délai',
-    orange: 'vidange proche',
-    jaune: 'vidange à prévoir',
-    garage: 'au garage'
-  };
-  ['rouge', 'orange', 'jaune', 'garage'].forEach((classe) => {
-    const lot = voyants.filter((v) => v.classe === classe);
+function rendreGroupes(voyants) {
+  const etroit = window.innerWidth <= LARGEUR_COMPACTE;
+  GROUPES_ALERTE.forEach((g) => {
+    const lot = voyants.filter((v) => v.classe === g.classe);
     if (!lot.length) return;
     const b = el(
-      `<button type="button" class="voyant ${classe}${lot[0].clignote ? ' clignote' : ''}" ` +
-        `title="${escapeText(`${lot.length} véhicule(s) ${libelles[classe]} : ${lot.map((v) => v.immat).join(', ')}`)}">` +
-        `<span aria-hidden="true">${lot[0].icone}</span><b>${lot.length}</b></button>`
+      `<button type="button" class="voyant voyantGroupe ${g.classe}${lot[0].clignote ? ' clignote' : ''}" ` +
+        `data-court="${escapeText(g.court)}" aria-haspopup="true" aria-expanded="false" title="${escapeText(`${g.libelle} : ${lot.length} véhicule(s)`)}">` +
+        `<span aria-hidden="true">${lot[0].icone}</span>` +
+        (etroit ? '' : `<b>${escapeText(g.libelle)}</b>`) +
+        '<span class="voyantFleche" aria-hidden="true">▾</span>' +
+        `<span class="voyantNombre">${lot.length}</span>` +
+      '</button>'
     );
-    b.onclick = () => (classe === 'garage' ? navigate('ENTRETIEN') : navigate('VEHICULES'));
+    b.onclick = (ev) => { ev.stopPropagation(); basculerListe(b, g, lot); };
     alertBarEl.appendChild(b);
   });
+  // Plus de groupes que de place : on raccourcit les libelles, puis on ne
+  // garde que les icones.
+  const deborde = () => alertBarEl.scrollWidth > alertBarEl.clientWidth + 1;
+  if (!etroit && deborde()) {
+    alertBarEl.querySelectorAll('.voyantGroupe').forEach((btn) => { const x = btn.querySelector('b'); if (x) x.textContent = btn.dataset.court; });
+    if (deborde()) alertBarEl.querySelectorAll('.voyantGroupe b').forEach((x) => x.remove());
+  }
+}
+
+let listeOuverte = null;
+
+function fermerListe() {
+  if (!listeOuverte) return;
+  listeOuverte.menu.remove();
+  listeOuverte.bouton.setAttribute('aria-expanded', 'false');
+  listeOuverte = null;
+  document.removeEventListener('click', fermerListe);
+  document.removeEventListener('keydown', echapListe);
+  window.removeEventListener('resize', fermerListe);
+}
+
+function echapListe(e) {
+  if (e.key === 'Escape') fermerListe();
+}
+
+/** Deroule (ou referme) la liste des vehicules d'une pastille. */
+function basculerListe(bouton, groupe, lot) {
+  const dejaOuverte = listeOuverte && listeOuverte.bouton === bouton;
+  fermerListe();
+  if (dejaOuverte) return;
+  const menu = el(
+    `<div class="voyantMenu" role="menu"><div class="voyantMenuTitre ${groupe.classe}">` +
+      `${escapeText(groupe.libelle)} — ${lot.length} véhicule${lot.length > 1 ? 's' : ''}</div></div>`
+  );
+  lot.forEach((v) => {
+    const ligne = el(
+      `<button type="button" role="menuitem" class="voyantLigne" title="${escapeText(v.titre)}">` +
+        `<b>${escapeText(v.immat)}</b><span>${escapeText(v.texte)}</span></button>`
+    );
+    ligne.onclick = () => { fermerListe(); openVehicleSheet(v.go); };
+    menu.appendChild(ligne);
+  });
+  menu.onclick = (ev) => ev.stopPropagation();
+  document.body.appendChild(menu);
+  // Sous la pastille, sans deborder de l'ecran.
+  const r = bouton.getBoundingClientRect();
+  const largeur = menu.offsetWidth;
+  menu.style.top = `${Math.round(r.bottom + 8)}px`;
+  menu.style.left = `${Math.round(Math.max(8, Math.min(r.left, window.innerWidth - largeur - 8)))}px`;
+  bouton.setAttribute('aria-expanded', 'true');
+  listeOuverte = { bouton, menu };
+  setTimeout(() => {
+    document.addEventListener('click', fermerListe);
+    document.addEventListener('keydown', echapListe);
+    window.addEventListener('resize', fermerListe);
+  }, 0);
 }
 
 /** Ouvre la fiche d'un agent (rubrique UTILISATEURS). */
