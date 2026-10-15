@@ -86,6 +86,7 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
             <button type="button" class="cxOeil" id="voirMdp"
                     aria-label="Afficher le mot de passe">${ICONES.oeilBarre}</button>
           </div>
+          <div class="cxMaj" id="alerteMaj" role="alert" hidden>⇪ Attention : la touche Majuscule (Verr. Maj) est activée.</div>
         </div>
 
         <div class="cxOptions">
@@ -129,7 +130,17 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
     img.onerror = () => img.remove();
   });
 
-  /* ---- afficher / masquer le mot de passe ---- */
+  /* ---- alerte touche Majuscule ---- */
+  // Un mot de passe tape en majuscules par megarde est refuse sans que l'on
+  // comprenne pourquoi : on previent des que Verr. Maj est actif.
+  const alerteMaj = screen.querySelector('#alerteMaj');
+  const verifierMaj = (e) => {
+    if (!e || typeof e.getModifierState !== 'function') return;
+    alerteMaj.hidden = !e.getModifierState('CapsLock');
+  };
+  ['keydown', 'keyup', 'mousedown'].forEach((t) => passInput.addEventListener(t, verifierMaj));
+  passInput.addEventListener('blur', () => { alerteMaj.hidden = true; });
+
   const oeil = screen.querySelector('#voirMdp');
   oeil.onclick = () => {
     const visible = passInput.type === 'text';

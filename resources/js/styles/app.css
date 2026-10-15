@@ -947,3 +947,16 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
   padding:8px 10px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;color:inherit;text-align:left;}
 .voyantLigne:hover{background:var(--bg);}
 .voyantLigne span{color:var(--muted);white-space:nowrap;}
+
+/* Page de connexion : alerte Verr. Maj sous le mot de passe. */
+.cxMaj{margin-top:6px;padding:7px 10px;border-radius:8px;background:#fff4e5;color:#a24a00;border:1px solid #f5b971;
+  font-size:12.5px;font-weight:700;display:flex;align-items:center;gap:6px;animation:cxMajEntree .18s ease-out;}
+.cxMaj[hidden]{display:none;}
+@keyframes cxMajEntree{from{opacity:0;transform:translateY(-3px);}to{opacity:1;transform:none;}}
+
+/* Page de connexion : le bloc formulaire + image (« image fusionnee ») est
+   transparent a 45 % : le fond de la page se voit au travers. Les textes et
+   les champs, eux, restent pleinement lisibles. */
+#login .cxCorps,#login[data-decor] .cxCorps,#login[data-plein] .cxCorps{background:rgba(255,255,255,.55);}
+html[data-theme="sombre"] #login .cxCorps,html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.55);}
+#login .cxPhoto{opacity:.55;}

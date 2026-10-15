@@ -100,8 +100,10 @@ export function renderStatistiques(page, cle) {
   // Puis le detail chiffre de chaque bloc.
   pleins.forEach((b) => {
     page.appendChild(sectionLabel(b.titre.toUpperCase(), couleur));
-    page.appendChild(dataTable(b.entetes.map(esc), b.lignes.map((l) => l.map((c, i) =>
-      (i === 0 ? `<b>${esc(c)}</b>` : `<span style="display:block;text-align:right">${esc(c)}</span>`)))));
+    // Les chiffres, et leur en-tete, au centre de leur colonne.
+    const centre = (x) => `<span style="display:block;text-align:center">${x}</span>`;
+    page.appendChild(dataTable(b.entetes.map((h, i) => (i === 0 ? esc(h) : centre(esc(h)))), b.lignes.map((l) => l.map((c, i) =>
+      (i === 0 ? `<b>${esc(c)}</b>` : centre(esc(c)))))));
   });
 
   if (vides.length) {
