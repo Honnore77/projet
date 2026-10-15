@@ -13,11 +13,16 @@ import { toast } from './ui/components.js';
 import { traiterDemandePC } from './core/synchroClient.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
+import { installerMajuscule } from './ui/majuscule.js';
 
 // Le style choisi sur cet appareil, avant tout affichage (ecran de
 // connexion compris).
 appliquerTheme();
 appliquerZoom();
+
+// Premiere lettre en majuscule dans les champs de saisie (sauf identifiant,
+// mot de passe, email, liens).
+installerMajuscule();
 
 const root = document.getElementById('app');
 

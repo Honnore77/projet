@@ -93,7 +93,8 @@ function renderSuivi(page) {
 
   const headers = [
     'Référence', 'Conducteur', 'Nb missions<br>du conducteur', 'Véhicule', 'Destination',
-    'Départ', 'Retour', 'Jours', 'Cumul jours<br>du conducteur', 'Frais', 'Paiement', ''
+    'Départ', 'Retour', 'Jours', 'Cumul jours<br>du conducteur', 'Frais<br><small>(dotation de mission)</small>',
+    'Paiement<br><small>(prime de mission)</small>', ''
   ];
 
   const rows = list.map((m) => {
@@ -602,7 +603,8 @@ function missionFields(m = {}) {
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
     { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
       hint: 'Jour de départ inclus' },
-    { key: 'montant', label: 'Montant des frais (F)', type: 'number', value: m.montant }
+    { key: 'montant', label: 'Frais de mission (F)', type: 'number', value: m.montant,
+      hint: 'Dotation mise à la disposition du conducteur pour la mission — à ne pas confondre avec la prime' }
   ];
 }
 
@@ -750,11 +752,11 @@ function refPrevue(dateDepart, mission) {
 
 function openPaymentForm(m) {
   openForm({
-    title: `Paiement — mission ${m.ref}`,
-    intro: `Conducteur : ${m.conducteur} · ${m.jours || 0} jour(s)`,
+    title: `Paiement de la prime — mission ${m.ref}`,
+    intro: `Conducteur : ${m.conducteur} · ${m.jours || 0} jour(s). Les frais de mission (dotation) ne changent pas.`,
     fields: [
       { key: 'datePaiement', label: 'Date de paiement', type: 'date', required: true, value: todayISO() },
-      { key: 'montant', label: 'Montant versé (F)', type: 'number', value: m.montant },
+      { key: 'montantPrime', label: 'Montant de la prime versée (F)', type: 'number', value: m.montantPrime },
       { key: 'referencePaiement', label: 'Référence du paiement', value: m.referencePaiement }
     ],
     okLabel: 'Confirmer le paiement',
@@ -763,7 +765,7 @@ function openPaymentForm(m) {
         paye: true,
         datePaiement: dateFR(values.datePaiement),
         datePaiementISO: values.datePaiement,
-        montant: francSup(values.montant),
+        montantPrime: values.montantPrime === '' ? '' : francSup(values.montantPrime),
         referencePaiement: values.referencePaiement
       });
       toast('Mission marquée comme payée.', 'ok');

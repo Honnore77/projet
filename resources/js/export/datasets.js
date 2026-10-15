@@ -289,7 +289,8 @@ export function dsMissions(list = DB.missions) {
       C('dateRetour', 'Retour', 12),
       C('jours', 'Jours', 8),
       C('totalJours', 'Total jours', 11),
-      C('paiement', 'Paiement', 12),
+      C('frais', 'Frais (dotation de mission)', 14),
+      C('paiement', 'Paiement (prime de mission)', 14),
       C('datePaiement', 'Date paiement', 14)
     ],
     rows: list.map((m) => {
@@ -305,6 +306,7 @@ export function dsMissions(list = DB.missions) {
         dateRetour: dateFR(m.dateRetour),
         jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
         totalJours: sum(g, (x) => x.jours),
+        frais: m.montant === '' || m.montant === undefined ? '' : num(m.montant),
         paiement: m.paye ? 'Payée' : 'Non payée',
         datePaiement: m.datePaiement || ''
       };
