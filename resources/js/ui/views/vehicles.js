@@ -6,7 +6,7 @@
    =================================================================== */
 
 import {
-  DB, CATEGORIES, STATUTS_VEHICULE, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
+  DB, CATEGORIES, STATUT_NON_ATTRIBUE, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange,
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
@@ -30,6 +30,7 @@ export function statutColor(s) {
   if (s === 'Disponible') return COLORS.green;
   if (s === 'En mission') return COLORS.blue;
   if (s === 'En entretien') return COLORS.orange;
+  if (s === STATUT_NON_ATTRIBUE) return COLORS.grey;
   return COLORS.red;
 }
 
@@ -55,9 +56,10 @@ function vehicleFields(v = {}, cat = 'pool') {
 
   // Un vehicule enregistre avant le retrait d'un statut garde le sien : on le
   // rajoute a la liste plutot que de le remplacer en douce a la modification.
-  const statuts = STATUTS_VEHICULE.includes(v.statut) || !v.statut
-    ? STATUTS_VEHICULE
-    : STATUTS_VEHICULE.concat([v.statut]);
+  const proposes = statutsVehicule(cat);
+  const statuts = proposes.includes(v.statut) || !v.statut
+    ? proposes
+    : proposes.concat([v.statut]);
 
   return [
     { key: 'marque', label: 'Marque', type: 'selectAdd', required: true, value: v.marque,
@@ -143,7 +145,7 @@ export function renderVehicles(page) {
       {
         type: 'select',
         value: f.statut,
-        options: [{ value: '', label: 'Tous les statuts' }, ...STATUTS_VEHICULE],
+        options: [{ value: '', label: 'Tous les statuts' }, ...statutsVehicule(cat)],
         onChange: (v) => { f.statut = v; rerender(); }
       },
       {

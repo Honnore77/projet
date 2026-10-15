@@ -4,7 +4,7 @@
 
 import {
   DB, allVehicles, openMaintenance, unpaidMissions, immatOf,
-  maintenanceCost, fuelCost, computeAlerts, STATUTS_VEHICULE
+  maintenanceCost, fuelCost, computeAlerts, STATUTS_VEHICULE, STATUT_NON_ATTRIBUE
 } from '../../core/db.js';
 import { fmt, fmtF, num, sum, groupBy, monthKey, monthLabel, esc, el } from '../../core/utils.js';
 import { statTile, card, COLORS } from '../components.js';
@@ -60,17 +60,18 @@ export function renderDashboard(page) {
   const charts = el('<div class="chartGrid"></div>');
 
   // Répartition des statuts
-  const parStatut = STATUTS_VEHICULE.map((s) => vehicles.filter((v) => v.statut === s).length);
-  const sansStatut = vehicles.filter((v) => !STATUTS_VEHICULE.includes(v.statut)).length;
+  const statuts = STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE]);
+  const parStatut = statuts.map((s) => vehicles.filter((v) => v.statut === s).length);
+  const sansStatut = vehicles.filter((v) => !statuts.includes(v.statut)).length;
   if (nbVeh) {
     charts.appendChild(
       chartCard('Répartition des véhicules par statut', {
         type: 'doughnut',
         data: {
-          labels: STATUTS_VEHICULE.concat(sansStatut ? ['Non renseigné'] : []),
+          labels: statuts.concat(sansStatut ? ['Non renseigné'] : []),
           datasets: [{
             data: parStatut.concat(sansStatut ? [sansStatut] : []),
-            backgroundColor: [COLORS.green, COLORS.blue, COLORS.orange, COLORS.red, '#9aa'],
+            backgroundColor: [COLORS.green, COLORS.orange, COLORS.red, COLORS.grey, '#9aa'],
             borderWidth: 0
           }]
         },

@@ -24,6 +24,17 @@ export const SCHEMA_VERSION = 4;
 export const STATUTS_VEHICULE = ['Disponible', 'En entretien', 'Immobilisé'];
 
 /**
+ * Statut propre aux vehicules POOL et SERVICE : un vehicule qui n'est confie
+ * a personne. Un vehicule de MISSION ne s'attribue pas, il ne le propose pas.
+ */
+export const STATUT_NON_ATTRIBUE = 'Non attribué';
+
+/** Statuts proposes dans le formulaire d'une sous-rubrique de VEHICULES. */
+export function statutsVehicule(cat) {
+  return cat === 'mission' ? STATUTS_VEHICULE : STATUTS_VEHICULE.concat([STATUT_NON_ATTRIBUE]);
+}
+
+/**
  * Prefixes d'immatriculation du PDU. Ils sont pre-inscrits dans le formulaire
  * pour n'avoir a saisir que la fin de la plaque.
  */
