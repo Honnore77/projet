@@ -44,6 +44,10 @@ export default defineConfig({
   plugins: [
     VitePWA({
       registerType: 'autoUpdate',
+      // L'enregistrement se fait dans main.js, et seulement pour la version
+      // web : dans l'APK, le cache servait l'ancienne version au premier
+      // lancement apres une mise a jour.
+      injectRegister: null,
       includeAssets: ['logo-pdu.png', 'icons/icon-192.png', 'icons/icon-512.png'],
       workbox: {
         globPatterns: ['**/*.{js,css,html,png,jpg,svg,woff2}'],

@@ -14,7 +14,7 @@ import { traiterDemandePC } from './core/synchroClient.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
 import { installerMajuscule } from './ui/majuscule.js';
-import { isAndroid } from './core/storage.js';
+import { isAndroid, isDesktop } from './core/storage.js';
 
 // Le style choisi sur cet appareil, avant tout affichage (ecran de
 // connexion compris).
@@ -28,6 +28,30 @@ installerMajuscule();
 // Sur le telephone, pas d'export PDF : les boutons ecrits a la main dans
 // les pages (rapports, imprime d'une demande) se cachent par la feuille de style.
 if (isAndroid) document.documentElement.classList.add('sansPdf');
+
+/*
+ * Cache hors ligne (service worker) : utile a la seule version web.
+ *
+ * L'APK et l'application de bureau embarquent deja tous leurs fichiers.
+ * Dans l'APK, le cache servait l'ancienne version au premier lancement
+ * apres une mise a jour : une rubrique ajoutee n'apparaissait qu'au
+ * lancement suivant. On l'y retire donc, avec ce qu'il avait garde, et on
+ * recharge une fois sur les fichiers de l'APK.
+ */
+if ('serviceWorker' in navigator) {
+  if (isAndroid || isDesktop) {
+    navigator.serviceWorker.getRegistrations().then(async (inscrits) => {
+      if (!inscrits.length) return;
+      await Promise.all(inscrits.map((r) => r.unregister()));
+      if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
+      location.reload();
+    }).catch(() => { /* rien a retirer */ });
+  } else {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => { /* hors ligne indisponible */ });
+    });
+  }
+}
 
 const root = document.getElementById('app');
 
