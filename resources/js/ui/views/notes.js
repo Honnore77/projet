@@ -18,7 +18,8 @@ import { card, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, s
 import { state, rerender, moduleColor } from '../shell.js';
 import {
   PUBLIQUE, PRIVEE, notesRecues, notesEnvoyees, estLue, marquerLues, comptesDestinataires,
-  nomDuCompte, peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA
+  nomDuCompte, peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
+  accusesDe, etatAccuse
 } from '../../core/notes.js';
 
 const SUBS = [
@@ -176,6 +177,7 @@ function carteNote(n, moi, { nouvelle }) {
         ? `<div class="noteReponseA">↩ En réponse à « ${esc(parent ? parent.sujet || '(sans sujet)' : 'une note supprimée')} »</div>`
         : '') +
       `<div class="noteTexte">${escLignes(n.texte || '')}</div>` +
+      (n.auteurId === moi.id ? accuseHtml(n) : '') +
       '<div class="noteActions">' +
         (n.auteurId !== moi.id ? '<button type="button" class="miniBtn" data-repondre style="background:#1976D2">↩ Répondre</button>' : '') +
         (peutModifierNote(n, moi) ? '<button type="button" class="miniBtn" data-modifier style="background:#008A3B">✎ Modifier</button>' : '') +
@@ -204,6 +206,28 @@ function carteNote(n, moi, { nouvelle }) {
     };
   }
   return carte;
+}
+
+/**
+ * Accuse de reception, sur les notes que l'on a ecrites : ✓ envoyee,
+ * ✓✓ gris lue par une partie des lecteurs, ✓✓ bleu lue par tous. Le
+ * detail dit qui a lu, et quand.
+ */
+function accuseHtml(n) {
+  const a = accusesDe(n);
+  if (!a.length) return '';
+  const etat = etatAccuse(n);
+  const lus = a.filter((x) => x.luLe !== null);
+  const pasLus = a.filter((x) => x.luLe === null);
+  const coche = etat === 'envoyee' ? '✓' : '✓✓';
+  const resume = etat === 'lue' ? (a.length > 1 ? `Lue par tous (${a.length})` : 'Lue')
+    : etat === 'partielle' ? `Lue par ${lus.length} sur ${a.length}` : 'Envoyée — pas encore lue';
+  const detail = [
+    lus.length ? `Lue par : ${lus.map((x) => `${x.nom}${x.luLe ? ` (${quand(x.luLe)})` : ''}`).join(', ')}` : '',
+    pasLus.length ? `Pas encore lue : ${pasLus.map((x) => x.nom).join(', ')}` : ''
+  ].filter(Boolean).join('\n');
+  return `<details class="noteAccuse ${etat}"><summary><span class="noteCoches">${coche}</span> ${esc(resume)}</summary>` +
+    `<div>${escLignes(detail)}</div></details>`;
 }
 
 /* ========================== Formulaire ============================ */

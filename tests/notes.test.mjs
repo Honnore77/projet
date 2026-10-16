@@ -6,7 +6,8 @@ import { db, charger } from './aide.mjs';
 
 const {
   peutLire, notesRecues, notesEnvoyees, notesNonLues, marquerLues, comptesDestinataires,
-  peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA
+  peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
+  accusesDe, etatAccuse, lecturesDeMesNotes, luLe
 } = await import('../resources/js/core/notes.js');
 const { COLLECTIONS_SYNCHRO } = await import('../resources/js/core/synchro.js');
 
@@ -23,7 +24,7 @@ const notes = [
 ];
 
 test('une note publique se lit par tous, une note privée par son auteur et ses destinataires', async () => {
-  await charger({ accounts: comptes, notes });
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
   assert.equal(peutLire(notes[0], 'a'), true);
   assert.equal(peutLire(notes[1], 'b'), true);
   assert.equal(peutLire(notes[1], 'c'), true);
@@ -35,16 +36,37 @@ test('une note publique se lit par tous, une note privée par son auteur et ses 
 });
 
 test('les notes lues sont rangées sur le compte et ne comptent plus', async () => {
-  await charger({ accounts: comptes, notes });
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
   assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n2', 'n1']);
-  assert.equal(marquerLues(['n1'], 'c'), true);
-  assert.equal(marquerLues(['n1'], 'c'), false);
+  assert.equal(marquerLues(['n1'], 'c', db.DB, '2026-10-16T11:00:00Z'), true);
+  assert.equal(marquerLues(['n1'], 'c', db.DB, '2026-10-16T12:00:00Z'), false);
   assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n2']);
-  assert.deepEqual(db.DB.accounts.find((x) => x.id === 'c').notesLues, ['n1']);
+  // La premiere lecture garde sa date.
+  assert.deepEqual(db.DB.accounts.find((x) => x.id === 'c').notesLues, { n1: '2026-10-16T11:00:00Z' });
+});
+
+test('une liste de lectures du premier format vaut lecture sans date', async () => {
+  await charger({ accounts: comptes.map((x) => (x.id === 'c' ? Object.assign({}, x, { notesLues: ['n2'] }) : x)), notes });
+  assert.equal(luLe(notes[1], 'c'), '');
+  assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n1']);
+});
+
+test('accusé de réception : ✓ envoyée, ✓✓ lue en partie, ✓✓ lue par tous', async () => {
+  const pourDeux = { id: 'n4', auteurId: 'b', visibilite: 'privee', destinataires: ['a', 'c'], sujet: 'Deux', date: '2026-10-16T11:00:00Z' };
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes.concat([pourDeux])) });
+  assert.equal(etatAccuse(pourDeux), 'envoyee');
+  marquerLues(['n4'], 'c', db.DB, '2026-10-16T11:05:00Z');
+  assert.equal(etatAccuse(pourDeux), 'partielle');
+  assert.deepEqual(accusesDe(pourDeux).map((x) => [x.id, x.luLe]), [['a', null], ['c', '2026-10-16T11:05:00Z']]);
+  marquerLues(['n4'], 'a');
+  assert.equal(etatAccuse(pourDeux), 'lue');
+  // Une note publique attend tous les comptes actifs, sauf son auteur.
+  assert.deepEqual(accusesDe(notes[0]).map((x) => x.id), ['a', 'c']);
+  assert.deepEqual(lecturesDeMesNotes('b').map((l) => l.cle).sort(), ['n4|a', 'n4|c']);
 });
 
 test('on écrit aux comptes actifs et validés, pas à soi-même', async () => {
-  await charger({ accounts: comptes, notes });
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
   assert.deepEqual(comptesDestinataires('b').map((x) => x.id), ['a', 'c']);
 });
 
@@ -56,7 +78,7 @@ test('modifier : l’auteur ; supprimer : l’auteur ou un administrateur', () =
 });
 
 test('répondre à une note privée s’adresse à l’auteur et aux autres destinataires', async () => {
-  await charger({ accounts: comptes, notes });
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
   assert.deepEqual(destinatairesReponse({ auteurId: 'b', visibilite: 'privee', destinataires: ['c', 'a'] }, 'c'), ['b', 'a']);
   assert.deepEqual(destinatairesReponse(notes[0], 'c'), ['b']);
   assert.deepEqual(reponsesA('n2', 'b').map((n) => n.id), ['n3']);

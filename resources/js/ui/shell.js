@@ -206,7 +206,7 @@ export function mountShell(appRoot, { onLogout }) {
 
 /** Fenetre flottante : expediteur et objet des notes non lues. */
 function annoncer() {
-  annoncerNotes({ ouvrirNotes: () => navigate('NOTES'), surNotes: state.module === 'NOTES' });
+  annoncerNotes({ ouvrirNotes: (sub) => { if (sub) state.sub.NOTES = sub; navigate('NOTES'); }, surNotes: state.module === 'NOTES' });
 }
 
 /**
