@@ -18,7 +18,8 @@ import { currentUser, roleLabel } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm } from '../../core/utils.js';
 import { card, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, toolbar, dataTable } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
-import { FORMATS, ACCEPT, TAILLE_MAX, taillePiece, ajouterPiece, nouvelleVersion } from '../../core/pieces.js';
+import { FORMATS, ACCEPT, TAILLE_MAX, taillePiece, ajouterPiece, ajouterPieceOctets, nouvelleVersion } from '../../core/pieces.js';
+import { definirEnvoi } from '../../export/envoi.js';
 import { ouvrirPiece } from '../pieceViewer.js';
 import {
   PUBLIQUE, PRIVEE, notesRecues, notesEnvoyees, estLue, marquerLues, comptesDestinataires,
@@ -449,3 +450,13 @@ function ouvrirNote(note, parent = null, depart = {}) {
 export function ecrireNote(depart = {}) {
   ouvrirNote(null, null, depart);
 }
+
+// « Envoyer à… » des menus d'export : le fichier produit arrive joint a une
+// nouvelle note, son nom pour objet ; on choisit les comptes et on ecrit
+// le message avant d'envoyer.
+definirEnvoi(async ({ bytes, filename }) => {
+  const moi = currentUser();
+  if (!moi) return;
+  const piece = await ajouterPieceOctets(filename, bytes, moi);
+  ecrireNote({ sujet: String(filename).replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' '), pieces: [piece] });
+});

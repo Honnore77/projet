@@ -88,11 +88,17 @@ async function ranger(octets) {
 export async function ajouterPiece(fichier, auteur) {
   const refus = refusPiece(fichier.name, fichier.size);
   if (refus) throw new Error(refus);
-  const octets = new Uint8Array(await fichier.arrayBuffer());
+  return ajouterPieceOctets(fichier.name, new Uint8Array(await fichier.arrayBuffer()), auteur);
+}
+
+/** Range des octets produits par l'application (un export) comme piece jointe. */
+export async function ajouterPieceOctets(nom, octets, auteur) {
+  const refus = refusPiece(nom, octets.length);
+  if (refus) throw new Error(refus);
   return {
     id: await ranger(octets),
-    nom: fichier.name,
-    type: formatDe(fichier.name),
+    nom,
+    type: formatDe(nom),
     taille: octets.length,
     ajouteLe: new Date().toISOString(),
     ajoutePar: auteur ? auteur.nom : '',

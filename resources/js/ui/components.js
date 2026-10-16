@@ -8,6 +8,7 @@ import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/imag
 import { voitTout, rubriqueCourante } from '../core/acces.js';
 import { isAndroid } from '../core/storage.js';
 import { ouvrirFicheLigne, texteEntete } from './ficheLigne.js';
+import { envoiDisponible, exporterPourEnvoi, exporterNormalement, messagesExportTus } from '../export/envoi.js';
 
 export const COLORS = {
   green: '#008A3B',
@@ -22,6 +23,8 @@ export const COLORS = {
 
 let toastWrap = null;
 export function toast(message, kind = 'ok', ms = 2600) {
+  // Un export parti dans une note n'a ete ni enregistre ni annule (voir envoi.js).
+  if (kind !== 'err' && messagesExportTus() && /^(Export|Rapport)/.test(String(message))) return;
   if (!toastWrap) {
     toastWrap = el('<div class="toastWrap"></div>');
     document.body.appendChild(toastWrap);
@@ -56,7 +59,7 @@ export function openModal({ title, bodyHtml = '', bodyNode = null, buttons = [],
     if (onClose) onClose();
   };
 
-  buttons.filter((b) => !(estPdf(b) && !pdfDisponible())).forEach((b) => {
+  buttons.filter((b) => b && !(estPdf(b) && !pdfDisponible())).forEach((b) => {
     const btn = el(`<button type="button" class="${b.cls || 'ok'}">${esc(b.label)}${b.menu ? ' ▾' : ''}</button>`);
     btn.onclick = b.menu
       ? (ev) => { ev.stopPropagation(); ouvrirMenuChoix(btn, b.menu); }
@@ -529,9 +532,34 @@ export function sectionLabel(text, color = COLORS.green) {
 export const pdfDisponible = () => !isAndroid;
 const estPdf = (b) => !!b && /\bPDF\b/.test(String(b.label || ''));
 
+/**
+ * Un bouton d'export (« ⬇ Excel », « ⬇ PDF », « ⬇ Word ») propose aussi
+ * d'envoyer le fichier a des comptes, en piece jointe d'une note : chaque
+ * choix de sa liste (simple, complet) recoit son « Envoyer à… », et un
+ * bouton sans liste en recoit une — Télécharger ou Envoyer à….
+ */
+function avecEnvoi(b) {
+  if (!b || !/^\s*⬇/.test(String(b.label || '')) || !envoiDisponible()) return b;
+  const format = String(b.label).replace(/^\s*⬇\s*/, '');
+  const choix = b.menu
+    ? b.menu.filter(Boolean)
+    : [{ label: `Télécharger (${format})`, detail: 'Aperçu, puis enregistrement du fichier', onClick: b.onClick }];
+  return Object.assign({}, b, {
+    menu: [
+      ...choix.map((c) => Object.assign({}, c, { onClick: () => exporterNormalement(c.onClick) })),
+      ...choix.map((c) => ({
+        label: `📨 Envoyer à… ${b.menu ? `(${c.label.replace(new RegExp(`^${format}\\s*`, 'i'), '') || format})` : ''}`.trim(),
+        detail: `${b.menu ? `${c.label} · ` : ''}en pièce jointe d’une note, à un ou plusieurs comptes`,
+        envoi: true,
+        onClick: () => exporterPourEnvoi(c.onClick)
+      }))
+    ]
+  });
+}
+
 export function toolbar(buttons) {
   const bar = el('<div class="toolbar"></div>');
-  buttons.forEach((b) => {
+  buttons.map(avecEnvoi).forEach((b) => {
     if (!b || (estPdf(b) && !pdfDisponible())) return;
     const btn = el(
       `<button type="button" class="${b.cls || ''}" style="background:${b.color || COLORS.blue}"${b.write ? ' data-write' : ''}` +
@@ -573,7 +601,7 @@ export function ouvrirMenuChoix(bouton, choix) {
   const menu = el('<div class="menuChoix" role="menu"></div>');
   choix.filter(Boolean).forEach((c) => {
     const ligne = el(
-      `<button type="button" role="menuitem" class="menuChoixLigne"><b>${esc(c.label)}</b>` +
+      `<button type="button" role="menuitem" class="menuChoixLigne${c.envoi ? ' envoi' : ''}"><b>${esc(c.label)}</b>` +
       `${c.detail ? `<small>${esc(c.detail)}</small>` : ''}</button>`
     );
     ligne.onclick = () => { fermerMenuChoix(); c.onClick(); };

@@ -16,9 +16,20 @@ import { saveFile, isDesktop } from '../core/storage.js';
 import { esc, escLignes, el, fmt, mentionLieuDate } from '../core/utils.js';
 import { DB } from '../core/db.js';
 import { openModal, toast } from '../ui/components.js';
+import { envoiDisponible, prendreDemandeEnvoi, envoyerFichier } from './envoi.js';
 
 /** Au-delà, l'aperçu se contente d'un extrait : afficher 5 000 lignes fige la fenêtre. */
 const LIGNES_APERCU = 150;
+
+/** « Envoyer à… » : le fichier part en piece jointe d'une note (voir envoi.js). */
+async function joindreANote(filename, bytes) {
+  try {
+    await envoyerFichier(filename, bytes);
+  } catch (e) {
+    console.error(e);
+    toast((e && e.message) || 'Le fichier n’a pas pu être joint à une note.', 'err', 5000);
+  }
+}
 
 /**
  * Montre le document puis, si l'utilisateur confirme, l'enregistre.
@@ -33,6 +44,8 @@ const LIGNES_APERCU = 150;
  * @returns {Promise<string|null>} chemin écrit, ou null si annulé
  */
 export function previewAndSave({ kind, bytes, filename, mime, datasets = [], title }) {
+  // « Envoyer à… » : le fichier va directement dans une note.
+  if (prendreDemandeEnvoi()) return joindreANote(filename, bytes).then(() => null);
   return new Promise((resolve) => {
     const corps = el('<div style="display:flex;flex-direction:column;height:100%"></div>');
     const poids = bytes && bytes.length ? `${(bytes.length / 1024).toFixed(0)} Ko` : '—';
@@ -75,6 +88,15 @@ export function previewAndSave({ kind, bytes, filename, mime, datasets = [], tit
       onClose: () => terminer(null),
       buttons: [
         { label: 'Annuler', cls: 'cancel', onClick: (close) => { close(); terminer(null); } },
+        envoiDisponible() && {
+          label: '📨 Envoyer à…',
+          cls: 'cancel',
+          onClick: async (close) => {
+            close();
+            terminer(null);
+            await joindreANote(filename, bytes);
+          }
+        },
         {
           label: isDesktop ? '💾 Enregistrer sous…' : '💾 Télécharger',
           cls: 'ok',

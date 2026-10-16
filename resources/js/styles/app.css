@@ -1120,6 +1120,9 @@ html[data-theme="brillant"] .tab.active{background:linear-gradient(135deg,color-
   padding:9px 12px;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;color:inherit;text-align:left;}
 .menuChoixLigne:hover,.menuChoixLigne:focus-visible{background:var(--bg);}
 .menuChoixLigne small{color:var(--muted);font-size:11.5px;}
+/* « Envoyer à… » : sous les choix d'enregistrement, apres un filet. */
+.menuChoixLigne.envoi b{color:#558B2F;}
+.menuChoixLigne:not(.envoi)+.menuChoixLigne.envoi{border-top:1px solid var(--line);margin-top:4px;padding-top:10px;}
 
 /* Telephone : pas d'export PDF (voir main.js). */
 html.sansPdf [data-p],html.sansPdf [data-pdf]{display:none !important;}
