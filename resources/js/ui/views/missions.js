@@ -918,12 +918,58 @@ export function ajouterEtape(parcours, saisie) {
  *   changement d'etape ou de distance — pour les totaux qui en dependent
  * @returns {Function} redessine le parcours (apres un ajout depuis la liste)
  */
+/**
+ * Effacer des destinations de la liste deroulante, depuis un formulaire
+ * (mission ou simulation). Les missions et simulations deja enregistrees
+ * gardent leur nom de destination ; la destination perd sa fiche (distance,
+ * localisation), comme dans MISSION → DESTINATIONS.
+ *
+ * @param {(nom:string) => void} [surEffacement] apres chaque suppression
+ */
+function effacerDestinations(surEffacement) {
+  const corps = el('<div></div>');
+  const dessiner = () => {
+    const list = DB.destinationsMission.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
+    corps.innerHTML = list.length
+      ? list.map((d, i) => {
+          const n = missionsVersDestination(d.nom).length;
+          return '<div class="subEntryRow" style="align-items:center">' +
+            `<span><b>${esc(d.nom)}</b>${n ? `<br><small>${n} mission(s) l’utilisent — elles garderont ce nom</small>` : ''}</span>` +
+            `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 9px" data-eff="${i}" title="Effacer ${esc(d.nom)}">✕</button></div>`;
+        }).join('')
+      : '<p class="modalMsg">La liste des destinations est vide.</p>';
+    corps.querySelectorAll('[data-eff]').forEach((b) => {
+      b.onclick = async () => {
+        const d = list[Number(b.dataset.eff)];
+        if (!(await confirmDialog({
+          title: 'Effacer la destination',
+          message: `Effacer « ${d.nom} » de la liste des destinations ?`,
+          okLabel: 'Effacer', danger: true
+        }))) return;
+        remove('destinationsMission', d.id);
+        if (surEffacement) surEffacement(d.nom);
+        toast(`« ${d.nom} » effacée de la liste.`, 'ok');
+        dessiner();
+      };
+    });
+  };
+  dessiner();
+  openModal({
+    title: 'Effacer une destination de la liste',
+    bodyNode: corps,
+    buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }]
+  });
+}
+
 export function cablerParcours(scope, parcours, saisies, surChangement) {
   const ligneChamp = scope.querySelector('[data-key="destination"]').closest('.fRow');
   const bloc = el(
     '<div class="subBlock" style="margin-top:8px">' +
       `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">` +
         `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-ajout-etape>+ Ajouter cette destination</button>` +
+        (canWrite()
+          ? `<button type="button" class="miniBtn" style="background:${COLORS.grey}" data-effacer-dest title="Retirer une destination de la liste déroulante">🗑 Effacer une destination de la liste</button>`
+          : '') +
       '</div>' +
       '<div data-etapes></div>' +
       '<div data-resume style="margin-top:6px"></div>' +
@@ -951,6 +997,18 @@ export function cablerParcours(scope, parcours, saisies, surChangement) {
     n.focus();
   };
   boutonAjout.onclick = ajouterSaisie;
+
+  const boutonEffacer = bloc.querySelector('[data-effacer-dest]');
+  if (boutonEffacer) {
+    boutonEffacer.onclick = () => effacerDestinations((nom) => {
+      // La destination quitte aussi la liste du formulaire ouvert ; une
+      // etape deja dans le parcours y reste (on la retire par son ✕).
+      const liste = ligneChamp.querySelector('select[data-key="destination"]');
+      if (liste && !destinationMissionParNom(nom)) {
+        [...liste.options].filter((o) => norm(o.value) === norm(nom)).forEach((o) => o.remove());
+      }
+    });
+  }
 
   // Entree dans le champ de saisie ajoute l'etape au lieu d'enregistrer la
   // mission : on tape plusieurs destinations a la suite.
