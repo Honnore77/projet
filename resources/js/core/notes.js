@@ -6,12 +6,19 @@
      privee    lue par son auteur et les comptes qu'il a choisis.
 
    Les notes suivent la synchronisation comme le reste de la base. Ce que
-   chacun a deja lu est range sur son compte (`notesLues` : identifiant de
-   la note -> date de lecture), pas sur la note : deux comptes qui lisent
-   la meme note sur deux appareils ne se disputent pas la meme fiche.
+   chacun a deja lu n'est pas range sur la note : deux comptes qui lisent
+   la meme note sur deux appareils se disputeraient la meme fiche. Ni sur
+   le compte : la fiche du compte porte le mot de passe, et une fiche
+   modifiee sans cesse l'emporterait a la synchronisation sur un mot de
+   passe change entre-temps sur l'autre appareil.
 
-   Ces dates font aussi l'accuse de reception : l'expediteur voit qui a
-   lu sa note, et quand (✓ envoyee, ✓✓ lue).
+   Chaque compte a donc sa fiche de suivi (`suiviComptes`, meme
+   identifiant que le compte) :
+     notesLues  identifiant de la note -> date de lecture ;
+     activite   date du dernier signe de vie de la session ouverte.
+
+   Les dates de lecture font l'accuse de reception : l'expediteur voit qui
+   a lu sa note, et quand (✓ envoyee, ✓✓ lue).
 
    Comme les niveaux d'acces, la confidentialite d'une note privee tient a
    ce que l'application montre : la note n'est pas chiffree dans la base.
@@ -48,16 +55,26 @@ export function notesEnvoyees(compteId, db = DB) {
   return notesVisibles(compteId, db).filter((n) => n.auteurId === compteId);
 }
 
-/** Les lectures d'un compte : { idNote: date }. Une liste (premier format) vaut lecture sans date. */
-function lecturesDe(c) {
-  const l = c && c.notesLues;
-  if (Array.isArray(l)) return Object.fromEntries(l.map((id) => [id, '']));
+/** La fiche de suivi d'un compte, creee au besoin si `creer`. */
+export function suiviDe(compteId, db = DB, creer = false) {
+  if (!Array.isArray(db.suiviComptes)) db.suiviComptes = [];
+  let s = db.suiviComptes.find((x) => x.id === compteId) || null;
+  if (!s && creer && compteId) {
+    s = { id: compteId, notesLues: {}, activite: '' };
+    db.suiviComptes.push(s);
+  }
+  return s;
+}
+
+/** Les lectures d'un compte : { idNote: date }. */
+function lecturesDe(compteId, db) {
+  const l = (suiviDe(compteId, db) || {}).notesLues;
   return l && typeof l === 'object' ? l : {};
 }
 
 /** Date a laquelle le compte a lu la note, ou null s'il ne l'a pas lue. */
 export function luLe(note, compteId, db = DB) {
-  const lectures = lecturesDe(compteDe(compteId, db));
+  const lectures = lecturesDe(compteId, db);
   return Object.prototype.hasOwnProperty.call(lectures, note.id) ? lectures[note.id] : null;
 }
 
@@ -76,19 +93,63 @@ export function notesNonLues(compteId, db = DB) {
  * oubliees au passage, pour que la liste ne grossisse pas sans fin.
  */
 export function marquerLues(ids, compteId, db = DB, quand = new Date().toISOString()) {
-  const c = compteDe(compteId, db);
-  if (!c || !ids.length) return false;
+  if (!compteDe(compteId, db) || !ids.length) return false;
   const existantes = new Set((db.notes || []).map((n) => n.id));
-  const avant = lecturesDe(c);
+  const avant = lecturesDe(compteId, db);
   const apres = {};
   Object.keys(avant).forEach((id) => { if (existantes.has(id)) apres[id] = avant[id]; });
   ids.forEach((id) => { if (!(id in apres)) apres[id] = quand; });
-  const inchange = !Array.isArray(c.notesLues) && Object.keys(apres).length === Object.keys(avant).length
+  const inchange = Object.keys(apres).length === Object.keys(avant).length
     && Object.keys(apres).every((id) => avant[id] === apres[id]);
   if (inchange) return false;
-  c.notesLues = apres;
+  suiviDe(compteId, db, true).notesLues = apres;
   if (db === DB) persist({ silent: true });
   return true;
+}
+
+/* ------------------------- Comptes en ligne ------------------------- */
+
+/**
+ * Une session ouverte donne signe de vie chaque minute. Passe ce delai
+ * sans nouvelle, le compte n'est plus tenu pour en utilisation : une
+ * application fermee sans se deconnecter (telephone eteint, panne de
+ * courant) eteint ainsi son voyant d'elle-meme.
+ */
+export const DELAI_ACTIVITE_MS = 3 * 60 * 1000;
+
+/** Note le signe de vie (ou la deconnexion, avec `enLigne` faux) d'un compte. */
+export function signalerActivite(compteId, enLigne = true, db = DB, quand = new Date().toISOString()) {
+  if (!compteDe(compteId, db)) return;
+  suiviDe(compteId, db, true).activite = enLigne ? quand : '';
+  if (db === DB) persist({ silent: true });
+}
+
+/** Le compte a-t-il une session ouverte en ce moment ? */
+export function estEnUtilisation(compteId, db = DB, maintenant = Date.now()) {
+  const a = (suiviDe(compteId, db) || {}).activite;
+  if (!a) return false;
+  const t = new Date(a).getTime();
+  return !Number.isNaN(t) && maintenant - t < DELAI_ACTIVITE_MS && t - maintenant < DELAI_ACTIVITE_MS;
+}
+
+/**
+ * Le point des notes de chaque compte, pour la sous-rubrique COMPTES :
+ * envoyees, recues, lues, non lues, et le voyant d'utilisation.
+ */
+export function pointDesComptes(db = DB, maintenant = Date.now()) {
+  return (db.accounts || []).map((a) => {
+    const recues = notesRecues(a.id, db);
+    const nonLues = recues.filter((n) => !estLue(n, a.id, db)).length;
+    return {
+      compte: a,
+      enUtilisation: estEnUtilisation(a.id, db, maintenant),
+      envoyees: notesEnvoyees(a.id, db).length,
+      recues: recues.length,
+      lues: recues.length - nonLues,
+      nonLues
+    };
+  }).sort((x, y) => (y.enUtilisation - x.enUtilisation)
+    || String(x.compte.nom || x.compte.login).localeCompare(String(y.compte.nom || y.compte.login), 'fr'));
 }
 
 /**

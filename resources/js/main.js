@@ -5,7 +5,7 @@
 import './styles/app.css';
 import { initDB, persistNow, imagesCitees } from './core/db.js';
 import { menageImages } from './core/images.js';
-import { restoreSession, isLogged } from './core/auth.js';
+import { restoreSession, isLogged, arreterActivite } from './core/auth.js';
 import { renderLogin } from './ui/login.js';
 import { mountShell } from './ui/shell.js';
 import { destroyCharts } from './ui/charts.js';
@@ -80,7 +80,9 @@ function showApp() {
 }
 
 // Ecriture immediate avant fermeture, pour ne perdre aucune saisie.
+// Le voyant du compte s'eteint : l'application se ferme.
 window.addEventListener('beforeunload', () => {
+  arreterActivite();
   persistNow();
 });
 document.addEventListener('visibilitychange', () => {

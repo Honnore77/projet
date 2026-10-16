@@ -3,7 +3,9 @@
 
      REÇUES     notes publiques des autres et notes privees adressees
                 au compte connecte ;
-     ENVOYÉES   les notes ecrites par le compte connecte.
+       ENVOYÉES   les notes ecrites par le compte connecte ;
+     COMPTES    tous les comptes crees dans l'application, le point de
+                leurs notes, et un voyant vert pour ceux en utilisation.
 
    Ouverte a tous les comptes, quel que soit leur niveau d'acces : chacun
    ecrit, modifie et supprime ses propres notes. L'administrateur peut en
@@ -12,23 +14,25 @@
    =================================================================== */
 
 import { DB, insert, update, remove } from '../../core/db.js';
-import { currentUser } from '../../core/auth.js';
+import { currentUser, roleLabel } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm } from '../../core/utils.js';
-import { card, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, toolbar } from '../components.js';
+import { card, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, toolbar, dataTable } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
 import {
   PUBLIQUE, PRIVEE, notesRecues, notesEnvoyees, estLue, marquerLues, comptesDestinataires,
   nomDuCompte, peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
-  accusesDe, etatAccuse
+  accusesDe, etatAccuse, pointDesComptes
 } from '../../core/notes.js';
 
 const SUBS = [
   { key: 'recues', label: 'NOTES REÇUES' },
-  { key: 'envoyees', label: 'NOTES ENVOYÉES' }
+  { key: 'envoyees', label: 'NOTES ENVOYÉES' },
+  { key: 'comptes', label: 'COMPTES' }
 ];
 
 const COULEUR = () => moduleColor('NOTES');
 const COULEUR_ENVOI = '#455A64';
+const COULEUR_COMPTES = '#00695C';
 const COULEUR_PUBLIQUE = '#008A3B';
 const COULEUR_PRIVEE = '#6A3CB4';
 
@@ -52,9 +56,11 @@ export function renderNotes(page) {
     nouvelles.clear();
   }
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); }, { recues: COULEUR(), envoyees: COULEUR_ENVOI })
+    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); },
+      { recues: COULEUR(), envoyees: COULEUR_ENVOI, comptes: COULEUR_COMPTES })
   );
-  if (sub === 'envoyees') renderEnvoyees(page, moi);
+  if (sub === 'comptes') renderComptes(page, moi);
+  else if (sub === 'envoyees') renderEnvoyees(page, moi);
   else renderRecues(page, moi);
 }
 
@@ -133,6 +139,67 @@ function renderEnvoyees(page, moi) {
   }
   list.forEach((n) => page.appendChild(carteNote(n, moi, {})));
 }
+
+/* ============================ COMPTES ============================= */
+
+/**
+ * Tous les comptes crees, en tableau, sans formulaire : on y lit le
+ * point des notes de chacun. Le voyant vert s'allume pour les comptes
+ * dont une session est ouverte en ce moment ; il reste eteint pour les
+ * autres.
+ */
+function renderComptes(page, moi) {
+  page.appendChild(card(
+    'COMPTES',
+    'Tous les comptes créés dans l’application et le point de leurs notes. ' +
+      'Voyant vert allumé : compte en utilisation ; éteint : compte existant mais pas connecté.',
+    COULEUR_COMPTES
+  ));
+
+  const point = pointDesComptes();
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('Comptes', fmt(point.length), 'créés dans l’application', COULEUR_COMPTES));
+  grid.appendChild(statTile('En utilisation', fmt(point.filter((p) => p.enUtilisation).length), 'connectés en ce moment', '#2E7D32'));
+  grid.appendChild(statTile('Notes', fmt((DB.notes || []).length), 'écrites au total', COULEUR()));
+  page.appendChild(grid);
+
+  const etat = (a) => (a.enAttente ? 'En attente' : a.actif ? 'Actif' : 'Désactivé');
+  const couleurEtat = (a) => (a.enAttente ? '#F47B20' : a.actif ? '#008A3B' : '#8aa0a6');
+  const chiffre = (n, couleur) => (n ? `<b style="color:${couleur}">${fmt(n)}</b>` : '<span style="color:#8aa0a6">0</span>');
+
+  const headers = ['Compte', 'Identifiant', 'Rôle', 'État', 'Dernière connexion', 'Notes<br>envoyées', 'Notes<br>reçues', 'Lues', 'Non lues'];
+  const rows = point.map((p) => {
+    const a = p.compte;
+    return [
+      '<span style="white-space:nowrap">' +
+        `<span class="voyantCompte${p.enUtilisation ? ' allume' : ''}" title="${p.enUtilisation ? 'En utilisation' : 'Pas connecté'}"></span>` +
+        `<b>${esc(a.nom || a.login)}</b>${a.id === moi.id ? ' <span class="badge" style="background:#5b7178">vous</span>' : ''}</span>`,
+      esc(a.login || ''),
+      esc(roleLabel(a.role)),
+      `<span class="badge" style="background:${couleurEtat(a)}">${esc(etat(a))}</span>`,
+      esc(a.lastLogin ? quand(a.lastLogin) : 'jamais'),
+      chiffre(p.envoyees, COULEUR_ENVOI),
+      chiffre(p.recues, COULEUR()),
+      chiffre(p.lues, '#1976D2'),
+      chiffre(p.nonLues, '#D32F2F')
+    ];
+  });
+  page.appendChild(dataTable(headers, rows, (tr, i) => {
+    const a = point[i].compte;
+    tr.dataset.search = norm(`${a.nom} ${a.login} ${roleLabel(a.role)} ${etat(a)}`);
+  }, { fiche: false }));
+
+  // Les voyants changent avec le temps, sans que la base bouge : la page
+  // se redessine chaque minute tant qu'elle reste affichee.
+  if (!rafraichissement) {
+    rafraichissement = setInterval(() => {
+      if (state.module === 'NOTES' && state.sub.NOTES === 'comptes' && !document.querySelector('.modalBack, .modal')) rerender();
+      else { clearInterval(rafraichissement); rafraichissement = null; }
+    }, 60 * 1000);
+  }
+}
+
+let rafraichissement = null;
 
 function barreActions() {
   return toolbar([{ label: '+ Nouvelle note', cls: 'addBtn', color: COULEUR(), onClick: () => ouvrirNote(null) }]);

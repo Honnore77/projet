@@ -138,6 +138,8 @@ export function emptyDB() {
     destinataires: [],
     // NOTES : messagerie interne entre les comptes (voir core/notes.js).
     notes: [],
+    // Une fiche par compte : notes lues et signe de vie de la session.
+    suiviComptes: [],
     settings: {
       organisation: 'PDU',
       // Ville portee par la mention « Fait à … le … » des documents exportes.
@@ -313,7 +315,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);

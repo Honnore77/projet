@@ -11,6 +11,7 @@ import { DB, persist } from './db.js';
 import { hashPassword, verifyPassword } from './crypto.js';
 import { uid, norm } from './utils.js';
 import { ROLES_ACCES, definirCompte, peutSaisir, roleActuel } from './acces.js';
+import { signalerActivite } from './notes.js';
 
 // Les roles et ce qu'ils permettent : voir core/acces.js.
 export const ROLES = ROLES_ACCES;
@@ -18,6 +19,28 @@ export const ROLES = ROLES_ACCES;
 const SESSION_KEY = 'pdu_session';
 
 let session = null;
+
+/* ----------------------- Compte en utilisation ---------------------- */
+
+/** Une session ouverte donne signe de vie a ce rythme (voir core/notes.js). */
+const BATTEMENT_MS = 60 * 1000;
+let battement = null;
+
+function demarrerActivite(id) {
+  arreterActivite(false);
+  signalerActivite(id, true);
+  battement = setInterval(() => { if (session) signalerActivite(session.id, true); }, BATTEMENT_MS);
+}
+
+/**
+ * Arrete le signe de vie. `horsLigne` eteint aussi le voyant tout de suite
+ * (deconnexion, fermeture de l'application).
+ */
+export function arreterActivite(horsLigne = true) {
+  if (battement) clearInterval(battement);
+  battement = null;
+  if (horsLigne && session) signalerActivite(session.id, false);
+}
 
 export function currentUser() {
   return session;
@@ -70,6 +93,7 @@ export async function login(loginName, password) {
 }
 
 export function logout() {
+  arreterActivite();
   session = null;
   definirCompte(null);
   try { sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* ignore */ }
@@ -104,6 +128,7 @@ function setSession(acc) {
     mustChange: !!acc.mustChange
   };
   definirCompte(session);
+  if (!battement) demarrerActivite(acc.id);
   try { sessionStorage.setItem(SESSION_KEY, JSON.stringify(session)); } catch (e) { /* ignore */ }
 }
 

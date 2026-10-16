@@ -7,7 +7,7 @@ import { db, charger } from './aide.mjs';
 const {
   peutLire, notesRecues, notesEnvoyees, notesNonLues, marquerLues, comptesDestinataires,
   peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
-  accusesDe, etatAccuse, lecturesDeMesNotes, luLe
+  accusesDe, etatAccuse, lecturesDeMesNotes, luLe, suiviDe, signalerActivite, estEnUtilisation, pointDesComptes
 } = await import('../resources/js/core/notes.js');
 const { COLLECTIONS_SYNCHRO } = await import('../resources/js/core/synchro.js');
 
@@ -35,20 +35,44 @@ test('une note publique se lit par tous, une note privée par son auteur et ses 
   assert.deepEqual(notesEnvoyees('b').map((n) => n.id), ['n2', 'n1']);
 });
 
-test('les notes lues sont rangées sur le compte et ne comptent plus', async () => {
+test('les notes lues sont rangées sur la fiche de suivi, pas sur le compte', async () => {
   await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
   assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n2', 'n1']);
   assert.equal(marquerLues(['n1'], 'c', db.DB, '2026-10-16T11:00:00Z'), true);
   assert.equal(marquerLues(['n1'], 'c', db.DB, '2026-10-16T12:00:00Z'), false);
   assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n2']);
   // La premiere lecture garde sa date.
-  assert.deepEqual(db.DB.accounts.find((x) => x.id === 'c').notesLues, { n1: '2026-10-16T11:00:00Z' });
+  assert.equal(luLe(notes[0], 'c'), '2026-10-16T11:00:00Z');
+  assert.deepEqual(suiviDe('c').notesLues, { n1: '2026-10-16T11:00:00Z' });
+  // La fiche du compte, qui porte le mot de passe, n'a pas bouge.
+  assert.equal(db.DB.accounts.find((x) => x.id === 'c').notesLues, undefined);
 });
 
-test('une liste de lectures du premier format vaut lecture sans date', async () => {
-  await charger({ accounts: comptes.map((x) => (x.id === 'c' ? Object.assign({}, x, { notesLues: ['n2'] }) : x)), notes });
-  assert.equal(luLe(notes[1], 'c'), '');
-  assert.deepEqual(notesNonLues('c').map((n) => n.id), ['n1']);
+test('le voyant : allumé tant que la session donne signe de vie, éteint à la déconnexion', async () => {
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
+  const t = Date.parse('2026-10-16T12:00:00Z');
+  assert.equal(estEnUtilisation('b', db.DB, t), false);
+  signalerActivite('b', true, db.DB, '2026-10-16T11:59:00Z');
+  assert.equal(estEnUtilisation('b', db.DB, t), true);
+  // Plus de trois minutes sans signe de vie : l'application a ete fermee sans deconnexion.
+  assert.equal(estEnUtilisation('b', db.DB, t + 4 * 60 * 1000), false);
+  signalerActivite('b', false, db.DB);
+  assert.equal(estEnUtilisation('b', db.DB, t), false);
+  assert.equal(db.DB.accounts.find((x) => x.id === 'b').activite, undefined);
+});
+
+test('le point des comptes : notes envoyées, reçues, lues et non lues', async () => {
+  await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
+  marquerLues(['n1'], 'c');
+  signalerActivite('c', true, db.DB, new Date().toISOString());
+  const point = pointDesComptes();
+  // Les comptes en utilisation d'abord.
+  assert.equal(point[0].compte.id, 'c');
+  const parId = Object.fromEntries(point.map((p) => [p.compte.id, p]));
+  assert.deepEqual([parId.c.envoyees, parId.c.recues, parId.c.lues, parId.c.nonLues], [1, 2, 1, 1]);
+  assert.deepEqual([parId.b.envoyees, parId.b.recues, parId.b.lues, parId.b.nonLues], [2, 1, 0, 1]);
+  assert.equal(parId.d.enUtilisation, false);
+  assert.equal(point.length, 4);
 });
 
 test('accusé de réception : ✓ envoyée, ✓✓ lue en partie, ✓✓ lue par tous', async () => {
@@ -86,4 +110,5 @@ test('répondre à une note privée s’adresse à l’auteur et aux autres dest
 
 test('les notes suivent la synchronisation', () => {
   assert.ok(COLLECTIONS_SYNCHRO.includes('notes'));
+  assert.ok(COLLECTIONS_SYNCHRO.includes('suiviComptes'));
 });
