@@ -75,6 +75,14 @@ contextBridge.exposeInMainWorld('pduDesktop', {
   /** @returns {Promise<string[]>} identifiants presents dans le dossier */
   imageListe: () => ipcRenderer.invoke('image:list'),
 
+  /* --- Pieces jointes des notes, ouvertes dans Word, Excel ou le lecteur PDF --- */
+
+  /** @param {string} nom @param {number[]} bytes @returns {Promise<{ok:boolean, chemin?:string, erreur?:string}>} */
+  pieceOuvrir: (nom, bytes) => ipcRenderer.invoke('piece:ouvrir', nom, bytes),
+
+  /** @param {string} chemin copie rendue par pieceOuvrir @returns {Promise<number[]|null>} */
+  pieceRelire: (chemin) => ipcRenderer.invoke('piece:relire', chemin),
+
   /**
    * Pastille d'alertes sur le raccourci du bureau et la barre des taches.
    * @param {number} n nombre d'alertes (0 : icone d'origine)

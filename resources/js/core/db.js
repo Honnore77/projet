@@ -12,6 +12,7 @@ import { empreintesDe, estampiller } from './synchro.js';
 import { uid, num, norm, sum, daysBetween, francSup, todayISO } from './utils.js';
 import { hashPassword } from './crypto.js';
 import { validationAbsence } from './demandes.js';
+import { idsDesPieces } from './pieces.js';
 
 export const SCHEMA_VERSION = 4;
 
@@ -483,6 +484,10 @@ export function fichesAImages(db = DB) {
 export function imagesCitees(db = DB) {
   const vues = new Set();
   fichesAImages(db).forEach((f) => (f.images || []).forEach((i) => i && i.id && vues.add(i.id)));
+  // Les pieces jointes des notes (PDF, Excel, Word) vivent dans le meme
+  // magasin : citees ici, elles suivent la synchronisation et l'archive,
+  // et echappent au menage. Leurs versions precedentes aussi.
+  idsDesPieces((db.notes || []).flatMap((n) => n.pieces || [])).forEach((id) => vues.add(id));
   return vues;
 }
 

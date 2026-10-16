@@ -28,6 +28,7 @@
     "jspdf-autotable": "^5.0.8",
     "jsqr": "^1.4.0",
     "jszip": "3.10.2",
+    "mammoth": "1.11.0",
     "pdfjs-dist": "^4.10.38",
     "qrcode-generator": "^1.5.2",
     "xlsx-js-style": "^1.2.0"

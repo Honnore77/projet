@@ -227,6 +227,53 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--white);
 .noteAccuse div{margin-top:4px;padding-left:20px;line-height:1.5;overflow-wrap:anywhere;}
 .noteCoches{font-weight:800;letter-spacing:-3px;margin-right:4px;}
 .noteAccuse.lue .noteCoches{color:#1976D2;}
+/* Pieces jointes d'une note. */
+.notePieces{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+.notePiece{display:inline-flex;align-items:center;gap:6px;max-width:100%;border:1px solid var(--line);border-radius:10px;
+  background:var(--bg);padding:6px 10px;font-size:12.5px;color:var(--text);text-align:left;}
+button.notePiece:hover{border-color:#1976D2;background:color-mix(in srgb,#1976D2 8%,var(--white));}
+.notePiece b{font-weight:600;overflow-wrap:anywhere;}
+.notePiece i{font-style:normal;color:var(--muted);font-size:11.5px;white-space:nowrap;}
+.notePiece button{border:none;background:transparent;color:#D32F2F;font-size:13px;padding:0 2px;}
+
+/* Visionneuse et editeurs des pieces jointes. */
+.pjCorps{display:flex;flex-direction:column;height:100%;min-height:0;}
+.pjBandeau{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 14px;font-size:12.5px;
+  background:color-mix(in srgb,#F47B20 14%,var(--white));border-bottom:1px solid var(--line);}
+.pjBandeau[hidden]{display:none;}
+.pjZone{flex:1;min-height:0;display:flex;flex-direction:column;overflow:hidden;}
+.pjVersions{width:100%;font-size:12px;}
+.pjVersions summary{cursor:pointer;}
+.pjVersions .miniBtn{margin:4px 4px 0 0;padding:4px 8px;}
+.pjPapier{flex:1;overflow:auto;background:#525659;padding:18px 10px;}
+.docPage{background:#fff;color:#1b1b1b;max-width:820px;min-height:100%;margin:0 auto;padding:48px 56px;
+  box-shadow:0 2px 12px rgba(0,0,0,.35);font-family:Calibri,"Segoe UI",Arial,sans-serif;font-size:14.5px;line-height:1.5;}
+.docPage[contenteditable="true"]{outline:none;box-shadow:0 0 0 3px #1976D2,0 2px 12px rgba(0,0,0,.35);}
+.docPage img{max-width:100%;height:auto;}
+.docPage table{border-collapse:collapse;margin:8px 0;}
+.docPage td,.docPage th{border:1px solid #999;padding:4px 8px;vertical-align:top;}
+.docPage td p,.docPage th p{margin:0;}
+@media (max-width:600px){.docPage{padding:22px 18px;}}
+.pjClasseur{flex:1;min-height:0;display:flex;flex-direction:column;}
+.pjOnglets{display:flex;gap:4px;padding:6px 8px 0;overflow-x:auto;background:var(--bg);border-bottom:1px solid var(--line);}
+.pjOnglet{border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0;background:var(--white);
+  padding:6px 12px;font-size:12.5px;color:var(--muted);white-space:nowrap;}
+.pjOnglet.actif{background:#1D6F42;color:#fff;border-color:#1D6F42;font-weight:700;}
+.pjGrille{flex:1;overflow:auto;background:#fff;}
+.pjTable{border-collapse:collapse;font-size:12.5px;color:#1b1b1b;}
+.pjTable th{position:sticky;top:0;background:#f0f2f2;color:#555;font-weight:600;border:1px solid #d4d9da;padding:3px 8px;z-index:1;}
+.pjTable tbody th{position:sticky;left:0;z-index:0;}
+.pjTable td{border:1px solid #e1e5e6;padding:3px 8px;min-width:70px;max-width:320px;white-space:pre-wrap;overflow-wrap:anywhere;}
+.pjTable td.nb{text-align:right;}
+.pjTable td[contenteditable="true"]:focus{outline:2px solid #1D6F42;outline-offset:-2px;background:#f3fbf6;}
+.pjTable td.modifiee{background:#fff7e0;}
+.pjBarre{padding:8px 12px;background:var(--white);border-bottom:1px solid var(--line);}
+.pjBarre .pjOutils,.pjBarre .pjActions{display:flex;flex-wrap:wrap;gap:5px;align-items:center;}
+.pjBarre .pjActions{margin-top:6px;justify-content:flex-end;}
+.pjOutil{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:5px 9px;font-size:12.5px;color:var(--text);min-width:32px;}
+.pjOutil:hover{border-color:#1976D2;}
+.pjAvert{margin:6px 0 0;font-size:11.5px;color:var(--muted);}
+
 /* Voyant d'un compte : vert allume en utilisation, gris eteint sinon. */
 .voyantCompte{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px;vertical-align:-1px;
   background:#c3cdd0;box-shadow:inset 0 1px 2px rgba(0,0,0,.25);}

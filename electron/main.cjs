@@ -346,6 +346,55 @@ ipcMain.handle('image:list', () => {
   }
 });
 
+/* -------------- Pieces jointes ouvertes dans Word ou Excel -------------- */
+
+/**
+ * Une piece jointe d'une note s'ouvre dans le logiciel du PC (Word, Excel,
+ * le lecteur PDF) a partir d'une copie de travail. Quand l'utilisateur a
+ * enregistre ses modifications, l'application relit cette copie et en fait
+ * une nouvelle version de la piece.
+ */
+function piecesOuvertesDir() {
+  return path.join(app.getPath('userData'), 'pieces-ouvertes');
+}
+
+/** Les copies de travail de plus d'une semaine sont oubliees. */
+function menagePiecesOuvertes() {
+  const limite = Date.now() - 7 * 24 * 3600 * 1000;
+  try {
+    fs.readdirSync(piecesOuvertesDir()).forEach((d) => {
+      const p = path.join(piecesOuvertesDir(), d);
+      if (fs.statSync(p).mtimeMs < limite) fs.rmSync(p, { recursive: true, force: true });
+    });
+  } catch (e) { /* aucun dossier */ }
+}
+
+ipcMain.handle('piece:ouvrir', async (_evt, nom, bytes) => {
+  menagePiecesOuvertes();
+  const propre = path.basename(String(nom || '')).replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').trim() || 'document';
+  const dossier = path.join(piecesOuvertesDir(), `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`);
+  try {
+    fs.mkdirSync(dossier, { recursive: true });
+    const f = path.join(dossier, propre);
+    fs.writeFileSync(f, Buffer.from(bytes));
+    const erreur = await shell.openPath(f);
+    return erreur ? { ok: false, erreur } : { ok: true, chemin: f };
+  } catch (e) {
+    return { ok: false, erreur: String(e.message || e) };
+  }
+});
+
+ipcMain.handle('piece:relire', (_evt, chemin) => {
+  const f = path.resolve(String(chemin || ''));
+  // Seules les copies de travail se relisent : rien d'autre sur le disque.
+  if (!f.startsWith(piecesOuvertesDir() + path.sep)) return null;
+  try {
+    return fs.existsSync(f) ? Array.from(fs.readFileSync(f)) : null;
+  } catch (e) {
+    return null;
+  }
+});
+
 ipcMain.handle('file:save', async (_evt, filename, bytes) => {
   const res = await dialog.showSaveDialog(win, {
     title: 'Enregistrer le fichier',

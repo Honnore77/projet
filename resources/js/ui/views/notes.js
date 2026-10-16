@@ -18,6 +18,8 @@ import { currentUser, roleLabel } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm } from '../../core/utils.js';
 import { card, filterBar, subtabs, emptyState, openForm, confirmDialog, toast, statTile, toolbar, dataTable } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
+import { FORMATS, ACCEPT, TAILLE_MAX, taillePiece, ajouterPiece, nouvelleVersion } from '../../core/pieces.js';
+import { ouvrirPiece } from '../pieceViewer.js';
 import {
   PUBLIQUE, PRIVEE, notesRecues, notesEnvoyees, estLue, marquerLues, comptesDestinataires,
   nomDuCompte, peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
@@ -244,6 +246,12 @@ function carteNote(n, moi, { nouvelle }) {
         ? `<div class="noteReponseA">↩ En réponse à « ${esc(parent ? parent.sujet || '(sans sujet)' : 'une note supprimée')} »</div>`
         : '') +
       `<div class="noteTexte">${escLignes(n.texte || '')}</div>` +
+      ((n.pieces || []).length
+        ? `<div class="notePieces">${n.pieces.map((p, i) =>
+          `<button type="button" class="notePiece" data-piece="${i}" title="Ouvrir ${esc(p.nom)}">` +
+            `<span>${(FORMATS[p.type] || {}).icone || '📄'}</span><b>${esc(p.nom)}</b>` +
+            `<i>${esc(taillePiece(p.taille))}${p.modifieLe ? ` · modifié par ${esc(p.modifiePar || '—')}` : ''}</i></button>`).join('')}</div>`
+        : '') +
       (n.auteurId === moi.id ? accuseHtml(n) : '') +
       '<div class="noteActions">' +
         (n.auteurId !== moi.id ? '<button type="button" class="miniBtn" data-repondre style="background:#1976D2">↩ Répondre</button>' : '') +
@@ -254,6 +262,22 @@ function carteNote(n, moi, { nouvelle }) {
     '</div>'
   );
   carte.dataset.search = norm(`${n.sujet} ${n.texte} ${n.auteurNom} ${destinataires}`);
+
+  // Une piece s'ouvre pour tous ses lecteurs ; chacun peut la modifier
+  // (Word, Excel) : la modification devient une nouvelle version.
+  carte.querySelectorAll('[data-piece]').forEach((b) => {
+    b.onclick = () => {
+      const p = n.pieces[Number(b.dataset.piece)];
+      ouvrirPiece(p, {
+        peutModifier: true,
+        enregistrer: async (octets) => {
+          await nouvelleVersion(p, octets, moi);
+          update('notes', n.id, { pieces: n.pieces });
+          rerender();
+        }
+      });
+    };
+  });
 
   const rep = carte.querySelector('[data-repondre]');
   if (rep) rep.onclick = () => ouvrirNote(null, n);
@@ -305,13 +329,15 @@ function accuseHtml(n) {
  * pour une note privee, s'adresse a son auteur et a ses autres
  * destinataires.
  */
-function ouvrirNote(note, parent = null) {
+function ouvrirNote(note, parent = null, depart = {}) {
   const moi = currentUser();
   if (!moi) return;
   const comptes = comptesDestinataires(moi.id);
   const visibilite = note ? note.visibilite : parent ? parent.visibilite : PRIVEE;
-  const coches = new Set(note ? note.destinataires || [] : parent ? destinatairesReponse(parent, moi.id) : []);
-  const sujet = note ? note.sujet : parent ? `Re : ${String(parent.sujet || '').replace(/^Re\s*:\s*/i, '')}` : '';
+  const coches = new Set(note ? note.destinataires || [] : parent ? destinatairesReponse(parent, moi.id) : depart.destinataires || []);
+  const sujet = note ? note.sujet : parent ? `Re : ${String(parent.sujet || '').replace(/^Re\s*:\s*/i, '')}` : depart.sujet || '';
+  // Les pieces de la note, modifiees sur une copie : Annuler n'y touche pas.
+  const pieces = (note ? note.pieces || [] : depart.pieces || []).map((p) => Object.assign({}, p));
 
   const fields = [
     {
@@ -337,12 +363,51 @@ function ouvrirNote(note, parent = null) {
     '</div>'
   );
 
+  // Pieces jointes : PDF, Excel, Word. Rangees des qu'on les choisit (comme
+  // les photos) ; une piece abandonnee part au menage du demarrage.
+  const zonePieces = el(
+    '<div class="noteDest">' +
+      '<div class="noteDestTete"><b>Pièces jointes</b>' +
+        `<label class="miniBtn" style="background:#1976D2;cursor:pointer">📎 Joindre un fichier` +
+        `<input type="file" accept="${ACCEPT}" multiple hidden></label></div>` +
+      '<div class="notePieces" data-liste></div>' +
+      `<p class="hint">PDF, Excel (.xlsx, .xls) ou Word (.docx), ${esc(taillePiece(TAILLE_MAX))} au plus par fichier.</p>` +
+    '</div>'
+  );
+  const liste = zonePieces.querySelector('[data-liste]');
+  const dessinerPieces = () => {
+    liste.innerHTML = '';
+    pieces.forEach((p, i) => {
+      const puce = el(
+        `<span class="notePiece"><span>${(FORMATS[p.type] || {}).icone || '📄'}</span><b>${esc(p.nom)}</b>` +
+        `<i>${esc(taillePiece(p.taille))}</i><button type="button" title="Retirer">✕</button></span>`
+      );
+      puce.querySelector('button').onclick = () => { pieces.splice(i, 1); dessinerPieces(); };
+      liste.appendChild(puce);
+    });
+  };
+  const entree = zonePieces.querySelector('input[type="file"]');
+  entree.onchange = async () => {
+    const fichiers = [...entree.files];
+    entree.value = '';
+    for (const f of fichiers) {
+      try {
+        pieces.push(await ajouterPiece(f, moi));
+      } catch (e) {
+        toast((e && e.message) || 'Fichier refusé.', 'err', 5000);
+      }
+    }
+    dessinerPieces();
+  };
+  dessinerPieces();
+
   openForm({
     title: note ? 'MODIFIER LA NOTE' : parent ? 'RÉPONDRE' : 'NOUVELLE NOTE',
     okLabel: note ? 'Enregistrer' : 'Envoyer',
     fields,
     extra: (scope) => {
       scope.querySelector('.fGrid').after(zone);
+      zone.after(zonePieces);
       const tous = zone.querySelector('[data-tous]');
       tous.onclick = () => {
         const cases = [...zone.querySelectorAll('input[type="checkbox"]')];
@@ -356,7 +421,7 @@ function ouvrirNote(note, parent = null) {
         ? [...zone.querySelectorAll('input[type="checkbox"]:checked')].map((x) => x.value)
         : [];
       if (v.visibilite === PRIVEE && !destinataires.length) return 'Choisissez au moins un destinataire, ou rendez la note publique.';
-      const contenu = { visibilite: v.visibilite, sujet: v.sujet, texte: v.texte, destinataires };
+      const contenu = { visibilite: v.visibilite, sujet: v.sujet, texte: v.texte, destinataires, pieces };
       if (note) {
         update('notes', note.id, Object.assign(contenu, { modifieLe: new Date().toISOString() }));
         toast('Note modifiée.', 'ok');
@@ -374,4 +439,13 @@ function ouvrirNote(note, parent = null) {
       return null;
     }
   });
+}
+
+/**
+ * Ecrire une nouvelle note depuis une autre rubrique — un export envoye a
+ * un compte, par exemple : le fichier arrive deja joint.
+ * @param {{sujet?:string, pieces?:object[], destinataires?:string[]}} depart
+ */
+export function ecrireNote(depart = {}) {
+  ouvrirNote(null, null, depart);
 }

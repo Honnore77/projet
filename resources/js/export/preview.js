@@ -98,7 +98,7 @@ export function previewAndSave({ kind, bytes, filename, mime, datasets = [], tit
  * Le PC et les navigateurs de bureau affichent un PDF eux-memes. Le
  * navigateur integre d'Android, non : un cadre PDF y reste vide.
  */
-function lecteurPdfIntegre() {
+export function lecteurPdfIntegre() {
   if (isDesktop) return true;
   return typeof navigator !== 'undefined' && navigator.pdfViewerEnabled === true;
 }
@@ -107,7 +107,7 @@ function lecteurPdfIntegre() {
  * Sans lecteur integre, les pages sont dessinees une a une par pdf.js,
  * charge seulement a ce moment-la : le PC ne le telecharge jamais.
  */
-function pagesPdfNode(bytes) {
+export function pagesPdfNode(bytes) {
   const zone = el('<div class="apercuPages"><p class="apercuNote">Préparation de l’aperçu…</p></div>');
   (async () => {
     try {
