@@ -136,6 +136,8 @@ export function emptyDB() {
     // vehicule retient celui de son utilisateur : c'est ce qui s'imprime.
     decharges: [],
     destinataires: [],
+    // NOTES : messagerie interne entre les comptes (voir core/notes.js).
+    notes: [],
     settings: {
       organisation: 'PDU',
       // Ville portee par la mention « Fait à … le … » des documents exportes.
@@ -311,7 +313,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);

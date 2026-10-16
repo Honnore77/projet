@@ -3,6 +3,7 @@
    =================================================================== */
 
 import { el, debounce, norm, fmt } from '../core/utils.js';
+import { toast } from './components.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
 import { DB, onChange, voyantsVidange, vehiculesImmobilises, vehicleByImmat, allVehicles, immatOf, STATUT_NON_ATTRIBUE } from '../core/db.js';
 import {
@@ -18,6 +19,8 @@ import { renderDotation } from './views/dotation.js';
 import { renderMissions } from './views/missions.js';
 import { renderMaintenance } from './views/maintenance.js';
 import { renderDecharges } from './views/decharges.js';
+import { renderNotes } from './views/notes.js';
+import { notesNonLues } from '../core/notes.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
@@ -44,6 +47,8 @@ export const MODULES = [
   { key: 'DECHARGE', label: 'DÉCHARGE', color: '#8D6E63' },
   { key: 'SIMULATION', label: 'SIMULATION', color: '#3949AB' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
+  // Messagerie interne : chaque compte y ecrit et y lit ses notes.
+  { key: 'NOTES', label: 'NOTES', color: '#558B2F', pourTous: true },
   // Ouverte a tous les comptes : style et taille de l'affichage.
   { key: 'PREDEFINIS', label: 'RÉGLAGES PRÉDÉFINIS', color: '#00897B', pourTous: true },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
@@ -65,6 +70,7 @@ const TITLES = {
   DECHARGE: 'DÉCHARGE',
   SIMULATION: 'SIMULATION',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
+  NOTES: 'NOTES',
   PREDEFINIS: 'RÉGLAGES PRÉDÉFINIS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
@@ -75,9 +81,10 @@ const TITLES = {
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste', ENTRETIEN: 'liste' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste', ENTRETIEN: 'liste', NOTES: 'recues' },
   vehicleSheetImmat: null,
   userSheetId: null,
+  visite: 0,
   query: '',
   filters: {
     vehicules: { statut: '', section: '' },
@@ -150,7 +157,7 @@ export function mountShell(appRoot, { onLogout }) {
   // reconnecter remonte la coquille : sans ce desabonnement, un second
   // abonnement ecrirait dans un bandeau qui n'est plus a l'ecran.
   if (stopAlertWatch) stopAlertWatch();
-  stopAlertWatch = onChange(renderAlertBar);
+  stopAlertWatch = onChange(() => { renderAlertBar(); majBadgeNotes(); });
   // Le bandeau change de forme selon la largeur : detaille sur un ecran
   // large, reduit a des comptes sur un telephone. Il doit donc se redessiner
   // quand la fenetre change de taille, pas seulement quand la base bouge.
@@ -175,6 +182,10 @@ export function mountShell(appRoot, { onLogout }) {
   };
 
   buildTabs();
+  if (!notesBadgeBound) {
+    document.addEventListener('notes-lues', majBadgeNotes);
+    notesBadgeBound = true;
+  }
 
   searchInput.addEventListener(
     'input',
@@ -188,6 +199,10 @@ export function mountShell(appRoot, { onLogout }) {
   globalBtn.onclick = () => navigate('RECHERCHE_GLOBALE');
 
   navigate(premiereRubrique());
+
+  // A l'arrivee, les notes qui attendent le compte.
+  const n = u ? notesNonLues(u.id).length : 0;
+  if (n) toast(`📬 ${n} nouvelle${n > 1 ? 's' : ''} note${n > 1 ? 's' : ''} dans NOTES.`, 'info', 5000);
 }
 
 /**
@@ -214,8 +229,23 @@ function buildTabs() {
     b.dataset.mod = m.key;
     b.style.setProperty('--tabColor', m.color);
     b.onclick = () => navigate(m.key);
+    if (m.key === 'NOTES') b.appendChild(el('<span class="tabBadge" hidden></span>'));
     tabsEl.appendChild(b);
   });
+  majBadgeNotes();
+}
+
+let notesBadgeBound = false;
+
+/** Nombre de notes non lues, sur l'onglet NOTES. */
+function majBadgeNotes() {
+  const u = currentUser();
+  const badge = tabsEl && tabsEl.querySelector('.tabBadge');
+  if (!badge || !u) return;
+  const n = notesNonLues(u.id).length;
+  badge.hidden = !n;
+  badge.textContent = n > 99 ? '99+' : String(n);
+  badge.title = `${n} note(s) non lue(s)`;
 }
 
 /** Change de rubrique. */
@@ -223,6 +253,9 @@ export function navigate(moduleKey, params = {}) {
   // Un style seulement apercu (RÉGLAGES PRÉDÉFINIS) ne survit pas a la page.
   annulerApercuTheme();
   state.module = moduleKey;
+  // Chaque ouverture de rubrique est une nouvelle visite (NOTES s'en sert
+  // pour garder ses notes « Nouvelle » tant qu'on reste sur la page).
+  state.visite += 1;
   if (params.immat !== undefined) state.vehicleSheetImmat = params.immat;
   if (params.userId !== undefined) state.userSheetId = params.userId;
   if (moduleKey !== 'RECHERCHE_GLOBALE') {
@@ -425,7 +458,8 @@ export function rerender() {
   // siens dans MISSION (rapport) et CONGES (ses demandes).
   const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
   // RÉGLAGES PRÉDÉFINIS ne touche pas aux donnees : jamais en lecture seule.
-  const reglagesPerso = rub === 'PREDEFINIS';
+  // NOTES non plus : chacun y ecrit ses propres notes.
+  const reglagesPerso = rub === 'PREDEFINIS' || rub === 'NOTES';
   document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches && !reglagesPerso);
   document.body.classList.toggle('sansSuppression', !peutSupprimer(rub));
   if (pageAutorisee(rub)) {
@@ -456,6 +490,7 @@ function pageAutorisee(rub) {
   const m = state.module;
   if (m === 'REGLAGES') return canAdmin();
   if (m === 'PREDEFINIS') return true;
+  if (m === 'NOTES') return true;
   if (m === 'RECHERCHE_GLOBALE') return true;
   if (m === 'FICHE_VEHICULE') {
     return voitTout('VEHICULES') || (seulementSiennes('VEHICULES') && estAMoi('VEHICULES', vehicleByImmat(state.vehicleSheetImmat)));
@@ -478,6 +513,7 @@ const ROUTES = {
   DECHARGE: renderDecharges,
   SIMULATION: renderSimulation,
   RAPPORTS: renderReports,
+  NOTES: renderNotes,
   PREDEFINIS: renderPredefinis,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,

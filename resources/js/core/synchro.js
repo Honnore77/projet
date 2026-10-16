@@ -26,7 +26,7 @@
 export const COLLECTIONS_SYNCHRO = [
   'accounts', 'users', 'dotationPool', 'missions', 'maintenance',
   'decharges', 'destinataires', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
-  'demandes'
+  'demandes', 'notes'
 ];
 
 /** Les vehicules, ranges par categorie, se synchronisent comme une seule liste. */
@@ -47,7 +47,7 @@ export const LIBELLES_COLLECTIONS = {
   accounts: 'Comptes', users: 'Utilisateurs', dotationPool: 'Dotations pool', missions: 'Missions',
   maintenance: 'Entretien', decharges: 'Décharges', destinataires: 'Destinataires',
   destinationsMission: 'Destinations', trajets: 'Trajets', simulations: 'Simulations',
-  indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', vehicules: 'Véhicules', reglages: 'Réglages'
+  indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', notes: 'Notes', vehicules: 'Véhicules', reglages: 'Réglages'
 };
 
 /* ---------------------------- Empreintes ---------------------------- */
@@ -165,6 +165,7 @@ export function libelleFiche(c, f) {
   if (c === 'decharges') return [f.ref, f.destinataire].filter(Boolean).join(' — ');
   if (c === 'indisponibilites') return [f.conducteur, f.motif, f.dateDepart].filter(Boolean).join(' — ');
   if (c === 'demandes') return [f.agent || f.nomPrenoms, f.type === 'conge' ? 'congé' : 'absence', f.dateDebut].filter(Boolean).join(' — ');
+  if (c === 'notes') return [f.auteurNom, f.sujet].filter(Boolean).join(' — ');
   if (c === 'trajets') return `${f.a || ''} — ${f.b || ''}`;
   if (c === 'simulations') return (f.destinations || []).join(', ') || f.dateDepart || '';
   return f.nom || f.ref || f.id || '';
