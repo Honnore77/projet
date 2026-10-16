@@ -11,7 +11,7 @@ const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
 const { sauvegardeDatee, listerSauvegardes, miroirImages, dossierCopies } = require('./sauvegarde.cjs');
-const { creerServeurSynchro } = require('./synchro-serveur.cjs');
+const { creerServeurSynchro, adressesLocales, codeLisible } = require('./synchro-serveur.cjs');
 const os = require('node:os');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
@@ -209,7 +209,15 @@ ipcMain.handle('db:load', () => {
   }
 });
 
+/**
+ * Version de la base de ce PC : l'heure du dernier enregistrement. Les
+ * postes du bureau la demandent toutes les quelques secondes et ne
+ * synchronisent que si elle a change (ou s'ils ont eux-memes du nouveau).
+ */
+let versionBase = Date.now();
+
 ipcMain.handle('db:save', (_evt, raw) => {
+  versionBase = Date.now();
   try {
     const file = dataFile();
     // copie de securite de la version precedente avant d ecraser
@@ -267,6 +275,104 @@ const serveurSynchro = creerServeurSynchro({
 /** Affiche le code QR : ouvre le serveur et rend son adresse et son jeton. */
 ipcMain.handle('synchro:demarrer', async () => serveurSynchro.demarrer());
 ipcMain.handle('synchro:arreter', () => { serveurSynchro.arreter(); return true; });
+
+/* ------------------------- Réseau du bureau ------------------------- */
+
+/**
+ * Plusieurs PC, une seule base, sans Internet : un PC est le serveur du
+ * bureau (sa base fait reference), les autres sont des postes qui s'y
+ * synchronisent en continu sur le reseau local.
+ *
+ * Le reglage est propre a chaque PC : il vit dans un fichier a cote de la
+ * base, pas dans la base (qui se synchronise, elle).
+ *   mode     'seul' (par defaut), 'serveur' ou 'poste'
+ *   port     port du serveur (47800 par defaut)
+ *   code     code du bureau, exige a chaque echange
+ *   serveur  adresse du PC serveur (poste)
+ */
+const PORT_BUREAU = 47800;
+
+function fichierReseau() {
+  return path.join(app.getPath('userData'), 'reseau.json');
+}
+
+function lireReseau() {
+  try {
+    const c = JSON.parse(fs.readFileSync(fichierReseau(), 'utf8'));
+    return Object.assign({ mode: 'seul', port: PORT_BUREAU, code: '', serveur: '' }, c);
+  } catch (e) {
+    return { mode: 'seul', port: PORT_BUREAU, code: '', serveur: '' };
+  }
+}
+
+function ecrireReseau(c) {
+  fs.mkdirSync(path.dirname(fichierReseau()), { recursive: true });
+  fs.writeFileSync(fichierReseau(), JSON.stringify(c, null, 2));
+}
+
+/** Le code du bureau : lisible, a recopier sur chaque poste. */
+const nouveauCodeBureau = codeLisible;
+
+const serveurBureau = creerServeurSynchro({
+  imagesDir,
+  imageFile,
+  demanderFusion,
+  version: () => versionBase,
+  surEtat: (etat) => { if (win) win.webContents.send('reseau:etat', etat); },
+  nom: `PC ${os.hostname()}`
+});
+let erreurBureau = '';
+
+/** Ouvre ou ferme le serveur du bureau selon le reglage. */
+async function appliquerReseau() {
+  const c = lireReseau();
+  erreurBureau = '';
+  if (c.mode !== 'serveur') { serveurBureau.arreter(); return; }
+  try {
+    await serveurBureau.demarrerPermanent({ port: c.port || PORT_BUREAU, code: c.code });
+  } catch (e) {
+    erreurBureau = e && e.code === 'EADDRINUSE'
+      ? `Le port ${c.port || PORT_BUREAU} est déjà utilisé sur ce PC (une autre copie de l’application est-elle ouverte ?).`
+      : String((e && e.message) || e);
+  }
+}
+
+function etatReseau() {
+  const c = lireReseau();
+  return Object.assign({}, c, {
+    nomPC: `PC ${os.hostname()}`,
+    adresses: adressesLocales(),
+    actif: serveurBureau.permanent(),
+    erreur: erreurBureau
+  });
+}
+
+ipcMain.handle('reseau:lire', () => etatReseau());
+
+/** Enregistre le reglage (mode, adresse du serveur, code) et l'applique. */
+ipcMain.handle('reseau:enregistrer', async (_evt, choix) => {
+  const c = lireReseau();
+  const mode = ['seul', 'serveur', 'poste'].includes(choix && choix.mode) ? choix.mode : 'seul';
+  const suite = Object.assign({}, c, { mode });
+  if (mode === 'serveur' && !suite.code) suite.code = nouveauCodeBureau();
+  if (mode === 'poste') {
+    suite.serveur = String((choix && choix.serveur) || '').trim();
+    suite.code = String((choix && choix.code) || '').trim().toUpperCase();
+  }
+  if (choix && choix.port) suite.port = Number(choix.port) || PORT_BUREAU;
+  ecrireReseau(suite);
+  await appliquerReseau();
+  return etatReseau();
+});
+
+/** Nouveau code du bureau : les postes devront saisir le nouveau. */
+ipcMain.handle('reseau:nouveauCode', async () => {
+  const c = lireReseau();
+  c.code = nouveauCodeBureau();
+  ecrireReseau(c);
+  await appliquerReseau();
+  return etatReseau();
+});
 
 /** Choix du dossier de sauvegarde. @returns {Promise<string|null>} */
 ipcMain.handle('backup:dossier', async () => {
@@ -506,12 +612,16 @@ if (!app.requestSingleInstanceLock()) {
   app.whenReady().then(() => {
     buildMenu();
     createWindow();
+    // PC serveur du bureau : le serveur s'ouvre avec l'application. Les
+    // demandes qui arrivent avant que la fenetre soit prete attendent sa
+    // reponse (voir demanderFusion).
+    appliquerReseau();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
     });
   });
 
-  app.on('before-quit', () => serveurSynchro.arreter());
+  app.on('before-quit', () => { serveurSynchro.arreter(); serveurBureau.arreter(); });
 
   app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') app.quit();

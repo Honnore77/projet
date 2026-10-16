@@ -2264,6 +2264,19 @@ export function appareilsSynchronises() {
  * Installe la base fusionnee. Elle est deja a jour des deux cotes : rien
  * n'est date, et la synchronisation avec l'autre appareil est notee.
  */
+/**
+ * Synchronisation sans rien de nouveau a recevoir : on note seulement sa
+ * date (elle sert a reconnaitre les conflits), sans redessiner ni dater les
+ * fiches.
+ */
+export function noterSynchroAvec(autre, quand = new Date().toISOString()) {
+  if (!DB.synchro || !autre || !autre.id) return;
+  DB.synchro.appareils = Object.assign({}, DB.synchro.appareils, {
+    [autre.id]: { nom: autre.nom || 'Autre appareil', derniere: quand }
+  });
+  persist({ silent: true });
+}
+
 export async function appliquerSynchro(fusion, autre, quand = new Date().toISOString()) {
   const moi = DB.synchro;
   const next = normalize(fusion);

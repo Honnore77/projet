@@ -67,7 +67,7 @@ export async function traiterDemandePC(payload) {
 /* --------------------------- Cote telephone -------------------------- */
 
 /** Une requete au PC, avec le jeton et un delai au-dela duquel on abandonne. */
-async function requete(base, jeton, chemin, { methode = 'GET', corps, delai = 15000 } = {}) {
+export async function requete(base, jeton, chemin, { methode = 'GET', corps, delai = 15000 } = {}) {
   const ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
   const minuterie = ctrl ? setTimeout(() => ctrl.abort(), delai) : null;
   try {
@@ -128,27 +128,35 @@ export async function synchroniserAvecPC(qr, suivre = () => {}) {
   });
   await appliquerSynchro(reponse.db, reponse.pc, reponse.pc.quand);
 
-  // Les photos : chacun recoit celles qui lui manquent. On ne transfere que
-  // les photos citees par une fiche ; les autres ne servent a rien.
   suivre('Échange des photos…');
+  const { recues, envoyees } = await echangerImages(base, qr.jeton);
+
+  await requete(base, qr.jeton, '/pdu/termine', { methode: 'POST', corps: { images: { recues: envoyees, envoyees: recues } } });
+  return { rapport: reponse.rapport, pc: reponse.pc, images: { recues, envoyees } };
+}
+
+/**
+ * Les photos et pieces jointes : chacun recoit celles qui lui manquent. On
+ * ne transfere que celles citees par une fiche ; les autres ne servent a rien.
+ * @returns {Promise<{recues:number, envoyees:number}>}
+ */
+export async function echangerImages(base, jeton) {
   const citees = imagesCitees();
   const ici = new Set(await toutesLesImages());
-  const la = new Set(((await requete(base, qr.jeton, '/pdu/images')).ids) || []);
+  const la = new Set(((await requete(base, jeton, '/pdu/images')).ids) || []);
   let recues = 0;
   let envoyees = 0;
   for (const id of citees) {
     if (!ici.has(id) && la.has(id)) {
-      const { b64 } = await requete(base, qr.jeton, `/pdu/image/${encodeURIComponent(id)}`, { delai: 30000 });
+      const { b64 } = await requete(base, jeton, `/pdu/image/${encodeURIComponent(id)}`, { delai: 30000 });
       if (b64) { await poserImage(id, depuisBase64(b64)); recues += 1; }
     } else if (ici.has(id) && !la.has(id)) {
       const octets = await octetsImage(id);
       if (octets) {
-        await requete(base, qr.jeton, `/pdu/image/${encodeURIComponent(id)}`, { methode: 'PUT', corps: { b64: enBase64(octets) }, delai: 30000 });
+        await requete(base, jeton, `/pdu/image/${encodeURIComponent(id)}`, { methode: 'PUT', corps: { b64: enBase64(octets) }, delai: 30000 });
         envoyees += 1;
       }
     }
   }
-
-  await requete(base, qr.jeton, '/pdu/termine', { methode: 'POST', corps: { images: { recues: envoyees, envoyees: recues } } });
-  return { rapport: reponse.rapport, pc: reponse.pc, images: { recues, envoyees } };
+  return { recues, envoyees };
 }

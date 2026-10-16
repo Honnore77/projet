@@ -19,7 +19,7 @@ import {
   card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
 import { rerender } from '../shell.js';
-import { renderSynchroSection } from './synchroUI.js';
+import { renderSynchroSection, renderReseauSection } from './synchroUI.js';
 import { apparenceNode } from '../apparence.js';
 
 export function renderSettings(page) {
@@ -36,6 +36,7 @@ export function renderSettings(page) {
   renderNiveauxSection(page);
   renderThresholdsSection(page);
   renderApparenceSection(page);
+  renderReseauSection(page);
   renderSynchroSection(page);
   renderAutoBackupSection(page);
   renderBackupSection(page);

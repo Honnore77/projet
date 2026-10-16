@@ -280,6 +280,21 @@ button.notePiece:hover{border-color:#1976D2;background:color-mix(in srgb,#1976D2
 .etatPb small{color:#8a5a5a;font-weight:400;white-space:nowrap;}
 .etatRas{display:inline-block;color:#008A3B;font-weight:800;letter-spacing:1px;white-space:nowrap;}
 
+/* RÉGLAGES → Réseau du bureau : les trois modes. */
+.reseauModes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px;}
+.reseauMode{display:flex;flex-direction:column;gap:3px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;background:var(--white);}
+.reseauMode input{position:absolute;opacity:0;pointer-events:none;}
+.reseauMode b{font-size:13.5px;}
+.reseauMode small{color:var(--muted);font-size:12px;line-height:1.4;}
+.reseauMode.choisi{border-color:#1565C0;box-shadow:0 0 0 3px rgba(21,101,192,.15);}
+.reseauMode:focus-within{outline:2px solid #1565C0;outline-offset:2px;}
+
+/* Voyant du réseau du bureau, dans l'en-tete. */
+.voyantReseau{font-size:11.5px;font-weight:700;padding:5px 9px;border-radius:999px;margin-right:8px;white-space:nowrap;flex-shrink:0;cursor:default;}
+.voyantReseau.ok{background:#e3f5e8;color:#1b7a3a;}
+.voyantReseau.hs{background:#fdecea;color:#C62828;}
+.voyantReseau[hidden]{display:none;}
+
 /* Voyant d'un compte : vert allume en utilisation, gris eteint sinon. */
 .voyantCompte{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px;vertical-align:-1px;
   background:#c3cdd0;box-shadow:inset 0 1px 2px rgba(0,0,0,.25);}

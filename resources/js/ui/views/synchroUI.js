@@ -14,15 +14,16 @@ import { isDesktop } from '../../core/storage.js';
 import { contenuQR, lireQR, synchroniserAvecPC } from '../../core/synchroClient.js';
 import { LIBELLES_COLLECTIONS } from '../../core/synchro.js';
 import { el, esc, fmt } from '../../core/utils.js';
-import { card, toolbar, sectionLabel, openModal, toast, COLORS } from '../components.js';
-import { rerender } from '../shell.js';
+import { card, toolbar, sectionLabel, openModal, toast, confirmDialog, COLORS } from '../components.js';
+import { rerender, rafraichirVoyantServeur } from '../shell.js';
+import { etatPoste, demarrerPoste, arreterPoste, synchroniserPoste, testerServeur } from '../../core/reseauBureau.js';
 
 const COULEUR = '#00838F';
 
 const quand = (iso) => (iso ? new Date(iso).toLocaleString('fr-FR', { dateStyle: 'short', timeStyle: 'short' }) : '—');
 
 export function renderSynchroSection(page) {
-  page.appendChild(sectionLabel('SYNCHRONISATION PC ↔ TÉLÉPHONE', COULEUR));
+  page.appendChild(sectionLabel(isDesktop ? 'SYNCHRONISATION À LA DEMANDE (TÉLÉPHONE OU AUTRE PC)' : 'SYNCHRONISATION PC ↔ TÉLÉPHONE', COULEUR));
   const moi = appareilSynchro();
   const autres = appareilsSynchronises();
   page.appendChild(
@@ -44,7 +45,9 @@ export function renderSynchroSection(page) {
     toolbar([
       isDesktop
         ? { label: '📱 Afficher le code QR', cls: 'addBtn', color: COULEUR, onClick: afficherQR }
-        : { label: '📷 Scanner le code QR du PC', cls: 'addBtn', color: COULEUR, onClick: scanner }
+        : { label: '📷 Scanner le code QR du PC', cls: 'addBtn', color: COULEUR, onClick: scanner },
+      // Entre deux PC, sans camera : l'un affiche son code, l'autre le recopie.
+      isDesktop && { label: '🔄 Synchroniser avec un autre PC', color: '#1976D2', onClick: synchroAutrePC }
     ])
   );
 }
@@ -72,7 +75,10 @@ async function afficherQR() {
     '<div style="text-align:center">' +
       `<div style="background:#fff;display:inline-block;padding:10px;border-radius:12px">${qr.createSvgTag({ cellSize: 6, margin: 2, scalable: true })}</div>` +
       '<p style="margin:10px 0 4px"><b>Sur le téléphone :</b> PDU Parc Auto → RÉGLAGES → <b>Scanner le code QR du PC</b></p>' +
-      `<p style="margin:0;color:#5b7178"><small>Même Wi-Fi obligatoire · adresse ${esc(info.adresses[0])}:${info.port} · code valable <b data-reste></b></small></p>` +
+      '<p style="margin:6px 0 4px"><b>Sur un autre PC :</b> RÉGLAGES → <b>Synchroniser avec un autre PC</b>, puis recopiez :</p>' +
+      `<p style="margin:0 0 6px;font-size:16px">Adresse <b style="font-family:monospace">${esc(info.adresses[0])}:${info.port}</b>` +
+        ` · Code <b style="font-family:monospace;letter-spacing:1px">${esc(info.jeton)}</b></p>` +
+      `<p style="margin:0;color:#5b7178"><small>Même réseau obligatoire · code valable <b data-reste></b></small></p>` +
       '<div data-etat style="margin-top:12px;font-weight:600">En attente du téléphone…</div>' +
       '<div data-rapport style="text-align:left"></div>' +
     '</div>'
@@ -91,11 +97,11 @@ async function afficherQR() {
   let fini = false;
 
   const desabonner = window.pduDesktop.surEtatSynchro((etat) => {
-    if (etat.etape === 'connecte') zoneEtat.textContent = '📱 Téléphone connecté…';
+    if (etat.etape === 'connecte') zoneEtat.textContent = '🔗 Appareil connecté…';
     if (etat.etape === 'fusion') zoneEtat.textContent = '🔄 Fusion des données…';
     if (etat.etape === 'fusionne') {
       zoneEtat.textContent = '🖼️ Échange des photos…';
-      zoneRapport.innerHTML = rapportHtml(etat.rapport, etat.autre && etat.autre.nom, 'le téléphone');
+      zoneRapport.innerHTML = rapportHtml(etat.rapport, etat.autre && etat.autre.nom, 'l’autre appareil');
     }
     if (etat.etape === 'termine') {
       fini = true;
@@ -108,7 +114,7 @@ async function afficherQR() {
   });
 
   openModal({
-    title: 'Synchroniser avec le téléphone',
+    title: 'Synchroniser avec un téléphone ou un autre PC',
     bodyNode: corps,
     buttons: [{ label: 'Fermer', cls: 'ok', onClick: (close) => close() }],
     onClose: () => {
@@ -228,4 +234,221 @@ function rapportHtml(r, nomAutre, lAutre) {
     (lignes || '<div class="subEntryRow"><span><small>Les deux appareils étaient déjà à jour.</small></span></div>') +
     (conflits ? `<h5 style="margin-top:10px">Modifiées des deux côtés (${(r.conflits || []).length})</h5>${conflits}` : '') +
     '</div>';
+}
+
+/* ===================== Avec un autre PC (a la demande) ===================== */
+
+/**
+ * Synchroniser ce PC avec un autre PC, une fois : l'autre affiche son code
+ * (« Afficher le code QR »), on recopie ici son adresse et son code. C'est
+ * l'echange du telephone, sans camera.
+ */
+function synchroAutrePC() {
+  const corps = el(
+    '<div>' +
+      '<p class="modalMsg" style="margin:0 0 10px">Sur l’autre PC : RÉGLAGES → <b>Afficher le code QR</b>. ' +
+      'Recopiez ici l’adresse et le code affichés sous le code QR.</p>' +
+      '<div class="fGrid">' +
+        '<div class="fRow"><label>Adresse de l’autre PC</label><input data-adresse placeholder="Ex. 192.168.1.20:52814" autocapitalize="none"></div>' +
+        '<div class="fRow"><label>Code</label><input data-code placeholder="Ex. K7P2-9QXM" autocapitalize="none"></div>' +
+      '</div>' +
+      '<div data-etat style="margin-top:12px;font-weight:600"></div>' +
+      '<div data-rapport></div>' +
+    '</div>'
+  );
+  const zoneEtat = corps.querySelector('[data-etat]');
+  const zoneRapport = corps.querySelector('[data-rapport]');
+  let enCours = false;
+  openModal({
+    title: 'Synchroniser avec un autre PC',
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => { close(); rerender(); } },
+      {
+        label: '🔄 Synchroniser',
+        cls: 'ok',
+        onClick: async () => {
+          if (enCours) return;
+          const saisie = corps.querySelector('[data-adresse]').value.trim().replace(/^https?:\/\//i, '');
+          const code = corps.querySelector('[data-code]').value.trim().toUpperCase();
+          const m = /^([^:\s/]+):(\d+)$/.exec(saisie);
+          if (!m || !code) {
+            zoneEtat.textContent = '⚠ Recopiez l’adresse complète (avec les chiffres après « : ») et le code.';
+            return;
+          }
+          enCours = true;
+          zoneRapport.innerHTML = '';
+          try {
+            const res = await synchroniserAvecPC(
+              { adresses: [m[1]], port: Number(m[2]), jeton: code, nom: 'Autre PC' },
+              (etape) => { zoneEtat.textContent = etape.replace('au PC', 'à l’autre PC'); }
+            );
+            zoneEtat.textContent = `✅ Synchronisation terminée.${res.images.recues || res.images.envoyees
+              ? ` Photos : ${fmt(res.images.recues)} reçue(s), ${fmt(res.images.envoyees)} envoyée(s).` : ''}`;
+            zoneRapport.innerHTML = rapportHtml(res.rapport, res.pc && res.pc.nom, 'l’autre PC');
+          } catch (e) {
+            zoneEtat.textContent = `⚠ ${String((e && e.message) || e).replace(/le téléphone et le PC/g, 'les deux PC').replace(/Wi-Fi/g, 'réseau')}`;
+          } finally {
+            enCours = false;
+          }
+        }
+      }
+    ]
+  });
+}
+
+/* ============================ Réseau du bureau ============================ */
+
+/**
+ * RÉGLAGES → RÉSEAU DU BUREAU (PC seulement) : un PC serveur, des postes
+ * relies en continu. Voir core/reseauBureau.js et electron/main.cjs.
+ */
+export function renderReseauSection(page) {
+  if (!isDesktop || !window.pduDesktop.reseauLire) return;
+  page.appendChild(sectionLabel('RÉSEAU DU BUREAU — PLUSIEURS PC, UNE SEULE BASE', COULEUR_RESEAU));
+  const zone = el('<div></div>');
+  page.appendChild(zone);
+  window.pduDesktop.reseauLire().then((r) => dessinerReseau(zone, r));
+}
+
+const COULEUR_RESEAU = '#1565C0';
+
+const MODES_RESEAU = [
+  { k: 'seul', t: 'Ce PC travaille seul', d: 'Sa base reste sur ce PC (synchronisation à la demande possible plus bas).' },
+  { k: 'serveur', t: 'Ce PC est le serveur du bureau', d: 'Sa base est la base de référence. Il reste allumé, l’application ouverte, pendant que les postes travaillent.' },
+  { k: 'poste', t: 'Ce PC est un poste du bureau', d: 'Il se tient à jour avec le PC serveur, toutes les quelques secondes, sur le réseau local.' }
+];
+
+function dessinerReseau(zone, r) {
+  zone.innerHTML = '';
+  const carte = el(
+    `<div class="card" style="border-left:4px solid ${COULEUR_RESEAU}">` +
+      `<h3 style="color:${COULEUR_RESEAU}">RÉSEAU DU BUREAU</h3>` +
+      '<p>Sans Internet ni cloud : tout passe par le réseau local du bureau (Wi-Fi ou câble). ' +
+      'Un PC est le serveur, les autres sont des postes. Chaque poste garde une copie de la base : ' +
+      'si le serveur est éteint, il continue de travailler et se remet à jour dès que le serveur revient.</p>' +
+      `<div class="reseauModes">${MODES_RESEAU.map((m) =>
+        `<label class="reseauMode${r.mode === m.k ? ' choisi' : ''}"><input type="radio" name="modeReseau" value="${m.k}"${r.mode === m.k ? ' checked' : ''}>` +
+        `<b>${esc(m.t)}</b><small>${esc(m.d)}</small></label>`).join('')}</div>` +
+      '<div data-detail></div>' +
+    '</div>'
+  );
+  zone.appendChild(carte);
+  const detail = carte.querySelector('[data-detail]');
+  if (r.mode === 'serveur') detailServeur(detail, zone, r);
+  else if (r.mode === 'poste') detailPoste(detail, zone, r);
+
+  carte.querySelectorAll('input[name="modeReseau"]').forEach((radio) => {
+    radio.onchange = async () => {
+      const mode = radio.value;
+      if (mode === 'poste') {
+        // Le poste se relie une fois l'adresse et le code saisis.
+        dessinerReseau(zone, Object.assign({}, r, {
+          mode: 'poste', serveur: r.mode === 'poste' ? r.serveur : '', code: r.mode === 'poste' ? r.code : ''
+        }));
+        return;
+      }
+      if (mode === 'serveur' && !(await confirmDialog({
+        title: 'Ce PC devient le serveur du bureau',
+        message: 'Sa base deviendra la base de référence du bureau. Les postes s’y relieront avec l’adresse et le code affichés. Continuer ?',
+        okLabel: 'Devenir le serveur'
+      }))) { dessinerReseau(zone, r); return; }
+      await enregistrerReseau(zone, { mode });
+    };
+  });
+}
+
+async function enregistrerReseau(zone, choix) {
+  const suite = await window.pduDesktop.reseauEnregistrer(choix);
+  if (suite.mode === 'poste') {
+    await demarrerPoste(suite);
+    const ok = etatPoste().connecte;
+    toast(ok ? 'Poste relié au serveur du bureau.' : 'Réglage enregistré, mais le serveur ne répond pas encore.', ok ? 'ok' : 'info', 4500);
+  } else {
+    arreterPoste();
+    if (suite.mode === 'serveur') {
+      toast(suite.actif ? 'Ce PC est maintenant le serveur du bureau.' : `Serveur non démarré : ${suite.erreur}`, suite.actif ? 'ok' : 'err', 5000);
+    } else toast('Ce PC travaille seul.', 'ok');
+  }
+  rafraichirVoyantServeur();
+  dessinerReseau(zone, suite);
+}
+
+function detailServeur(detail, zone, r) {
+  detail.innerHTML =
+    `<div class="subBlock" style="margin-top:10px"><h5>${r.actif ? '🟢 Serveur ouvert' : '🔴 Serveur arrêté'}</h5>` +
+      (r.actif ? '' : `<div class="subEntryRow"><span style="color:#C62828">${esc(r.erreur || 'Le serveur n’a pas pu démarrer.')}</span></div>`) +
+      '<div class="subEntryRow"><span>Sur chaque poste, saisissez :</span></div>' +
+      `<div class="subEntryRow"><span>Adresse du serveur</span><b style="font-family:monospace;font-size:16px">${esc(r.adresses[0] || '—')}</b></div>` +
+      (r.adresses.length > 1
+        ? `<div class="subEntryRow"><span><small>Autres adresses de ce PC</small></span><small>${esc(r.adresses.slice(1).join(', '))}</small></div>`
+        : '') +
+      `<div class="subEntryRow"><span>Code du bureau</span><b style="font-family:monospace;font-size:16px;letter-spacing:1px">${esc(r.code)}</b></div>` +
+      `<div class="subEntryRow"><span><small>Port ${esc(String(r.port))} · ${esc(r.nomPC)}</small></span></div>` +
+      '<p class="hint" style="margin-top:8px">Au premier démarrage, Windows peut demander d’autoriser PDU Parc Auto dans le pare-feu : ' +
+      'cochez « Réseaux privés » et acceptez. Pour que l’adresse ne change pas, donnez à ce PC une adresse fixe (réglage de la box ou du réseau).</p>' +
+      '<button type="button" class="miniBtn" data-code style="background:#5b7178;margin-top:6px">🔑 Changer le code du bureau</button>' +
+    '</div>';
+  detail.querySelector('[data-code]').onclick = async () => {
+    if (!(await confirmDialog({
+      title: 'Changer le code du bureau',
+      message: 'Les postes ne pourront plus se mettre à jour tant que le nouveau code n’y aura pas été saisi. Continuer ?',
+      okLabel: 'Changer le code'
+    }))) return;
+    const suite = await window.pduDesktop.reseauNouveauCode();
+    toast('Nouveau code : saisissez-le sur chaque poste.', 'info', 4500);
+    dessinerReseau(zone, suite);
+  };
+}
+
+function detailPoste(detail, zone, r) {
+  const poste = etatPoste();
+  detail.innerHTML =
+    '<div class="subBlock" style="margin-top:10px">' +
+      `<h5>${poste.connecte ? '🟢 Relié au serveur du bureau' : poste.actif ? '🔴 Serveur injoignable' : 'Serveur du bureau'}</h5>` +
+      (poste.actif && !poste.connecte && poste.erreur ? `<div class="subEntryRow"><span style="color:#C62828">${esc(poste.erreur)}</span></div>` : '') +
+      (poste.derniere ? `<div class="subEntryRow"><span>Dernière mise à jour</span><b>${esc(quand(poste.derniere))}</b></div>` : '') +
+      '<div class="fGrid" style="margin-top:8px">' +
+        `<div class="fRow"><label>Adresse du PC serveur</label><input data-serveur value="${esc(r.serveur || '')}" placeholder="Ex. 192.168.1.20" autocapitalize="none"></div>` +
+        `<div class="fRow"><label>Code du bureau</label><input data-codep value="${esc(r.code || '')}" placeholder="Ex. K7P2-9QXM" autocapitalize="none"></div>` +
+      '</div>' +
+      '<div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px">' +
+        '<button type="button" class="miniBtn" data-tester style="background:#1976D2">Tester la connexion</button>' +
+        '<button type="button" class="miniBtn" data-relier style="background:#008A3B">💾 Enregistrer et relier ce poste</button>' +
+        (poste.actif ? '<button type="button" class="miniBtn" data-maintenant style="background:#5b7178">↻ Mettre à jour maintenant</button>' : '') +
+      '</div>' +
+      '<div data-test style="margin-top:8px;font-weight:600"></div>' +
+      '<p class="hint" style="margin-top:8px">Au premier relais, la base de ce poste et celle du serveur sont fusionnées : ' +
+      'rien n’est perdu, et ce poste reçoit tout ce que le serveur connaît.</p>' +
+    '</div>';
+  const lire = () => ({
+    serveur: detail.querySelector('[data-serveur]').value.trim(),
+    code: detail.querySelector('[data-codep]').value.trim().toUpperCase()
+  });
+  const test = detail.querySelector('[data-test]');
+  detail.querySelector('[data-tester]').onclick = async () => {
+    const v = lire();
+    test.textContent = 'Connexion…';
+    try { test.textContent = `✅ Serveur trouvé : ${await testerServeur(v.serveur, v.code, r.port)}`; } catch (e) { test.textContent = `⚠ ${e.message}`; }
+  };
+  detail.querySelector('[data-relier]').onclick = async () => {
+    const v = lire();
+    if (!v.serveur || !v.code) { test.textContent = '⚠ Indiquez l’adresse du serveur et le code du bureau.'; return; }
+    test.textContent = 'Connexion…';
+    try {
+      await testerServeur(v.serveur, v.code, r.port);
+    } catch (e) {
+      test.textContent = `⚠ ${e.message}`;
+      return;
+    }
+    await enregistrerReseau(zone, { mode: 'poste', serveur: v.serveur, code: v.code });
+  };
+  const maintenant = detail.querySelector('[data-maintenant]');
+  if (maintenant) {
+    maintenant.onclick = async () => {
+      test.textContent = 'Mise à jour…';
+      await synchroniserPoste({ force: true });
+      test.textContent = etatPoste().connecte ? '✅ À jour.' : `⚠ ${etatPoste().erreur}`;
+    };
+  }
 }

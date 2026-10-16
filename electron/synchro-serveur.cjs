@@ -12,6 +12,13 @@
 
    Chaque requete doit porter le jeton du code QR. Le jeton change a chaque
    affichage : un code photographie la veille ne sert plus a rien.
+
+   Mode permanent (RÉGLAGES → Réseau du bureau, « Ce PC est le serveur ») :
+   le meme serveur reste ouvert tant que l'application tourne, sur un port
+   fixe, et le jeton est le code du bureau. Les autres PC (« postes ») s'y
+   synchronisent toutes les quelques secondes : la base de ce PC est la
+   base de reference du bureau. Les fusions passent une par une, pour que
+   deux postes qui envoient en meme temps ne s'ecrasent pas.
    =================================================================== */
 
 const http = require('node:http');
@@ -30,6 +37,16 @@ function adressesLocales() {
     .filter((i) => i && i.family === 'IPv4' && !i.internal && !i.address.startsWith('169.254.'))
     .map((i) => i.address)
     .sort((a, b) => rang(a) - rang(b));
+}
+
+/**
+ * Un code lisible, a recopier d'un PC a l'autre : 8 caracteres sans 0/O ni
+ * 1/I, en deux groupes (« K7P2-9QXM »).
+ */
+function codeLisible() {
+  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const c = [...crypto.randomBytes(8)].map((b) => alphabet[b % alphabet.length]).join('');
+  return `${c.slice(0, 4)}-${c.slice(4)}`;
 }
 
 function egaux(a, b) {
@@ -64,6 +81,14 @@ function creerServeurSynchro(o) {
   let serveur = null;
   let jeton = '';
   let minuterie = null;
+  let permanent = false;
+  /** Les fusions, l'une apres l'autre. */
+  let file = Promise.resolve();
+  const enFile = (tache) => {
+    const suite = file.then(tache, tache);
+    file = suite.catch(() => {});
+    return suite;
+  };
 
   const etat = (e) => { try { o.surEtat(e); } catch (err) { /* fenetre fermee */ } };
 
@@ -82,19 +107,29 @@ function creerServeurSynchro(o) {
     if (req.method === 'OPTIONS') return repondre(res, 204, '');
     const url = new URL(req.url, 'http://pdu');
     if (!egaux(req.headers['x-pdu-jeton'] || url.searchParams.get('t'), jeton)) {
-      return repondre(res, 403, { erreur: 'Code QR expiré ou invalide : affichez-en un nouveau sur le PC.' });
+      return repondre(res, 403, {
+        erreur: permanent
+          ? 'Code du bureau incorrect : vérifiez-le dans RÉGLAGES → Réseau du bureau, sur le PC serveur.'
+          : 'Code QR expiré ou invalide : affichez-en un nouveau sur le PC.'
+      });
     }
     try {
       if (req.method === 'GET' && url.pathname === '/pdu/ping') {
-        etat({ etape: 'connecte' });
-        return repondre(res, 200, { ok: true, nom: o.nom });
+        if (!permanent) etat({ etape: 'connecte' });
+        return repondre(res, 200, { ok: true, nom: o.nom, serveur: permanent });
+      }
+      // Serveur du bureau : un poste demande si la base a change depuis sa
+      // derniere synchronisation (requete minuscule, toutes les secondes).
+      if (req.method === 'GET' && url.pathname === '/pdu/version') {
+        return repondre(res, 200, { v: o.version ? o.version() : 0 });
       }
       if (req.method === 'POST' && url.pathname === '/pdu/synchro') {
-        etat({ etape: 'fusion' });
+        if (!permanent) etat({ etape: 'fusion' });
         const payload = JSON.parse((await lireCorps(req)).toString('utf8'));
-        const resultat = await o.demanderFusion(payload);
-        etat({ etape: 'fusionne', rapport: resultat.rapportPC, autre: payload.appareil });
-        return repondre(res, 200, { db: resultat.db, rapport: resultat.rapport, pc: resultat.pc });
+        const resultat = await enFile(() => o.demanderFusion(payload));
+        if (permanent) etat({ etape: 'poste', autre: payload.appareil, rapport: resultat.rapportPC });
+        else etat({ etape: 'fusionne', rapport: resultat.rapportPC, autre: payload.appareil });
+        return repondre(res, 200, { db: resultat.db, rapport: resultat.rapport, pc: resultat.pc, v: o.version ? o.version() : 0 });
       }
       if (req.method === 'GET' && url.pathname === '/pdu/images') {
         let ids = [];
@@ -124,10 +159,13 @@ function creerServeurSynchro(o) {
       }
       if (req.method === 'POST' && url.pathname === '/pdu/termine') {
         const corps = JSON.parse((await lireCorps(req)).toString('utf8') || '{}');
-        etat({ etape: 'termine', images: corps.images || {} });
         repondre(res, 200, { ok: true });
-        // Synchronisation faite : le serveur se ferme, le jeton ne sert plus.
-        setTimeout(arreter, 500);
+        // Synchronisation faite : le serveur du code QR se ferme, le jeton ne
+        // sert plus. Le serveur du bureau, lui, reste ouvert.
+        if (!permanent) {
+          etat({ etape: 'termine', images: corps.images || {} });
+          setTimeout(arreter, 500);
+        }
         return undefined;
       }
       return repondre(res, 404, { erreur: 'inconnu' });
@@ -141,6 +179,7 @@ function creerServeurSynchro(o) {
     clearTimeout(minuterie);
     minuterie = null;
     jeton = '';
+    permanent = false;
     if (serveur) {
       try { serveur.close(); } catch (e) { /* deja ferme */ }
       serveur = null;
@@ -151,7 +190,9 @@ function creerServeurSynchro(o) {
   /** Ouvre le serveur et rend ce que le code QR doit contenir. */
   function demarrer() {
     arreter();
-    jeton = crypto.randomBytes(18).toString('base64url');
+    // Un code court : le telephone le lit dans le code QR, un autre PC le
+    // recopie a la main (RÉGLAGES → Synchroniser avec un autre PC).
+    jeton = codeLisible();
     return new Promise((resolve, reject) => {
       serveur = http.createServer((req, res) => { traiter(req, res); });
       serveur.on('error', (e) => reject(e));
@@ -164,7 +205,24 @@ function creerServeurSynchro(o) {
     });
   }
 
-  return { demarrer, arreter, actif: () => !!serveur };
+  /**
+   * Serveur du bureau : port fixe, code du bureau, ouvert jusqu'a l'arret.
+   * @param {{port:number, code:string}} p
+   */
+  function demarrerPermanent(p) {
+    arreter();
+    jeton = String(p.code || '');
+    permanent = true;
+    return new Promise((resolve, reject) => {
+      serveur = http.createServer((req, res) => { traiter(req, res); });
+      serveur.on('error', (e) => { serveur = null; permanent = false; reject(e); });
+      serveur.listen(Number(p.port), '0.0.0.0', () => {
+        resolve({ adresses: adressesLocales(), port: serveur.address().port, nom: o.nom });
+      });
+    });
+  }
+
+  return { demarrer, demarrerPermanent, arreter, actif: () => !!serveur, permanent: () => permanent && !!serveur };
 }
 
-module.exports = { creerServeurSynchro, adressesLocales };
+module.exports = { creerServeurSynchro, adressesLocales, codeLisible };

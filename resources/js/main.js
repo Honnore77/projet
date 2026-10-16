@@ -11,6 +11,7 @@ import { mountShell } from './ui/shell.js';
 import { destroyCharts } from './ui/charts.js';
 import { toast } from './ui/components.js';
 import { traiterDemandePC } from './core/synchroClient.js';
+import { demarrerPoste } from './core/reseauBureau.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
 import { installerMajuscule } from './ui/majuscule.js';
@@ -46,7 +47,8 @@ if ('serviceWorker' in navigator) {
       if (window.caches) await Promise.all((await caches.keys()).map((k) => caches.delete(k)));
       location.reload();
     }).catch(() => { /* rien a retirer */ });
-  } else {
+  } else if (import.meta.env.PROD) {
+    // En developpement, sw.js n'existe pas : seule la version construite l'a.
     window.addEventListener('load', () => {
       navigator.serviceWorker.register('./sw.js', { scope: './' }).catch(() => { /* hors ligne indisponible */ });
     });
@@ -79,6 +81,21 @@ async function boot() {
   // telephone (voir electron/synchro-serveur.cjs).
   if (window.pduDesktop && window.pduDesktop.traiterDemandesSynchro) {
     window.pduDesktop.traiterDemandesSynchro(traiterDemandePC);
+  }
+
+  // Réseau du bureau : un poste se met a jour aupres du PC serveur avant
+  // la page de connexion — les comptes crees ailleurs sont la des l'arrivee.
+  // Le serveur eteint, on continue sur la copie du poste.
+  if (window.pduDesktop && window.pduDesktop.reseauLire) {
+    try {
+      const reseau = await window.pduDesktop.reseauLire();
+      if (reseau.mode === 'poste' && reseau.serveur && reseau.code) {
+        root.innerHTML = '<div class="bootSplash"><p>Connexion au serveur du bureau…</p></div>';
+        await demarrerPoste(reseau);
+      }
+    } catch (e) {
+      console.error('Réseau du bureau', e);
+    }
   }
 
   // Une session ouverte dans le meme onglet survit a un rafraichissement.

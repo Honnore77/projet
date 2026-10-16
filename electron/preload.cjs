@@ -52,6 +52,23 @@ contextBridge.exposeInMainWorld('pduDesktop', {
     });
   },
 
+  /* --- Réseau du bureau : un PC serveur, des postes (voir main.cjs) --- */
+
+  /** @returns {Promise<{mode:string, port:number, code:string, serveur:string, adresses:string[], actif:boolean, erreur:string, nomPC:string}>} */
+  reseauLire: () => ipcRenderer.invoke('reseau:lire'),
+
+  /** @param {{mode:'seul'|'serveur'|'poste', serveur?:string, code?:string, port?:number}} choix */
+  reseauEnregistrer: (choix) => ipcRenderer.invoke('reseau:enregistrer', choix),
+
+  reseauNouveauCode: () => ipcRenderer.invoke('reseau:nouveauCode'),
+
+  /** Sur le serveur : un poste vient d'echanger. Rend de quoi se desabonner. */
+  surEtatReseau: (cb) => {
+    const f = (_e, etat) => cb(etat);
+    ipcRenderer.on('reseau:etat', f);
+    return () => ipcRenderer.removeListener('reseau:etat', f);
+  },
+
   /** Ouvre le selecteur de dossier. @returns {Promise<string|null>} */
   backupChoisirDossier: () => ipcRenderer.invoke('backup:dossier'),
 

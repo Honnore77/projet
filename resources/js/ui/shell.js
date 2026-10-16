@@ -21,6 +21,7 @@ import { renderDecharges } from './views/decharges.js';
 import { renderNotes, renderComptes } from './views/notes.js';
 import { notesNonLues } from '../core/notes.js';
 import { demarrerNotesFlottantes, annoncerNotes, fermer as fermerNotesFlottantes } from './notesFlottante.js';
+import { etatPoste, suivrePoste, surReceptionPoste } from '../core/reseauBureau.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
@@ -130,6 +131,7 @@ export function mountShell(appRoot, { onLogout }) {
           <b>${u ? escapeText(u.nom) : ''}</b>
           <span class="role-${u ? u.role : 'visiteur'}">${u ? escapeText(roleLabel(u.role).toUpperCase()) : ''}</span>
         </div>
+        <span id="voyantReseau" class="voyantReseau" hidden></span>
         <button id="apparenceBtn" type="button" title="Apparence : style, taille, fond">🎨</button>
         <button id="logoutBtn" type="button">Quitter</button>
       </header>
@@ -202,9 +204,78 @@ export function mountShell(appRoot, { onLogout }) {
   );
   globalBtn.onclick = () => navigate('RECHERCHE_GLOBALE');
 
+  brancherReseau(dash.querySelector('#voyantReseau'));
+
   // A l'arrivee, la fenetre flottante annonce les notes qui attendent.
   demarrerNotesFlottantes(u ? u.id : null);
   navigate(premiereRubrique());
+}
+
+/* ------------------------- Réseau du bureau ------------------------- */
+
+let reseauBranche = false;
+let rafraichirEnAttente = false;
+
+/**
+ * Des donnees arrivent d'un autre PC : la page se redessine — mais jamais
+ * sous les doigts de quelqu'un. Formulaire ouvert ou saisie en cours, on
+ * attend : la page se redessinera a la prochaine occasion.
+ */
+function rafraichirSiLibre() {
+  if (!contentEl) return;
+  const actif = document.activeElement;
+  const occupe = document.querySelector('.modalBack') ||
+    (actif && contentEl.contains(actif) && /^(INPUT|TEXTAREA|SELECT)$/.test(actif.tagName));
+  if (occupe) { rafraichirEnAttente = true; return; }
+  rafraichirEnAttente = false;
+  rerender();
+}
+
+/** Voyant de l'en-tete et redessin a l'arrivee de donnees (poste ou serveur). */
+let voyantReseauEl = null;
+
+function brancherReseau(voyantNeuf) {
+  voyantReseauEl = voyantNeuf;
+  const dessinerPoste = (e) => {
+    const voyant = voyantReseauEl;
+    if (!voyant) return;
+    if (!e.actif) { voyant.hidden = true; return; }
+    voyant.hidden = false;
+    voyant.className = `voyantReseau ${e.connecte ? 'ok' : 'hs'}`;
+    voyant.textContent = e.connecte ? '🖧 Bureau' : '🖧 Hors ligne';
+    voyant.title = e.connecte
+      ? `Relié au serveur du bureau (${e.serveur})${e.derniere ? ` — dernière mise à jour ${new Date(e.derniere).toLocaleTimeString('fr-FR')}` : ''}`
+      : e.erreur || 'Serveur du bureau injoignable';
+  };
+  dessinerPoste(etatPoste());
+  rafraichirVoyantServeur();
+  if (reseauBranche) return;
+  reseauBranche = true;
+  suivrePoste((e) => {
+    dessinerPoste(e);
+    if (rafraichirEnAttente) rafraichirSiLibre();
+  });
+  surReceptionPoste(rafraichirSiLibre);
+  // Sur le PC serveur : un poste vient d'envoyer du nouveau.
+  if (window.pduDesktop && window.pduDesktop.surEtatReseau) {
+    window.pduDesktop.surEtatReseau((e) => {
+      if (e && e.etape === 'poste' && e.rapport && (e.rapport.recues || e.rapport.supprimees)) rafraichirSiLibre();
+    });
+  }
+}
+
+/** Sur le PC serveur, le voyant dit si le serveur du bureau est ouvert. */
+export function rafraichirVoyantServeur() {
+  if (!window.pduDesktop || !window.pduDesktop.reseauLire) return;
+  window.pduDesktop.reseauLire().then((r) => {
+    const voyant = voyantReseauEl;
+    if (!voyant || etatPoste().actif) return;
+    if (r.mode !== 'serveur') { voyant.hidden = true; return; }
+    voyant.hidden = false;
+    voyant.className = `voyantReseau ${r.actif ? 'ok' : 'hs'}`;
+    voyant.textContent = r.actif ? '🖧 Serveur' : '🖧 Serveur arrêté';
+    voyant.title = r.actif ? `Serveur du bureau ouvert : ${r.adresses.join(', ')} (port ${r.port})` : r.erreur || 'Serveur du bureau arrêté';
+  }).catch(() => {});
 }
 
 /** Fenetre flottante : expediteur et objet des notes non lues. */
