@@ -2,7 +2,9 @@
    VÉHICULES — pool / mission / service.
 
    Chaque sous-rubrique presente les vehicules en tableau, une ligne par
-   vehicule, avec toutes les informations du formulaire.
+   vehicule, avec toutes les informations du formulaire. La colonne « État
+   du véhicule » reprend les problemes non resolus de la sous-rubrique
+   ÉTAT DES VÉHICULES.
    =================================================================== */
 
 import {
@@ -25,8 +27,10 @@ import { exportWord } from '../../export/word.js';
 import { dsVehicles } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
 import { renderReformes, openReformeForm } from './vehiculesReformes.js';
+import { renderEtatsVehicules, COULEUR_ETAT } from './etatsVehicules.js';
+import { problemesEnCours } from '../../core/etatsVehicules.js';
 
-const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, reforme: '#3e2723', stats: COLORS.grey };
+const CAT_COLORS = { pool: COLORS.green, mission: COLORS.blue, service: COLORS.purple, reforme: '#3e2723', etat: COULEUR_ETAT, stats: COLORS.grey };
 
 /** Memes teintes que la pastille du bandeau (bleu) et que le graphique. */
 export const COULEUR_NON_ATTRIBUE = '#1e6fd9';
@@ -142,6 +146,7 @@ export function renderVehicles(page) {
       [
         ...CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })),
         { key: CAT_REFORME, label: `VÉHICULES RÉFORMÉS (${DB.vehicles[CAT_REFORME].length})` },
+        { key: 'etat', label: `ÉTAT DES VÉHICULES (${(DB.etatsVehicules || []).filter((s) => s.resolu !== 'Oui').length})` },
         SOUS_RUBRIQUE_STATS
       ],
       cat,
@@ -151,6 +156,7 @@ export function renderVehicles(page) {
   );
   if (cat === 'stats') return renderStatistiques(page, 'VEHICULES');
   if (cat === CAT_REFORME) return renderReformes(page);
+  if (cat === 'etat') return renderEtatsVehicules(page);
 
   page.appendChild(
     filterBar([
@@ -204,7 +210,7 @@ export function renderVehicles(page) {
     'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie',
     'Conso.<br>L/100 km', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
-    'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'Observations', ''
+    'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'État du<br>véhicule', ''
   ];
 
   const rows = list.map((v) => {
@@ -224,7 +230,7 @@ export function renderVehicles(page) {
       `<span style="display:block;text-align:right">${fmt(kmCourant(v))}</span>`,
       `<span style="display:block;text-align:right">${v.kmVidange === '' || v.kmVidange === undefined ? '—' : fmt(v.kmVidange)}</span>`,
       badgeVidange(etatVidange(v)),
-      esc(v.observations || ''),
+      celluleEtat(v),
       `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
         (canWrite()
           ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button>` +
@@ -261,6 +267,19 @@ export function renderVehicles(page) {
       }
     })
   );
+}
+
+/**
+ * Colonne « État du véhicule » : les problemes signales et pas encore
+ * resolus (sous-rubrique ÉTAT DES VÉHICULES), le plus recent d'abord.
+ * Sans probleme en cours, la cellule le dit simplement.
+ */
+function celluleEtat(v) {
+  const pbs = problemesEnCours(v);
+  if (!pbs.length) return '<span style="color:#008A3B;white-space:nowrap">✓ RAS</span>';
+  return pbs.map((s) =>
+    `<div class="etatPb" title="Signalé le ${esc(dateFR(s.dateSignalement))}${s.signalePar ? ` par ${esc(s.signalePar)}` : ''}">` +
+    `⚠ ${esc(String(s.probleme || '').split('\n')[0])} <small>(${esc(dateFR(s.dateSignalement))})</small></div>`).join('');
 }
 
 /** Les vehicules de mission ne portent pas d'utilisateur attitre. */

@@ -18,7 +18,7 @@ import { renderDotation } from './views/dotation.js';
 import { renderMissions } from './views/missions.js';
 import { renderMaintenance } from './views/maintenance.js';
 import { renderDecharges } from './views/decharges.js';
-import { renderNotes } from './views/notes.js';
+import { renderNotes, renderComptes } from './views/notes.js';
 import { notesNonLues } from '../core/notes.js';
 import { demarrerNotesFlottantes, annoncerNotes, fermer as fermerNotesFlottantes } from './notesFlottante.js';
 import { renderSimulation } from './views/simulation.js';
@@ -51,6 +51,8 @@ export const MODULES = [
   { key: 'NOTES', label: 'NOTES', color: '#558B2F', pourTous: true },
   // Ouverte a tous les comptes : style et taille de l'affichage.
   { key: 'PREDEFINIS', label: 'RÉGLAGES PRÉDÉFINIS', color: '#00897B', pourTous: true },
+  // Tous les comptes, le point de leurs notes et le voyant des comptes en utilisation.
+  { key: 'COMPTE', label: 'COMPTE', color: '#00695C', pourTous: true },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
 ];
 
@@ -71,6 +73,7 @@ const TITLES = {
   SIMULATION: 'SIMULATION',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   NOTES: 'NOTES',
+  COMPTE: 'COMPTE',
   PREDEFINIS: 'RÉGLAGES PRÉDÉFINIS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
@@ -464,7 +467,7 @@ export function rerender() {
   const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
   // RÉGLAGES PRÉDÉFINIS ne touche pas aux donnees : jamais en lecture seule.
   // NOTES non plus : chacun y ecrit ses propres notes.
-  const reglagesPerso = rub === 'PREDEFINIS' || rub === 'NOTES';
+  const reglagesPerso = rub === 'PREDEFINIS' || rub === 'NOTES' || rub === 'COMPTE';
   document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches && !reglagesPerso);
   document.body.classList.toggle('sansSuppression', !peutSupprimer(rub));
   if (pageAutorisee(rub)) {
@@ -495,7 +498,7 @@ function pageAutorisee(rub) {
   const m = state.module;
   if (m === 'REGLAGES') return canAdmin();
   if (m === 'PREDEFINIS') return true;
-  if (m === 'NOTES') return true;
+  if (m === 'NOTES' || m === 'COMPTE') return true;
   if (m === 'RECHERCHE_GLOBALE') return true;
   if (m === 'FICHE_VEHICULE') {
     return voitTout('VEHICULES') || (seulementSiennes('VEHICULES') && estAMoi('VEHICULES', vehicleByImmat(state.vehicleSheetImmat)));
@@ -519,6 +522,7 @@ const ROUTES = {
   SIMULATION: renderSimulation,
   RAPPORTS: renderReports,
   NOTES: renderNotes,
+  COMPTE: renderComptes,
   PREDEFINIS: renderPredefinis,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,

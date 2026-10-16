@@ -9,10 +9,13 @@
    =================================================================== */
 
 import { esc } from '../core/utils.js';
-import { openModal, toast } from './components.js';
+import { DB, saveSettings } from '../core/db.js';
+import { canAdmin } from '../core/auth.js';
+import { ajouterImage, urlImage } from '../core/images.js';
+import { openModal, toast, confirmDialog } from './components.js';
 import {
   THEMES, themeActuel, appliquerTheme, apercuTheme, annulerApercuTheme, zoomActuel, appliquerZoom, ZOOM_MIN, ZOOM_MAX, ZOOM_PAS,
-  DECORS, decorActuel, choisirDecor
+  tousLesDecors, decorActuel, choisirDecor
 } from './theme.js';
 
 function carte(titre, texte) {
@@ -104,17 +107,37 @@ function blocDecor(refaire, o) {
   grille.className = 'themeChoix';
   const actuel = decorActuel();
   const cartes = [];
-  DECORS.forEach((d) => {
+  // Ajouter et retirer des fonds : l'administrateur, connecte. La liste
+  // vaut pour tous les appareils ; le choix du fond, pour celui-ci.
+  const gerer = canAdmin();
+  tousLesDecors().forEach((d) => {
     const b = document.createElement('button');
     b.type = 'button';
     b.title = 'Clic : aperçu — double clic : valider';
     b.className = 'themeCarte' + (d.id === actuel ? ' choisi' : '');
     b.innerHTML =
-      (d.apercu
-        ? `<div class="decorApercu" style="background-image:url('${d.apercu}')"></div>`
+      (d.apercu || d.perso
+        ? `<div class="decorApercu" style="${d.apercu ? `background-image:url('${d.apercu}')` : ''}"></div>`
         : '<div class="decorApercu decorVide">Aucun</div>') +
       (d.id === actuel ? '<span class="coche">✓ Actif</span>' : '<span class="coche apercuMarque">👁 Aperçu</span>') +
       `<b>${esc(d.nom)}</b><small>${esc(d.detail)}</small>`;
+    // La vignette d'une image ajoutee se charge depuis le magasin d'images.
+    if (d.perso) {
+      urlImage(d.imageId).then((url) => {
+        const vignette = b.querySelector('.decorApercu');
+        if (url) vignette.style.backgroundImage = `url('${url}')`;
+        else { vignette.classList.add('decorVide'); vignette.textContent = 'Image absente'; }
+      });
+    }
+    if (gerer && d.id) {
+      const retirer = document.createElement('span');
+      retirer.className = 'decorRetirer';
+      retirer.title = d.perso ? 'Supprimer cette image' : 'Retirer ce fond de la liste';
+      retirer.textContent = '✕';
+      retirer.addEventListener('click', (ev) => { ev.stopPropagation(); retirerFond(d, refaire, o); });
+      retirer.addEventListener('dblclick', (ev) => ev.stopPropagation());
+      b.appendChild(retirer);
+    }
     // Pas de redessin au simple clic : le double clic doit tomber sur la
     // meme carte que les deux clics qui le composent.
     b.addEventListener('click', () => {
@@ -131,8 +154,69 @@ function blocDecor(refaire, o) {
     cartes.push(b);
     grille.appendChild(b);
   });
+
+  if (gerer) {
+    // Derniere carte : ajouter une image (JPEG ou PNG).
+    const ajout = document.createElement('label');
+    ajout.className = 'themeCarte decorAjout';
+    ajout.innerHTML =
+      '<div class="decorApercu decorVide">＋</div><b>Ajouter une image</b>' +
+      '<small>Une photo ou une image (JPEG, PNG) pour toute la page.</small>' +
+      '<input type="file" accept="image/jpeg,image/png" hidden>';
+    const entree = ajout.querySelector('input');
+    entree.addEventListener('change', async () => {
+      const f = entree.files[0];
+      entree.value = '';
+      if (!f) return;
+      try {
+        // Un fond couvre tout l'ecran : il garde plus de definition qu'une photo de fiche.
+        const img = await ajouterImage(f, { coteMax: 2560 });
+        const nom = String(f.name || 'Image').replace(/\.[^.]+$/, '').replace(/[_-]+/g, ' ').trim() || 'Image ajoutée';
+        const id = `perso-${img.id}`;
+        saveSettings({ fondsPerso: (DB.settings.fondsPerso || []).concat([{ id, nom, imageId: img.id }]) });
+        toast(`Image « ${nom} » ajoutée aux fonds. Double-cliquez dessus pour la choisir.`, 'ok', 4000);
+        refaire();
+      } catch (e) {
+        toast((e && e.message) || 'Image refusée.', 'err');
+      }
+    });
+    grille.appendChild(ajout);
+  }
   decor.appendChild(grille);
+
+  if (gerer && (DB.settings.fondsMasques || []).length) {
+    const retablir = document.createElement('button');
+    retablir.type = 'button';
+    retablir.className = 'miniBtn';
+    retablir.style.cssText = 'background:#5b7178;margin-top:10px';
+    retablir.textContent = `↺ Rétablir les fonds d’origine retirés (${DB.settings.fondsMasques.length})`;
+    retablir.onclick = () => { saveSettings({ fondsMasques: [] }); refaire(); };
+    decor.appendChild(retablir);
+  }
   return decor;
+}
+
+/**
+ * Retire un fond : une image ajoutee est supprimee (ses octets partent au
+ * menage du prochain demarrage), un fond de l'application est seulement
+ * masque — « Rétablir » le fait revenir.
+ */
+async function retirerFond(d, refaire, o) {
+  const ok = await confirmDialog({
+    title: d.perso ? 'Supprimer l’image' : 'Retirer le fond',
+    message: d.perso
+      ? `Supprimer l’image « ${d.nom} » des fonds de la page de connexion ? Elle disparaîtra sur tous les appareils.`
+      : `Retirer « ${d.nom} » de la liste des fonds ? Il pourra être rétabli.`,
+    okLabel: d.perso ? 'Supprimer' : 'Retirer',
+    danger: true
+  });
+  if (!ok) return;
+  if (d.perso) saveSettings({ fondsPerso: (DB.settings.fondsPerso || []).filter((f) => f.id !== d.id) });
+  else saveSettings({ fondsMasques: [...new Set((DB.settings.fondsMasques || []).concat([d.id]))] });
+  // Si c'etait le fond de cet appareil, la page de connexion revient sans fond.
+  if (o.surDecor) o.surDecor(decorActuel());
+  toast(d.perso ? 'Image supprimée.' : 'Fond retiré de la liste.', 'ok');
+  refaire();
 }
 
 /**

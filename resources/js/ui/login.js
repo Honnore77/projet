@@ -6,7 +6,7 @@ import { el, esc } from '../core/utils.js';
 import { login, inscrire } from '../core/auth.js';
 import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
-import { decorActuel, decorPleinePage } from './theme.js';
+import { decorActuel, decorPleinePage, poserFondSur } from './theme.js';
 import { ouvrirApparence } from './apparence.js';
 
 const logoUrl = './logo-pdu.png';
@@ -215,10 +215,9 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
   loginBtn.onclick = attempt;
   // Le fond de la page se choisit avant meme de se connecter : il est
   // propre a l'appareil, et s'applique aussitot.
-  const poserFond = (id) => {
-    if (id) screen.dataset.decor = id; else delete screen.dataset.decor;
-    if (decorPleinePage(id)) screen.dataset.plein = ''; else delete screen.dataset.plein;
-  };
+  const poserFond = (id) => { poserFondSur(screen, id); };
+  // Une image ajoutee se pose une fois la page dessinee.
+  poserFond(decorActuel());
   // Un clic : apercu sur la page ; double clic : valide.
   screen.querySelector('#apparenceBtn').onclick = () => ouvrirApparence({
     titre: '🎨 Fond de la page de connexion', style: false, taille: false,

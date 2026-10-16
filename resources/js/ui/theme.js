@@ -11,6 +11,8 @@
    =================================================================== */
 
 import Chart from 'chart.js/auto';
+import { DB } from '../core/db.js';
+import { urlImage, libererUrl } from '../core/images.js';
 // Vignettes des decors de la page de connexion (REGLAGES → Apparence).
 import apercuTableau from '../styles/decor/tableau-gauche.svg';
 import apercuLumiereBleue from '../styles/decor/lumiere-bleue.svg';
@@ -56,10 +58,49 @@ export const DECORS = [
 
 const CLE_DECOR = 'pdu_decor_connexion';
 
+/**
+ * Les fonds proposes : ceux de l'application, sauf ceux qu'un
+ * administrateur a retires, puis les images ajoutees. La liste vit dans
+ * les reglages (settings.fondsMasques, settings.fondsPerso) et suit donc
+ * la synchronisation ; les octets des images sont ranges avec les photos
+ * (core/images.js). Le fond retenu, lui, reste propre a chaque appareil.
+ */
+export function tousLesDecors() {
+  const s = (DB && DB.settings) || {};
+  const masques = s.fondsMasques || [];
+  const perso = (s.fondsPerso || []).map((f) => ({
+    id: f.id, nom: f.nom || 'Image ajoutée', detail: 'Image ajoutée : toute la page.', imageId: f.imageId, plein: true, perso: true
+  }));
+  return DECORS.filter((d) => !d.id || !masques.includes(d.id)).concat(perso);
+}
+
+const decorDe = (id) => tousLesDecors().find((x) => x.id === id) || null;
+
 /** Un fond qui couvre toute la page de connexion (et pas seulement ses cotes). */
 export function decorPleinePage(id) {
-  const d = DECORS.find((x) => x.id === id);
+  const d = decorDe(id);
   return !!(d && d.plein);
+}
+
+/**
+ * Pose le fond sur un element (la page de connexion). Une image ajoutee
+ * se pose en style direct : la feuille de style ne connait que les fonds
+ * de l'application.
+ */
+export async function poserFondSur(elt, id) {
+  if (id) elt.dataset.decor = id; else delete elt.dataset.decor;
+  if (decorPleinePage(id)) elt.dataset.plein = ''; else delete elt.dataset.plein;
+  if (elt._urlFond) { libererUrl(elt._urlFond); elt._urlFond = null; }
+  elt.style.backgroundImage = '';
+  const d = decorDe(id);
+  if (d && d.perso) {
+    const url = await urlImage(d.imageId);
+    // Un autre choix a pu passer pendant le chargement.
+    if (url && elt.dataset.decor === id) {
+      elt._urlFond = url;
+      elt.style.backgroundImage = `url('${url}')`;
+    } else libererUrl(url);
+  }
 }
 
 /** Le decor retenu sur cet appareil (vide : sans decor). */
@@ -70,8 +111,8 @@ export function decorActuel() {
   try {
     const d = localStorage.getItem(CLE_DECOR);
     // Jamais choisi : le fond par defaut. « Sans décor » choisi : rien.
-    if (d === null) return DECOR_PAR_DEFAUT;
-    return DECORS.some((x) => x.id === d) ? d : '';
+    if (d === null) return decorDe(DECOR_PAR_DEFAUT) ? DECOR_PAR_DEFAUT : '';
+    return decorDe(d) ? d : '';
   } catch (e) {
     return '';
   }

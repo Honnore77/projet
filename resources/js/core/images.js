@@ -68,9 +68,10 @@ function operationIDB(mode, fn) {
  * image deja plus petite n'est pas agrandie.
  *
  * @param {File|Blob} fichier
+ * @param {number} [coteMax] cote maximal en pixels (un fond d'ecran en veut plus)
  * @returns {Promise<{octets:Uint8Array, largeur:number, hauteur:number}>}
  */
-export async function reduire(fichier) {
+export async function reduire(fichier, coteMax = COTE_MAX) {
   const url = URL.createObjectURL(fichier);
   try {
     const img = await new Promise((resolve, reject) => {
@@ -80,7 +81,7 @@ export async function reduire(fichier) {
       i.src = url;
     });
 
-    const facteur = Math.min(1, COTE_MAX / Math.max(img.naturalWidth, img.naturalHeight));
+    const facteur = Math.min(1, coteMax / Math.max(img.naturalWidth, img.naturalHeight));
     const largeur = Math.max(1, Math.round(img.naturalWidth * facteur));
     const hauteur = Math.max(1, Math.round(img.naturalHeight * facteur));
 
@@ -108,11 +109,11 @@ export async function reduire(fichier) {
  * @param {File} fichier
  * @returns {Promise<{id:string, nom:string, taille:number, largeur:number, hauteur:number, ajouteLe:string}>}
  */
-export async function ajouterImage(fichier) {
+export async function ajouterImage(fichier, { coteMax } = {}) {
   if (!TYPES_IMAGE.includes(fichier.type)) {
     throw new Error('Seuls les fichiers JPEG et PNG sont acceptés.');
   }
-  const { octets, largeur, hauteur } = await reduire(fichier);
+  const { octets, largeur, hauteur } = await reduire(fichier, coteMax);
   const id = `img_${uid()}`;
 
   if (isDesktop) await window.pduDesktop.imageEcrire(id, Array.from(octets));

@@ -274,6 +274,11 @@ button.notePiece:hover{border-color:#1976D2;background:color-mix(in srgb,#1976D2
 .pjOutil:hover{border-color:#1976D2;}
 .pjAvert{margin:6px 0 0;font-size:11.5px;color:var(--muted);}
 
+/* Colonne « État du véhicule » : problemes signales et pas encore resolus. */
+.etatPb{color:#C62828;font-weight:600;font-size:12.5px;line-height:1.35;min-width:160px;}
+.etatPb+.etatPb{margin-top:4px;}
+.etatPb small{color:#8a5a5a;font-weight:400;}
+
 /* Voyant d'un compte : vert allume en utilisation, gris eteint sinon. */
 .voyantCompte{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:8px;vertical-align:-1px;
   background:#c3cdd0;box-shadow:inset 0 1px 2px rgba(0,0,0,.25);}
@@ -1012,6 +1017,15 @@ html[data-theme="sombre"] #login[data-plein] .cxCorps{background:rgba(15,26,30,.
 #apparenceBtn{border:0;background:var(--green-soft,#e7f6ee);width:40px;height:40px;border-radius:12px;font-size:20px;line-height:1;cursor:pointer;margin-right:8px;flex-shrink:0;box-shadow:0 2px 6px rgba(0,0,0,.08);}
 #apparenceBtn:hover{filter:brightness(.96);}
 #login #apparenceBtn,.cxApparence{width:auto;height:auto;margin:12px 0 0;padding:7px 14px;border-radius:999px;font-size:13px;font-weight:600;color:var(--green);background:var(--green-soft,#e7f6ee);border:0;cursor:pointer;}
+
+/* Fonds de la page de connexion : retirer (✕) et ajouter une image. */
+.themeCarte{position:relative;}
+.decorRetirer{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;background:rgba(211,47,47,.92);
+  color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;cursor:pointer;
+  box-shadow:0 1px 4px rgba(0,0,0,.3);z-index:1;}
+.decorRetirer:hover{background:#b71c1c;}
+.decorAjout{cursor:pointer;border-style:dashed !important;}
+.decorAjout .decorVide{font-size:34px;color:var(--green);}
 
 /* Choix du fond : la carte en apercu (clic), avant validation (double clic). */
 .themeCarte .apercuMarque{display:none;color:#F47B20;}

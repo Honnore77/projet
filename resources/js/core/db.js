@@ -141,6 +141,8 @@ export function emptyDB() {
     notes: [],
     // Une fiche par compte : notes lues et signe de vie de la session.
     suiviComptes: [],
+    // ÉTAT DES VÉHICULES : problemes signales sur les vehicules.
+    etatsVehicules: [],
     settings: {
       organisation: 'PDU',
       // Ville portee par la mention « Fait à … le … » des documents exportes.
@@ -316,7 +318,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -488,6 +490,8 @@ export function imagesCitees(db = DB) {
   // magasin : citees ici, elles suivent la synchronisation et l'archive,
   // et echappent au menage. Leurs versions precedentes aussi.
   idsDesPieces((db.notes || []).flatMap((n) => n.pieces || [])).forEach((id) => vues.add(id));
+  // Les images ajoutees aux fonds de la page de connexion.
+  ((db.settings && db.settings.fondsPerso) || []).forEach((f) => f && f.imageId && vues.add(f.imageId));
   return vues;
 }
 

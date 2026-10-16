@@ -6,6 +6,7 @@
 import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
+import { problemesEnCours } from '../core/etatsVehicules.js';
 
 /**
  * Colonne exportable. `alerteSiVide` demande aux trois rendus — apercu,
@@ -56,7 +57,9 @@ export function dsVehicles(list = allVehicles()) {
       C('km', 'Kilométrage', 13),
       C('kmVidange', 'Prochaine vidange (km)', 18),
       C('vidangeRestant', 'Km avant vidange', 15),
-      C('vidangeEtat', 'Suivi vidange', 14)
+      C('vidangeEtat', 'Suivi vidange', 14),
+      // Problemes signales et pas encore resolus (ÉTAT DES VÉHICULES).
+      C('etatVehicule', 'État du véhicule', 30)
     ],
     rows: list.map((v) => ({
       categorie: (v._cat || '').toUpperCase(),
@@ -74,7 +77,8 @@ export function dsVehicles(list = allVehicles()) {
       km: kmCourant(v),
       kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
       vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
-      vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut]
+      vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut],
+      etatVehicule: problemesEnCours(v).map((s) => `${String(s.probleme || '').split('\n')[0]} (${dateFR(s.dateSignalement)})`).join('\n') || 'RAS'
     }))
   };
 }

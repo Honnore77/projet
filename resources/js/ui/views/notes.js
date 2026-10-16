@@ -4,8 +4,6 @@
      REÇUES     notes publiques des autres et notes privees adressees
                 au compte connecte ;
        ENVOYÉES   les notes ecrites par le compte connecte ;
-     COMPTES    tous les comptes crees dans l'application, le point de
-                leurs notes, et un voyant vert pour ceux en utilisation.
 
    Ouverte a tous les comptes, quel que soit leur niveau d'acces : chacun
    ecrit, modifie et supprime ses propres notes. L'administrateur peut en
@@ -29,8 +27,7 @@ import {
 
 const SUBS = [
   { key: 'recues', label: 'NOTES REÇUES' },
-  { key: 'envoyees', label: 'NOTES ENVOYÉES' },
-  { key: 'comptes', label: 'COMPTES' }
+  { key: 'envoyees', label: 'NOTES ENVOYÉES' }
 ];
 
 const COULEUR = () => moduleColor('NOTES');
@@ -59,11 +56,9 @@ export function renderNotes(page) {
     nouvelles.clear();
   }
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); },
-      { recues: COULEUR(), envoyees: COULEUR_ENVOI, comptes: COULEUR_COMPTES })
+    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); }, { recues: COULEUR(), envoyees: COULEUR_ENVOI })
   );
-  if (sub === 'comptes') renderComptes(page, moi);
-  else if (sub === 'envoyees') renderEnvoyees(page, moi);
+  if (sub === 'envoyees') renderEnvoyees(page, moi);
   else renderRecues(page, moi);
 }
 
@@ -143,15 +138,17 @@ function renderEnvoyees(page, moi) {
   list.forEach((n) => page.appendChild(carteNote(n, moi, {})));
 }
 
-/* ============================ COMPTES ============================= */
+/* ======================= Rubrique COMPTE ========================== */
 
 /**
- * Tous les comptes crees, en tableau, sans formulaire : on y lit le
- * point des notes de chacun. Le voyant vert s'allume pour les comptes
- * dont une session est ouverte en ce moment ; il reste eteint pour les
- * autres.
+ * Rubrique COMPTE : tous les comptes crees, en tableau, sans formulaire.
+ * On y lit le point des notes de chacun. Le voyant vert s'allume pour les
+ * comptes dont une session est ouverte en ce moment ; il reste eteint
+ * pour les autres.
  */
-function renderComptes(page, moi) {
+export function renderComptes(page) {
+  const moi = currentUser();
+  if (!moi) return;
   page.appendChild(card(
     'COMPTES',
     'Tous les comptes créés dans l’application et le point de leurs notes. ' +
@@ -196,7 +193,7 @@ function renderComptes(page, moi) {
   // se redessine chaque minute tant qu'elle reste affichee.
   if (!rafraichissement) {
     rafraichissement = setInterval(() => {
-      if (state.module === 'NOTES' && state.sub.NOTES === 'comptes' && !document.querySelector('.modalBack, .modal')) rerender();
+      if (state.module === 'COMPTE' && !document.querySelector('.modalBack, .modal')) rerender();
       else { clearInterval(rafraichissement); rafraichissement = null; }
     }, 60 * 1000);
   }
