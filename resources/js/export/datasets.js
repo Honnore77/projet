@@ -59,7 +59,7 @@ export function dsVehicles(list = allVehicles()) {
       C('vidangeRestant', 'Km avant vidange', 15),
       C('vidangeEtat', 'Suivi vidange', 14),
       // Problemes signales et pas encore resolus (ÉTAT DES VÉHICULES).
-      C('etatVehicule', 'État du véhicule', 30)
+      C('etatVehicule', 'État actuel du véhicule', 30)
     ],
     rows: list.map((v) => ({
       categorie: (v._cat || '').toUpperCase(),

@@ -210,7 +210,7 @@ export function renderVehicles(page) {
     'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'N° de<br>châssis', 'Couleur', 'Énergie',
     'Conso.<br>L/100 km', 'Statut',
     ...(withSection ? ['Section', 'Utilisateur'] : []),
-    'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'État du<br>véhicule', ''
+    'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'État actuel<br>du véhicule', ''
   ];
 
   const rows = list.map((v) => {

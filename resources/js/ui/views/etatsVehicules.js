@@ -46,7 +46,7 @@ export function renderEtatsVehicules(page) {
   page.appendChild(card(
     'ÉTAT DES VÉHICULES',
     'Les problèmes constatés sur les véhicules : qui les a signalés, à qui, et quand ils ont été résolus. ' +
-      'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État du véhicule » des tableaux POOL, MISSION et SERVICE.',
+      'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État actuel du véhicule » des tableaux POOL, MISSION et SERVICE.',
     COULEUR_ETAT
   ));
 
