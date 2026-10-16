@@ -262,11 +262,11 @@ export function buildMissionReport(mission) {
   caseKm(M + demi, 'DISTANCE SUR PLACE :', texteSurPlaceDoc(d));
   y += 9;
 
-  /* ---- observations ---- */
+  /* ---- etat du vehicule (le champ garde son nom d'origine : observations) ---- */
   doc.setFillColor(...BLEU_ENTETE);
   doc.rect(M, y, W, hLigne, 'FD');
   doc.setFont('helvetica', 'bold');
-  doc.text('OBSERVATIONS', pageW / 2, y + 4.8, { align: 'center' });
+  doc.text('ÉTAT DU VÉHICULE', pageW / 2, y + 4.8, { align: 'center' });
   y += hLigne;
 
   const hObs = 30;
@@ -405,7 +405,7 @@ export function printMissionReport(mission) {
         <div style="border-top:none">DISTANCE SUR PLACE : <span style="font-weight:normal">${esc(texteSurPlaceDoc(d))}</span></div>
       </div>
 
-      <div class="bandeau" style="margin-top:14px">OBSERVATIONS</div>
+      <div class="bandeau" style="margin-top:14px">ÉTAT DU VÉHICULE</div>
       <div class="obs">${esc(d.observations)}</div>
       <div class="mention">${esc(mentionLieuDate(DB.settings && DB.settings.ville))}</div>
     </body></html>`;

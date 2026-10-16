@@ -16,8 +16,9 @@ import {
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
   destinationsDe, texteDestinations, parcoursDe, parcoursMission, libelleParcours,
   distanceEntre, enregistrerTrajet, cleTrajet, lienParcours, lienEtape, ORIGINE_MISSIONS,
-  totaliser, distanceSurPlace
+  totaliser, distanceSurPlace, vehicleByImmat
 } from '../../core/db.js';
+import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicules.js';
 import { canWrite } from '../../core/auth.js';
 import { filtrer, seulementSiennes, peutModifier } from '../../core/acces.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
@@ -214,7 +215,7 @@ function renderRapport(page) {
   page.appendChild(
     card(
       'RAPPORT DE MISSION',
-      'Un rapport par mission. Le bouton « Voir » ouvre le rapport complet : participants, dotation en carburant, ravitaillements, kilométrage et observations.',
+      'Un rapport par mission. Le bouton « Voir » ouvre le rapport complet : participants, dotation en carburant, ravitaillements, kilométrage et état du véhicule.',
       COLORS.purple
     )
   );
@@ -344,7 +345,7 @@ function openRapportVue(m) {
       ligne('Parcours calculé (aller-retour)', d.distanceParcours) +
       ligne('Distance parcourue sur place', texteSurPlace(d.surPlace)) +
       '</div>' +
-      `<div class="subBlock"><h5>Observations</h5><div class="subEntryRow"><span>${esc(d.observations || '—')}</span></div></div>` +
+      `<div class="subBlock"><h5>État du véhicule</h5><div class="subEntryRow"><span>${esc(d.observations || "—")}</span></div></div>` +
       '</div>'
   );
 
@@ -440,6 +441,19 @@ function cablerPrix(bloc) {
   });
 }
 
+/**
+ * Sous le champ « État du véhicule » : les problemes deja ouverts sur le
+ * vehicule de la mission, pour ne pas signaler deux fois la meme chose.
+ */
+function problemesVehiculeMission(m) {
+  const v = vehicleByImmat(m.vehicule);
+  const autres = v ? problemesEnCours(v).filter((s) => s.missionId !== m.id) : [];
+  const base = 'Un problème décrit ici est signalé dans VÉHICULES → ÉTAT DES VÉHICULES ; « RAS » si rien à signaler';
+  if (!autres.length) return `${base}.`;
+  return `${base}. Déjà en cours sur ce véhicule : ` +
+    autres.map((s) => `${String(s.probleme || '').split('\n')[0]} (depuis le ${dateFR(s.dateSignalement)})`).join(' ; ');
+}
+
 /** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
 function openRapportForm(m) {
   const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
@@ -463,7 +477,11 @@ function openRapportForm(m) {
         hint: 'Somme des étapes, retour à Abidjan compris — voir le tableau de suivi' },
       { key: 'surPlace', label: 'Distance parcourue sur place', type: 'static', value: '',
         hint: 'Compteur moins parcours calculé : les déplacements à l’intérieur des destinations' },
-      { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: m.observations },
+      // Relie a VÉHICULES → ÉTAT DES VÉHICULES : un probleme decrit ici y
+      // est signale (voir relierRapportMission).
+      { key: 'observations', label: 'État du véhicule', type: 'textarea', full: true, value: m.observations,
+        placeholder: 'RAS, ou le problème constaté pendant la mission',
+        hint: problemesVehiculeMission(m) },
       { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
         hint: 'Ordre de mission signé, justificatifs de frais' }
     ],
@@ -539,7 +557,15 @@ function openRapportForm(m) {
         observations: v.observations,
         images: v.images
       });
-      toast('Rapport enregistré.', 'ok');
+      const lien = relierRapportMission(m, v.observations);
+      if (lien) persist();
+      toast(
+        lien === 'cree' ? `Rapport enregistré. Problème signalé dans ÉTAT DES VÉHICULES (${m.vehicule || 'véhicule'}).`
+          : lien === 'modifie' ? 'Rapport enregistré. Signalement mis à jour dans ÉTAT DES VÉHICULES.'
+            : lien === 'retire' ? 'Rapport enregistré. Signalement retiré de ÉTAT DES VÉHICULES.'
+              : 'Rapport enregistré.',
+        'ok', lien ? 4500 : 2600
+      );
       rerender();
       return null;
     }

@@ -99,7 +99,8 @@ export function renderEtatsVehicules(page) {
     return [
       `<b style="white-space:nowrap">${esc(s.immat || '')}</b>` +
         (v ? `<br><small style="color:#5b7178">${esc(`${v.marque || ''} ${v.modele || ''}`.trim())}</small>` : ''),
-      escLignes(s.probleme || ''),
+      escLignes(s.probleme || '') +
+        (s.missionId ? `<br><small style="color:#C2185B">via le rapport de mission ${esc(s.missionRef || '')}</small>` : ''),
       esc(dateFR(s.dateSignalement)),
       esc(s.signalePar || ''),
       esc(s.signaleA || ''),

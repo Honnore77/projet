@@ -31,6 +31,56 @@ export function problemesEnCours(v, db = DB) {
     .sort((a, b) => String(b.dateSignalement || '').localeCompare(String(a.dateSignalement || '')));
 }
 
+/** « RAS », « néant », un tiret… : rien a signaler. */
+export function rienASignaler(texte) {
+  const t = norm(String(texte || '')).replace(/[\s.\-–—]+/g, ' ').trim();
+  return !t || ['ras', 'r a s', 'rien a signaler', 'neant', 'aucun', 'aucun probleme', 'bon etat', 'nr'].includes(t);
+}
+
+/**
+ * Rapport de mission → ÉTAT DES VÉHICULES. Le champ « État du véhicule »
+ * du rapport tient un signalement relie a la mission (`missionId`) :
+ *   - un probleme decrit cree le signalement (vehicule de la mission,
+ *     signale par le chauffeur, a la date du retour), non resolu ;
+ *   - un texte modifie met le signalement a jour ;
+ *   - un champ vide ou « RAS » retire le signalement s'il n'est pas
+ *     encore resolu (resolu, il reste : c'est l'historique du vehicule).
+ * Modifie `db.etatsVehicules` sur place ; rend ce qui a ete fait.
+ *
+ * @returns {'cree'|'modifie'|'retire'|null}
+ */
+export function relierRapportMission(m, texte, db = DB, aujourdhui = new Date().toISOString().slice(0, 10)) {
+  if (!Array.isArray(db.etatsVehicules)) db.etatsVehicules = [];
+  const liste = db.etatsVehicules;
+  const i = liste.findIndex((s) => s.missionId === m.id);
+  const lie = i >= 0 ? liste[i] : null;
+  const probleme = String(texte || '').trim();
+
+  if (rienASignaler(probleme)) {
+    if (lie && !estResolu(lie)) { liste.splice(i, 1); return 'retire'; }
+    return null;
+  }
+  if (lie) {
+    const patch = { probleme, immat: lie.immat || m.vehicule || '' };
+    if (lie.probleme === patch.probleme && lie.immat === patch.immat) return null;
+    Object.assign(lie, patch);
+    return 'modifie';
+  }
+  liste.push({
+    id: `ev_${m.id}_${Date.now().toString(36)}`,
+    missionId: m.id,
+    missionRef: m.ref || '',
+    immat: String(m.vehicule || '').trim().toUpperCase(),
+    probleme,
+    dateSignalement: m.dateRetour || m.dateDepart || aujourdhui,
+    signalePar: m.conducteur || '',
+    signaleA: '',
+    resolu: 'Non',
+    dateResolution: ''
+  });
+  return 'cree';
+}
+
 /**
  * Raison de refuser un signalement, ou null. La date de resolution ne
  * precede pas le signalement, et un probleme resolu porte sa date.
