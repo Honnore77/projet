@@ -78,7 +78,9 @@ export function dsVehicles(list = allVehicles()) {
       kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
       vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
       vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut],
-      etatVehicule: problemesEnCours(v).map((s) => `${String(s.probleme || '').split('\n')[0]} (${dateFR(s.dateSignalement)})`).join('\n') || 'RAS'
+      etatVehicule: problemesEnCours(v)
+        .map((s) => `${String(s.probleme || '').split('\n')[0]}${s.dateSignalement ? ` depuis le ${dateFR(s.dateSignalement)}` : ''}`)
+        .join('\n') || 'RAS'
     }))
   };
 }

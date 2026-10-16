@@ -276,10 +276,11 @@ export function renderVehicles(page) {
  */
 function celluleEtat(v) {
   const pbs = problemesEnCours(v);
-  if (!pbs.length) return '<span style="color:#008A3B;white-space:nowrap">✓ RAS</span>';
+  if (!pbs.length) return '<span class="etatRas">RAS</span>';
   return pbs.map((s) =>
-    `<div class="etatPb" title="Signalé le ${esc(dateFR(s.dateSignalement))}${s.signalePar ? ` par ${esc(s.signalePar)}` : ''}">` +
-    `⚠ ${esc(String(s.probleme || '').split('\n')[0])} <small>(${esc(dateFR(s.dateSignalement))})</small></div>`).join('');
+    `<div class="etatPb" title="Signalé${s.signalePar ? ` par ${esc(s.signalePar)}` : ''}${s.signaleA ? ` à ${esc(s.signaleA)}` : ''}">` +
+    `⚠ ${esc(String(s.probleme || '').split('\n')[0])}` +
+    (s.dateSignalement ? ` <small>depuis le ${esc(dateFR(s.dateSignalement))}</small>` : '') + '</div>').join('');
 }
 
 /** Les vehicules de mission ne portent pas d'utilisateur attitre. */
