@@ -3,7 +3,6 @@
    =================================================================== */
 
 import { el, debounce, norm, fmt } from '../core/utils.js';
-import { toast } from './components.js';
 import { currentUser, canAdmin, logout, roleLabel } from '../core/auth.js';
 import { DB, onChange, voyantsVidange, vehiculesImmobilises, vehicleByImmat, allVehicles, immatOf, STATUT_NON_ATTRIBUE } from '../core/db.js';
 import {
@@ -21,6 +20,7 @@ import { renderMaintenance } from './views/maintenance.js';
 import { renderDecharges } from './views/decharges.js';
 import { renderNotes } from './views/notes.js';
 import { notesNonLues } from '../core/notes.js';
+import { demarrerNotesFlottantes, annoncerNotes, fermer as fermerNotesFlottantes } from './notesFlottante.js';
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
@@ -157,7 +157,7 @@ export function mountShell(appRoot, { onLogout }) {
   // reconnecter remonte la coquille : sans ce desabonnement, un second
   // abonnement ecrirait dans un bandeau qui n'est plus a l'ecran.
   if (stopAlertWatch) stopAlertWatch();
-  stopAlertWatch = onChange(() => { renderAlertBar(); majBadgeNotes(); });
+  stopAlertWatch = onChange(() => { renderAlertBar(); majBadgeNotes(); annoncer(); });
   // Le bandeau change de forme selon la largeur : detaille sur un ecran
   // large, reduit a des comptes sur un telephone. Il doit donc se redessiner
   // quand la fenetre change de taille, pas seulement quand la base bouge.
@@ -177,6 +177,7 @@ export function mountShell(appRoot, { onLogout }) {
   dash.querySelector('#apparenceBtn').onclick = () => ouvrirApparence({ surChoix: rerender });
 
   dash.querySelector('#logoutBtn').onclick = () => {
+    fermerNotesFlottantes();
     logout();
     if (onLogoutCb) onLogoutCb();
   };
@@ -198,11 +199,14 @@ export function mountShell(appRoot, { onLogout }) {
   );
   globalBtn.onclick = () => navigate('RECHERCHE_GLOBALE');
 
+  // A l'arrivee, la fenetre flottante annonce les notes qui attendent.
+  demarrerNotesFlottantes(u ? u.id : null);
   navigate(premiereRubrique());
+}
 
-  // A l'arrivee, les notes qui attendent le compte.
-  const n = u ? notesNonLues(u.id).length : 0;
-  if (n) toast(`📬 ${n} nouvelle${n > 1 ? 's' : ''} note${n > 1 ? 's' : ''} dans NOTES.`, 'info', 5000);
+/** Fenetre flottante : expediteur et objet des notes non lues. */
+function annoncer() {
+  annoncerNotes({ ouvrirNotes: () => navigate('NOTES'), surNotes: state.module === 'NOTES' });
 }
 
 /**
@@ -270,6 +274,7 @@ export function navigate(moduleKey, params = {}) {
   [...tabsEl.children].forEach((b) => b.classList.toggle('active', b.dataset.mod === onglet));
   rerender();
   contentEl.scrollTop = 0;
+  annoncer();
 }
 
 /** En dessous de cette largeur, le bandeau ne donne plus que des comptes. */
