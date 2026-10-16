@@ -10,7 +10,7 @@
 
 import { esc } from '../core/utils.js';
 import { DB, saveSettings } from '../core/db.js';
-import { canAdmin } from '../core/auth.js';
+import { currentUser } from '../core/auth.js';
 import { ajouterImage, urlImage } from '../core/images.js';
 import { openModal, toast, confirmDialog } from './components.js';
 import {
@@ -107,9 +107,10 @@ function blocDecor(refaire, o) {
   grille.className = 'themeChoix';
   const actuel = decorActuel();
   const cartes = [];
-  // Ajouter et retirer des fonds : l'administrateur, connecte. La liste
-  // vaut pour tous les appareils ; le choix du fond, pour celui-ci.
-  const gerer = canAdmin();
+  // Ajouter et retirer des fonds : tout compte connecte, depuis la palette
+  // 🎨 de l'en-tete (pas depuis la page de connexion, ouverte a tous). La
+  // liste vaut pour tous les appareils ; le choix du fond, pour celui-ci.
+  const gerer = !!currentUser();
   tousLesDecors().forEach((d) => {
     const b = document.createElement('button');
     b.type = 'button';
