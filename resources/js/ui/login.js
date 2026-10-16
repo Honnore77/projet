@@ -3,7 +3,7 @@
    =================================================================== */
 
 import { el, esc } from '../core/utils.js';
-import { login, inscrire } from '../core/auth.js';
+import { login, inscrire, recupererAvecCle } from '../core/auth.js';
 import { toast, infoDialog, openForm } from './components.js';
 import { openChangeOwnPassword } from './views/settings.js';
 import { decorActuel, decorPleinePage, poserFondSur } from './theme.js';
@@ -159,9 +159,22 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
         'même par l’application.\n\n' +
         '<b>Vous avez un administrateur :</b> demandez-lui de réinitialiser votre mot de passe dans ' +
         'Réglages → Comptes et accès. Vous en choisirez un nouveau à la connexion suivante.\n\n' +
-        '<b>Vous êtes le seul administrateur :</b> la seule issue est de restaurer une sauvegarde ' +
-        'antérieure à l’oubli — d’où l’intérêt d’en exporter régulièrement.</div>'
+        '<b>Plus aucun administrateur ne peut se connecter :</b> utilisez la clé de récupération imprimée ' +
+        '(RÉGLAGES → Comptes et accès → Clé de récupération) avec le bouton ci-dessous.</div>' +
+        '<div style="text-align:center;margin-top:12px"><button type="button" class="miniBtn" data-cle ' +
+        'style="background:#00695C;padding:8px 14px">🛟 J’ai la clé de récupération</button></div>'
     });
+    const bouton = document.querySelector('.modal [data-cle]');
+    if (bouton) {
+      bouton.onclick = () => {
+        bouton.closest('.modalBack').remove();
+        ouvrirRecuperation((identifiant) => {
+          userInput.value = identifiant;
+          passInput.value = '';
+          passInput.focus();
+        });
+      };
+    }
   };
 
   if (firstRun) {
@@ -243,6 +256,38 @@ export function renderLogin(root, { onSuccess, firstRun, migrated }) {
  * Demande d'inscription. Le compte attend ensuite qu'un administrateur le
  * valide (REGLAGES → Comptes et accès) et lui donne son role.
  */
+/**
+ * « J'ai la clé de récupération » : la cle, le compte a rouvrir, un nouveau
+ * mot de passe. La cle est ensuite annulee (voir core/auth.js).
+ * @param {(identifiant:string) => void} apres
+ */
+function ouvrirRecuperation(apres) {
+  openForm({
+    title: '🛟 Rouvrir un compte avec la clé de récupération',
+    intro: 'La clé se trouve sur la feuille imprimée lors de sa création. Elle ne sert qu’une fois.',
+    fields: [
+      { key: 'cle', label: 'Clé de récupération', required: true, full: true, placeholder: 'XXXX-XXXX-XXXX-XXXX-XXXX' },
+      { key: 'login', label: 'Identifiant du compte à rouvrir', required: true, placeholder: 'Ex. admin' },
+      { key: 'password', label: 'Nouveau mot de passe', type: 'password', required: true, hint: '6 caractères au moins, avec une lettre et un chiffre' },
+      { key: 'password2', label: 'Confirmer le mot de passe', type: 'password', required: true }
+    ],
+    okLabel: 'Rouvrir le compte',
+    onSubmit: async (v) => {
+      if (v.password !== v.password2) return 'Les deux mots de passe ne correspondent pas.';
+      const res = await recupererAvecCle({ cle: v.cle, login: v.login, password: v.password });
+      if (!res.ok) return res.error;
+      infoDialog({
+        title: 'Compte rouvert',
+        html: `<div class="modalMsg">Le compte <b>${esc(res.login)}</b> a un nouveau mot de passe : connectez-vous avec.\n\n` +
+          '<b>La clé de récupération a servi : elle ne vaut plus.</b> Une fois connecté en administrateur, générez-en une ' +
+          'nouvelle (RÉGLAGES → Comptes et accès → Clé de récupération) et détruisez l’ancienne feuille.</div>'
+      });
+      apres(res.login);
+      return null;
+    }
+  });
+}
+
 function ouvrirInscription(apres) {
   openForm({
     title: 'Demande d’inscription',

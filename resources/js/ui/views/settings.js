@@ -7,7 +7,8 @@ import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant
 import { ROLES_ACCES, NIVEAUX, RUBRIQUES_ACCES, reglesDuRole, reglesParDefaut } from '../../core/acces.js';
 import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
-  createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword
+  createAccount, updateAccount, deleteAccount, resetPassword, changeOwnPassword,
+  etatCleRecuperation, genererCleRecuperation
 } from '../../core/auth.js';
 import {
   platformName, dataLocation, saveFile, openBinaryFile,
@@ -16,7 +17,7 @@ import {
 import { esc, el, num, francSup } from '../../core/utils.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
-  card, toolbar, openForm, confirmDialog, toast, sectionLabel, dataTable, COLORS
+  card, toolbar, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
 import { rerender } from '../shell.js';
 import { renderSynchroSection, renderReseauSection } from './synchroUI.js';
@@ -170,9 +171,22 @@ function renderAccountsSection(page) {
   page.appendChild(
     toolbar([
       { label: '+ Créer un compte', cls: 'addBtn', color: COLORS.purple, onClick: openCreateAccount },
-      { label: '🔑 Changer mon mot de passe', color: COLORS.blue, onClick: () => openChangeOwnPassword() }
+      { label: '🔑 Changer mon mot de passe', color: COLORS.blue, onClick: () => openChangeOwnPassword() },
+      { label: '🛟 Clé de récupération', color: '#00695C', onClick: ouvrirCleRecuperation }
     ])
   );
+
+  // Sans cle, un administrateur qui oublie son mot de passe est bloque dehors.
+  const cle = etatCleRecuperation();
+  if (!cle.existe) {
+    page.appendChild(el(
+      `<div class="card" style="border-left-color:${COLORS.red}"><h3 style="color:${COLORS.red}">🛟 AUCUNE CLÉ DE RÉCUPÉRATION</h3>` +
+      `<p>${cle.utiliseeLe
+        ? `La clé a servi le ${esc(new Date(cle.utiliseeLe).toLocaleString('fr-FR'))} pour rouvrir le compte « ${esc(cle.utiliseePour)} » : elle ne vaut plus. `
+        : ''}Si plus aucun administrateur ne connaît son mot de passe, seule une clé de récupération permet de rentrer. ` +
+      'Générez-en une avec « 🛟 Clé de récupération », imprimez-la et rangez-la en lieu sûr.</p></div>'
+    ));
+  }
 
   // Les inscriptions faites depuis la page de connexion d'abord.
   const accounts = listAccounts().sort((a, b) => (b.enAttente ? 1 : 0) - (a.enAttente ? 1 : 0));
@@ -227,6 +241,89 @@ function renderAccountsSection(page) {
         '</p></div>'
     )
   );
+}
+
+/* ------------------------ Cle de recuperation ----------------------- */
+
+/**
+ * La cle de secours (voir core/auth.js) : on la genere, on la voit une
+ * seule fois, on l'imprime. Une nouvelle cle annule la precedente.
+ */
+function ouvrirCleRecuperation() {
+  const k = etatCleRecuperation();
+  const corps = el(
+    '<div>' +
+      '<p class="modalMsg" style="margin:0 0 10px">La clé de récupération rouvre un compte — même celui du dernier administrateur — ' +
+      'quand son mot de passe est oublié : page de connexion → « Mot de passe oublié ? » → « J’ai la clé de récupération ». ' +
+      'Elle ne sert qu’une fois. L’application n’en garde qu’une empreinte : <b>elle ne pourra plus être affichée</b> après cette fenêtre.</p>' +
+      `<div class="subEntryRow"><span>Clé actuelle</span><b data-etat-cle>${k.existe
+        ? `active — créée le ${esc(new Date(k.creeLe).toLocaleString('fr-FR'))}${k.creePar ? ` par ${esc(k.creePar)}` : ''}`
+        : 'aucune'}</b></div>` +
+      '<div data-cle style="margin-top:12px"></div>' +
+    '</div>'
+  );
+  const zone = corps.querySelector('[data-cle]');
+  openModal({
+    title: '🛟 Clé de récupération',
+    bodyNode: corps,
+    buttons: [
+      { label: 'Fermer', cls: 'cancel', onClick: (close) => { close(); rerender(); } },
+      {
+        label: k.existe ? 'Générer une nouvelle clé' : 'Générer la clé',
+        cls: 'ok',
+        onClick: async () => {
+          if (etatCleRecuperation().existe && !(await confirmDialog({
+            title: 'Nouvelle clé de récupération',
+            message: 'La clé actuelle cessera de valoir. Pensez à détruire son impression. Continuer ?',
+            okLabel: 'Générer'
+          }))) return;
+          const cle = await genererCleRecuperation();
+          corps.querySelector('[data-etat-cle]').textContent = `active — créée le ${new Date().toLocaleString('fr-FR')}`;
+          zone.innerHTML =
+            '<div class="cleRecup">' +
+              `<div class="cleRecupValeur">${esc(cle)}</div>` +
+              '<p>Imprimez-la ou recopiez-la maintenant, puis rangez-la sous clé (coffre, enveloppe scellée). ' +
+              'Elle ne sera plus jamais affichée.</p>' +
+              '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center">' +
+                '<button type="button" class="miniBtn" data-imprimer style="background:#00695C">🖨 Imprimer</button>' +
+                '<button type="button" class="miniBtn" data-copier style="background:#5b7178">📋 Copier</button>' +
+              '</div>' +
+            '</div>';
+          zone.querySelector('[data-imprimer]').onclick = () => imprimerCle(cle);
+          zone.querySelector('[data-copier]').onclick = async () => {
+            try { await navigator.clipboard.writeText(cle); toast('Clé copiée.', 'ok'); } catch (e) { toast('Copie impossible : recopiez-la à la main.', 'err'); }
+          };
+        }
+      }
+    ]
+  });
+}
+
+/** Une page a imprimer : la cle, l'organisation, le mode d'emploi. */
+function imprimerCle(cle) {
+  const org = (DB.settings && DB.settings.organisation) || 'PDU';
+  const w = window.open('', '_blank');
+  if (!w) return toast('Impression impossible : la fenêtre a été bloquée.', 'err');
+  w.document.write(
+    `<html><head><meta charset="utf-8"><title>Clé de récupération — ${esc(org)}</title><style>` +
+      '@page{size:A4 portrait;margin:20mm;}body{font-family:Arial,Helvetica,sans-serif;color:#000;}' +
+      'h1{font-size:20px;margin:0 0 4px;}.cle{font-family:Consolas,monospace;font-size:26px;letter-spacing:2px;' +
+      'border:2px solid #000;border-radius:8px;padding:16px;text-align:center;margin:24px 0;}' +
+      'li{margin:6px 0;}small{color:#444;}' +
+    '</style></head><body>' +
+      `<h1>PDU Parc Auto — clé de récupération</h1><small>${esc(org)} · imprimée le ${esc(new Date().toLocaleString('fr-FR'))}</small>` +
+      `<div class="cle">${esc(cle)}</div>` +
+      '<ol>' +
+        '<li>Page de connexion → « Mot de passe oublié ? » → « J’ai la clé de récupération ».</li>' +
+        '<li>Saisissez cette clé, l’identifiant du compte à rouvrir et un nouveau mot de passe.</li>' +
+        '<li>La clé ne sert qu’une fois : générez-en ensuite une nouvelle (RÉGLAGES → Comptes et accès) et détruisez cette feuille.</li>' +
+      '</ol>' +
+      '<p><b>Document confidentiel</b> : quiconque possède cette clé peut rouvrir n’importe quel compte de l’application. ' +
+      'Conservez-le sous clé.</p>' +
+    '</body></html>'
+  );
+  w.document.close();
+  setTimeout(() => w.print(), 400);
 }
 
 /* -------------------------- Niveaux d'acces ------------------------- */

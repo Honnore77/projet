@@ -276,6 +276,97 @@ function countActiveAdmins() {
   return DB.accounts.filter((a) => a.role === 'admin' && a.actif).length;
 }
 
+/* ------------------------------------------------------------------ */
+/* Cle de recuperation                                                 */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Le secours quand plus aucun administrateur ne connait son mot de passe.
+ *
+ * Un administrateur genere la cle (RÉGLAGES → Comptes et accès) : elle
+ * s'affiche une seule fois, a imprimer et ranger sous cle. La base n'en
+ * garde que l'empreinte (comme un mot de passe) : on ne peut pas la relire.
+ * Depuis la page de connexion, la cle rouvre n'importe quel compte avec un
+ * nouveau mot de passe. Elle ne sert qu'une fois : apres usage, elle est
+ * annulee et il faut en generer une nouvelle.
+ *
+ * Elle vit dans les reglages : elle suit la synchronisation, et vaut donc
+ * sur tous les PC du bureau.
+ */
+const ALPHABET_CLE = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+/** « k7p2 9qxm-… » → « K7P29QXM… » : seuls comptent les caracteres. */
+export function normaliserCle(cle) {
+  return String(cle || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+}
+
+/** Une cle neuve : 20 caracteres en 5 groupes (« K7P2-9QXM-… »). */
+function nouvelleCle() {
+  const b = new Uint8Array(20);
+  globalThis.crypto.getRandomValues(b);
+  const c = [...b].map((x) => ALPHABET_CLE[x % ALPHABET_CLE.length]).join('');
+  return c.match(/.{4}/g).join('-');
+}
+
+/** Ce qu'on peut dire de la cle sans la montrer. */
+export function etatCleRecuperation() {
+  const k = (DB.settings && DB.settings.cleRecuperation) || null;
+  return {
+    existe: !!(k && k.empreinte),
+    creeLe: k ? k.creeLe || '' : '',
+    creePar: k ? k.creePar || '' : '',
+    utiliseeLe: k ? k.utiliseeLe || '' : '',
+    utiliseePour: k ? k.utiliseePour || '' : ''
+  };
+}
+
+/**
+ * Genere une nouvelle cle (l'ancienne cesse de valoir) et la rend en
+ * clair — la seule fois ou elle l'est.
+ */
+export async function genererCleRecuperation() {
+  if (!canAdmin()) throw new Error('Réservé aux administrateurs.');
+  const cle = nouvelleCle();
+  DB.settings.cleRecuperation = {
+    empreinte: await hashPassword(normaliserCle(cle)),
+    creeLe: new Date().toISOString(),
+    creePar: session ? session.nom : ''
+  };
+  persist();
+  return cle;
+}
+
+/**
+ * Rouvre un compte avec la cle : nouveau mot de passe, cle annulee.
+ * @returns {Promise<{ok:boolean, error?:string, login?:string}>}
+ */
+export async function recupererAvecCle({ cle, login: loginName, password }) {
+  const k = DB.settings && DB.settings.cleRecuperation;
+  if (!k || !k.empreinte) {
+    return { ok: false, error: 'Aucune clé de récupération n’est active (jamais créée, ou déjà utilisée).' };
+  }
+  if (!(await verifyPassword(normaliserCle(cle), k.empreinte))) {
+    return { ok: false, error: 'Clé de récupération incorrecte.' };
+  }
+  const acc = DB.accounts.find((a) => norm(a.login).trim() === norm(loginName).trim());
+  if (!acc) return { ok: false, error: 'Identifiant inconnu.' };
+  const pwErr = passwordProblem(password);
+  if (pwErr) return { ok: false, error: pwErr };
+  acc.pass = await hashPassword(password);
+  acc.mustChange = false;
+  // Un administrateur desactive par erreur doit pouvoir rentrer : c'est
+  // precisement le cas de secours.
+  if (acc.role === 'admin') { acc.actif = true; acc.enAttente = false; }
+  DB.settings.cleRecuperation = {
+    utiliseeLe: new Date().toISOString(),
+    utiliseePour: acc.login,
+    creeLe: k.creeLe || '',
+    creePar: k.creePar || ''
+  };
+  persist();
+  return { ok: true, login: acc.login };
+}
+
 /** Regles minimales de mot de passe. Renvoie un message ou null. */
 export function passwordProblem(pw) {
   const p = String(pw || '');

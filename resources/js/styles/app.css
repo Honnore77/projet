@@ -280,6 +280,12 @@ button.notePiece:hover{border-color:#1976D2;background:color-mix(in srgb,#1976D2
 .etatPb small{color:#8a5a5a;font-weight:400;white-space:nowrap;}
 .etatRas{display:inline-block;color:#008A3B;font-weight:800;letter-spacing:1px;white-space:nowrap;}
 
+/* Cle de recuperation : affichee une seule fois. */
+.cleRecup{border:2px dashed #00695C;border-radius:12px;padding:14px;text-align:center;background:color-mix(in srgb,#00695C 6%,var(--white));}
+.cleRecup p{font-size:12.5px;color:var(--muted);margin:10px 0;}
+.cleRecupValeur{font-family:Consolas,"Courier New",monospace;font-size:clamp(16px,4.2vw,24px);font-weight:800;letter-spacing:2px;
+  color:#004D40;user-select:all;overflow-wrap:anywhere;}
+
 /* RÉGLAGES → Réseau du bureau : les trois modes. */
 .reseauModes{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px;margin-top:10px;}
 .reseauMode{display:flex;flex-direction:column;gap:3px;border:2px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;background:var(--white);}
