@@ -119,14 +119,13 @@ function poolFields(d = {}) {
 }
 
 /**
- * Ecart entre le solde releve sur le ticket et le solde calcule : vert a
- * zero, rouge sinon, avec son signe. Le solde releve s'affiche au survol.
+ * Ecart entre le solde releve sur le ticket et le solde calcule, en rouge
+ * et avec son signe. Le solde releve s'affiche au survol.
  */
 function ecartCell(ecart, releve) {
   if (ecart === '' || ecart === undefined) return '<span style="display:block;text-align:right">—</span>';
-  const couleur = ecart === 0 ? COLORS.green : COLORS.red;
   const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '';
-  return `<span style="display:block;text-align:right;color:${couleur};font-weight:700" title="Solde relevé : ${fmt(releve)} F">` +
+  return `<span style="display:block;text-align:right;color:${COLORS.red};font-weight:700" title="Solde relevé : ${fmt(releve)} F">` +
     `${signe}${fmt(Math.abs(ecart))} F</span>`;
 }
 
