@@ -103,11 +103,9 @@ function poolFields(d = {}) {
     { key: 'rechargement', label: 'Rechargement de la carte (F)', type: 'number', value: d.rechargement,
       hint: 'Seulement si la carte a été rechargée depuis la prise précédente' },
     { key: 'soldeAvant', label: 'Solde avant prise', type: 'number', value: d.soldeAvant,
-      hint: 'Solde après la prise précédente sur la carte, plus le rechargement' },
+      hint: 'Lu sur le ticket. Proposé : solde après la prise précédente sur la carte, plus le rechargement' },
     { key: 'soldeApres', label: 'Solde après prise', type: 'number', readonly: true, value: d.soldeApres,
       hint: 'Solde avant prise moins le montant calculé' },
-    { key: 'soldeReleve', label: 'Solde relevé sur le ticket (F)', type: 'number', value: d.soldeReleve,
-      hint: 'Facultatif : le solde imprimé sur le ticket après la prise. L’écart avec le solde calculé s’affiche dans le tableau' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'conducteur', label: 'Conducteur', value: d.conducteur, list: knownDrivers(),
@@ -119,13 +117,13 @@ function poolFields(d = {}) {
 }
 
 /**
- * Ecart entre le solde releve sur le ticket et le solde calcule, en rouge
- * et avec son signe. Le solde releve s'affiche au survol.
+ * Ecart entre le solde apres de la prise precedente sur la carte et le
+ * solde avant de celle-ci, en rouge et avec son signe.
  */
-function ecartCell(ecart, releve) {
+function ecartCell(ecart) {
   if (ecart === '' || ecart === undefined) return '<span style="display:block;text-align:right">—</span>';
   const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '';
-  return `<span style="display:block;text-align:right;color:${COLORS.red};font-weight:700" title="Solde relevé : ${fmt(releve)} F">` +
+  return `<span style="display:block;text-align:right;color:${COLORS.red};font-weight:700" title="Solde après de la prise précédente sur la carte moins solde avant de celle-ci">` +
     `${signe}${fmt(Math.abs(ecart))} F</span>`;
 }
 
@@ -141,7 +139,7 @@ function renderPool(page) {
     card(
       'DOTATION EN CARBURANT — POOL',
       'Date · Nombre de jours depuis la prise précédente du véhicule · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · ' +
-      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Écart avec le solde relevé sur le ticket · Station-service · État vidange · Conducteur.',
+      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Écart (solde après de la prise précédente sur la carte moins solde avant de celle-ci) · Station-service · État vidange · Conducteur.',
       COLORS.orange
     )
   );
@@ -210,7 +208,7 @@ function renderPool(page) {
         (num(d.rechargement) ? `<small style="display:block;color:${COLORS.green}">dont +${fmt(d.rechargement)} F rechargés</small>` : '') +
         '</span>',
       `<span style="display:block;text-align:right">${soldeCell(s.soldeApres)}</span>`,
-      ecartCell(s.ecart, d.soldeReleve),
+      ecartCell(s.ecart),
       esc(d.station || ''),
       `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
       esc(d.conducteur || ''),
@@ -287,15 +285,14 @@ function openPoolForm(d) {
         if (prec && prec.carte) carte.value = prec.carte;
       }
 
-      // Le solde avant prise suit la carte : solde apres de la prise qui
-      // precede sur cette carte, plus le rechargement. Il ne se saisit que
-      // pour la toute premiere prise d'une carte (solde de depart).
+      // Le solde avant prise se lit sur le ticket. A defaut, on propose le
+      // solde apres de la prise qui precede sur cette carte, plus le
+      // rechargement : on complete un champ vide, on n'ecrase jamais une
+      // saisie.
       const avant = scope.querySelector('[data-key="soldeAvant"]');
-      const precedent = soldePrecedentCarte(carte ? carte.value : values.carte, values.date, d && d.id);
-      if (avant) {
-        const enchaine = precedent !== null && precedent !== '';
-        avant.readOnly = enchaine;
-        if (enchaine) {
+      if (avant && !avant.value) {
+        const precedent = soldePrecedentCarte(carte ? carte.value : values.carte, values.date, d && d.id);
+        if (precedent !== null && precedent !== '') {
           avant.value = num(precedent) + num(values.rechargement);
           values.soldeAvant = avant.value;
         }
@@ -312,15 +309,12 @@ function openPoolForm(d) {
     },
     onSubmit: (values) => {
       const montant = montantPrise(values);
-      const precedent = soldePrecedentCarte(values.carte, values.date, d && d.id);
-      if (precedent !== null && precedent !== '') values.soldeAvant = num(precedent) + num(values.rechargement);
       const payload = {
         date: values.date,
         immat: String(values.immat || '').trim().toUpperCase(),
         marqueModele: values.marqueModele,
         carte: String(values.carte || '').trim(),
         rechargement: values.rechargement === '' ? '' : francSup(values.rechargement),
-        soldeReleve: values.soldeReleve === '' ? '' : francSup(values.soldeReleve),
         soldeAvant: values.soldeAvant === '' ? '' : francSup(values.soldeAvant),
         soldeApres: values.soldeAvant === ''
           ? ''
