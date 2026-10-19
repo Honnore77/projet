@@ -390,6 +390,9 @@ const vide = (v) => v === '' || v === undefined || v === null;
 /** Pas de carte : rien de saisi, ou que des zeros (« 00 »). */
 const sansCarte = (carte) => /^0*$/.test(cleCarte(carte));
 
+/** Un vrai numero de carte : au moins six chiffres. */
+const CARTE_NUMEROTEE = /^\d{6,}$/;
+
 /** Cle d'une carte carburant : sans espaces (« 1405 155 513 » = « 1405155513 »). */
 export function cleCarte(carte) {
   return String(carte || '').replace(/\s+/g, '').toUpperCase();
@@ -404,10 +407,10 @@ export function cleCarte(carte) {
  *   meme vide, et la migration ne repasse plus).
  * - Le solde apres prise saisi jusqu'ici devient le « solde releve » : il
  *   sert de controle face au solde desormais calcule (colonne « Ecart »).
- * - Quand le parc n'a qu'une carte, les prises saisies sans numero de carte
- *   (ou avec « 00 ») sont rattachees a cette carte : sans quoi elles
- *   formeraient une suite de soldes a part. Une carte nommee sans numero
- *   (« AUTRE CARTE ») est une vraie carte et reste telle quelle.
+ * - Quand le parc n'a qu'une carte numerotee, les prises saisies sans
+ *   numero de carte (ou avec « 00 ») sont rattachees a cette carte : sans
+ *   quoi elles formeraient une suite de soldes a part. Une carte nommee
+ *   sans numero (« AUTRE CARTE ») reste telle quelle et ne compte pas.
  */
 function migrerDotationsPool(db) {
   db.dotationPool.forEach((d) => {
@@ -417,7 +420,7 @@ function migrerDotationsPool(db) {
     }
     if (d.soldeReleve === undefined) d.soldeReleve = vide(d.soldeApres) ? '' : num(d.soldeApres);
   });
-  const cartes = [...new Set(db.dotationPool.filter((d) => !sansCarte(d.carte)).map((d) => cleCarte(d.carte)))];
+  const cartes = [...new Set(db.dotationPool.map((d) => cleCarte(d.carte)).filter((c) => CARTE_NUMEROTEE.test(c)))];
   if (cartes.length === 1) {
     db.dotationPool.forEach((d) => { if (sansCarte(d.carte)) d.carte = cartes[0]; });
   }
