@@ -384,6 +384,9 @@ export function normalize(raw) {
   return db;
 }
 
+/** Un montant non renseigne (et non pas nul). */
+const vide = (v) => v === '' || v === undefined || v === null;
+
 /** Une carte carburant reelle : au moins six chiffres (« 00 » n'en est pas une). */
 const CARTE_VALIDE = /^\d{6,}$/;
 
@@ -399,6 +402,8 @@ export function cleCarte(carte) {
  * - Le nom du conducteur s'ecrivait dans « Observations » : il passe dans
  *   le champ « Conducteur », une fois pour toutes (le champ existe ensuite,
  *   meme vide, et la migration ne repasse plus).
+ * - Le solde apres prise saisi jusqu'ici devient le « solde releve » : il
+ *   sert de controle face au solde desormais calcule (colonne « Ecart »).
  * - Quand le parc n'a qu'une carte reelle, les prises saisies sans numero
  *   de carte (ou avec « 00 ») sont rattachees a cette carte : sans quoi
  *   elles formeraient une suite de soldes a part.
@@ -409,6 +414,7 @@ function migrerDotationsPool(db) {
       d.conducteur = String(d.observations || '').trim();
       d.observations = '';
     }
+    if (d.soldeReleve === undefined) d.soldeReleve = vide(d.soldeApres) ? '' : num(d.soldeApres);
   });
   const cartes = [...new Set(db.dotationPool.map((d) => cleCarte(d.carte)).filter((c) => CARTE_VALIDE.test(c)))];
   if (cartes.length === 1) {
@@ -1132,7 +1138,6 @@ export function knownDrivers() {
 
 /* ------------------- Suivi des prises de carburant ------------------ */
 
-const vide = (v) => v === '' || v === undefined || v === null;
 
 /**
  * Dotations pool dans l'ordre des prises : par date, et a date egale dans
@@ -1151,13 +1156,16 @@ function ordreDotationPool(list = DB.dotationPool) {
  * - solde avant d'une prise = solde apres de la prise precedente sur la
  *   meme carte, plus ce qui a ete recharge entre les deux ;
  * - solde apres = solde avant moins le montant de la prise ;
- * - nombre de jours = ecart avec la prise precedente du meme vehicule.
+ * - nombre de jours = ecart avec la prise precedente du meme vehicule ;
+ * - ecart = solde releve (ticket de la station) moins solde apres calcule :
+ *   positif, la carte a plus que prevu (rechargement oublie, prise payee
+ *   autrement) ; negatif, elle a moins (prise non saisie).
  *
  * Seule la premiere prise d'une carte garde le solde avant saisi : c'est le
  * solde de depart. Une prise ajoutee, corrigee ou supprimee se repercute
  * ainsi d'elle-meme sur toutes celles qui suivent.
  *
- * @returns {Map<string, {jours:number|null, soldeAvant:number|'', soldeApres:number|''}>}
+ * @returns {Map<string, {jours:number|null, soldeAvant:number|'', soldeApres:number|'', ecart:number|''}>}
  *   par identifiant de dotation, dans l'ordre des prises
  */
 export function suiviDotationPool(list = DB.dotationPool) {
@@ -1178,7 +1186,9 @@ export function suiviDotationPool(list = DB.dotationPool) {
     const jours = avant && d.date ? daysBetween(avant, d.date) : null;
     if (d.date) derniereDate.set(immat, d.date);
 
-    suivi.set(d.id, { jours, soldeAvant, soldeApres });
+    const ecart = vide(d.soldeReleve) || soldeApres === '' ? '' : num(d.soldeReleve) - soldeApres;
+
+    suivi.set(d.id, { jours, soldeAvant, soldeApres, ecart });
   });
   return suivi;
 }

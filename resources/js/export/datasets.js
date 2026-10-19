@@ -187,6 +187,8 @@ export function dsDotationPool(list = DB.dotationPool) {
       C('rechargement', 'Rechargement', 14),
       C('soldeAvant', 'Solde avant prise', 16),
       C('soldeApres', 'Solde après prise', 16),
+      C('soldeReleve', 'Solde relevé', 16),
+      C('ecart', 'Écart', 13),
       C('station', 'Station-service', 22),
       C('vidange', 'État vidange', 13),
       C('conducteur', 'Conducteur', 22)
@@ -207,6 +209,8 @@ export function dsDotationPool(list = DB.dotationPool) {
         rechargement: num(d.rechargement) ? num(d.rechargement) : '',
         soldeAvant: solde(s.soldeAvant),
         soldeApres: solde(s.soldeApres),
+        soldeReleve: solde(d.soldeReleve),
+        ecart: solde(s.ecart),
         station: d.station || '',
         vidange: d.vidange || '',
         conducteur: d.conducteur || ''

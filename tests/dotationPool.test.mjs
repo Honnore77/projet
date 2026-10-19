@@ -122,3 +122,29 @@ test('avec plusieurs cartes, une prise sans carte reste sans carte', async () =>
   });
   assert.equal(db.DB.dotationPool.find((d) => d.id === 'a').carte, '');
 });
+
+test('l’ecart compare le solde releve sur le ticket au solde calcule', async () => {
+  await charger({
+    dotationPool: [
+      prise('a', '2026-08-03', 'D45 5083', 25000, { soldeAvant: 100000, soldeReleve: 75000 }),
+      prise('b', '2026-08-10', 'D45 5081', 15000, { soldeReleve: 100000 }),
+      prise('c', '2026-08-17', 'D45 5083', 25000, { soldeReleve: '' })
+    ]
+  });
+  const s = db.suiviDotationPool();
+  assert.equal(s.get('a').ecart, 0, 'ticket conforme');
+  assert.equal(s.get('b').ecart, 40000, 'la carte a 40 000 F de plus que prevu');
+  assert.equal(s.get('c').ecart, '', 'sans solde releve, pas d’ecart');
+});
+
+test('au chargement, l’ancien solde apres saisi devient le solde releve', async () => {
+  await charger({
+    dotationPool: [
+      { id: 'a', date: '2026-08-03', immat: 'D45 5083', carte: CARTE, montant: 25000, soldeAvant: 3520683, soldeApres: 3495683 },
+      { id: 'b', date: '2026-08-10', immat: 'D45 5083', carte: CARTE, montant: 25000, soldeAvant: '', soldeApres: '' }
+    ]
+  });
+  const [a, b] = ['a', 'b'].map((id) => db.DB.dotationPool.find((d) => d.id === id));
+  assert.equal(a.soldeReleve, 3495683);
+  assert.equal(b.soldeReleve, '');
+});

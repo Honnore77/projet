@@ -106,6 +106,8 @@ function poolFields(d = {}) {
       hint: 'Solde après la prise précédente sur la carte, plus le rechargement' },
     { key: 'soldeApres', label: 'Solde après prise', type: 'number', readonly: true, value: d.soldeApres,
       hint: 'Solde avant prise moins le montant calculé' },
+    { key: 'soldeReleve', label: 'Solde relevé sur le ticket (F)', type: 'number', value: d.soldeReleve,
+      hint: 'Facultatif : le solde imprimé sur le ticket après la prise. L’écart avec le solde calculé s’affiche dans le tableau' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'conducteur', label: 'Conducteur', value: d.conducteur, list: knownDrivers(),
@@ -114,6 +116,18 @@ function poolFields(d = {}) {
     { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: d.images,
       hint: 'Reçu de la station-service, ticket de la carte carburant' }
   ];
+}
+
+/**
+ * Ecart entre le solde releve sur le ticket et le solde calcule : vert a
+ * zero, rouge sinon, avec son signe. Le solde releve s'affiche au survol.
+ */
+function ecartCell(ecart, releve) {
+  if (ecart === '' || ecart === undefined) return '<span style="display:block;text-align:right">—</span>';
+  const couleur = ecart === 0 ? COLORS.green : COLORS.red;
+  const signe = ecart > 0 ? '+' : ecart < 0 ? '−' : '';
+  return `<span style="display:block;text-align:right;color:${couleur};font-weight:700" title="Solde relevé : ${fmt(releve)} F">` +
+    `${signe}${fmt(Math.abs(ecart))} F</span>`;
 }
 
 /** Un solde non renseigne se lit mieux « — » que « 0 ». */
@@ -128,7 +142,7 @@ function renderPool(page) {
     card(
       'DOTATION EN CARBURANT — POOL',
       'Date · Nombre de jours depuis la prise précédente du véhicule · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · ' +
-      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Station-service · État vidange · Conducteur.',
+      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Écart avec le solde relevé sur le ticket · Station-service · État vidange · Conducteur.',
       COLORS.orange
     )
   );
@@ -171,7 +185,7 @@ function renderPool(page) {
   const suivi = suiviDotationPool();
   const headers = [
     'Date', 'Nombre<br>de jours', 'Immatriculation', 'Marque / Modèle', 'Carte<br>carburant', 'Énergie', 'Kilométrage',
-    'Quantité<br>(L)', 'Prix / L', 'Montant', 'Solde<br>avant', 'Solde<br>après',
+    'Quantité<br>(L)', 'Prix / L', 'Montant', 'Solde<br>avant', 'Solde<br>après', 'Écart',
     'Station-service', 'État<br>vidange', 'Conducteur', ''
   ];
 
@@ -192,6 +206,7 @@ function renderPool(page) {
         (num(d.rechargement) ? `<small style="display:block;color:${COLORS.green}">dont +${fmt(d.rechargement)} F rechargés</small>` : '') +
         '</span>',
       `<span style="display:block;text-align:right">${soldeCell(s.soldeApres)}</span>`,
+      ecartCell(s.ecart, d.soldeReleve),
       esc(d.station || ''),
       `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
       esc(d.conducteur || ''),
@@ -301,6 +316,7 @@ function openPoolForm(d) {
         marqueModele: values.marqueModele,
         carte: String(values.carte || '').trim(),
         rechargement: values.rechargement === '' ? '' : francSup(values.rechargement),
+        soldeReleve: values.soldeReleve === '' ? '' : francSup(values.soldeReleve),
         soldeAvant: values.soldeAvant === '' ? '' : francSup(values.soldeAvant),
         soldeApres: values.soldeAvant === ''
           ? ''
