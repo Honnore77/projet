@@ -159,12 +159,13 @@ function renderPool(page) {
   if (f.dateFrom) list = list.filter((d) => !d.date || d.date >= f.dateFrom);
   if (f.dateTo) list = list.filter((d) => !d.date || d.date <= f.dateTo);
   if (f.immat) list = list.filter((d) => norm(d.immat || '').includes(norm(f.immat)));
-  // Dans l'ordre des prises, de la plus ancienne a la plus recente (a date
-  // egale, dans l'ordre de saisie) : le solde apres d'une ligne se lit
-  // comme le solde avant de la suivante sur la meme carte.
+  // L'ordre des prises a rebours : la plus recente en haut, la plus
+  // ancienne en bas ; dans une journee, la derniere prise (le solde apres
+  // le plus bas) en haut. Le solde avant d'une ligne se lit ainsi comme le
+  // solde apres de la ligne du dessous, sur la meme carte.
   const suivi = suiviDotationPool();
   const rang = new Map([...suivi.keys()].map((id, i) => [id, i]));
-  list.sort((a, b) => rang.get(a.id) - rang.get(b.id));
+  list.sort((a, b) => rang.get(b.id) - rang.get(a.id));
 
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Dotations', fmt(list.length), 'sur la période filtrée', COLORS.orange));

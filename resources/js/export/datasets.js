@@ -171,9 +171,9 @@ export function dsDotationPool(list = DB.dotationPool) {
   // hors du filtre.
   const suivi = suiviDotationPool();
   const solde = (v) => (v === '' || v === undefined ? '' : num(v));
-  // Dans l'ordre des prises, comme le tableau de l'application.
+  // Comme le tableau de l'application : la prise la plus recente en haut.
   const rang = new Map([...suivi.keys()].map((id, i) => [id, i]));
-  list = list.slice().sort((a, b) => rang.get(a.id) - rang.get(b.id));
+  list = list.slice().sort((a, b) => rang.get(b.id) - rang.get(a.id));
   return {
     title: 'Dotation pool',
     columns: [
