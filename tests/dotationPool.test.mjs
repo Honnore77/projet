@@ -148,3 +148,32 @@ test('au chargement, l’ancien solde apres saisi devient le solde releve', asyn
   assert.equal(a.soldeReleve, 3495683);
   assert.equal(b.soldeReleve, '');
 });
+
+test('dans une journee, le solde releve le plus bas est la prise la plus recente', async () => {
+  await charger({
+    dotationPool: [
+      prise('a', '2026-08-02', 'D45 5070', 10000, { soldeAvant: 200000, soldeReleve: 190000 }),
+      // Saisies dans le desordre le 03 : le ticket dit l'ordre reel.
+      prise('c', '2026-08-03', 'D45 5081', 15000, { soldeReleve: 150000 }),
+      prise('b', '2026-08-03', 'D45 5083', 25000, { soldeReleve: 165000 }),
+      prise('d', '2026-08-04', 'D45 5086', 25000, { soldeReleve: 125000 })
+    ]
+  });
+  const s = db.suiviDotationPool();
+  assert.deepEqual([...s.keys()], ['a', 'b', 'c', 'd']);
+  assert.equal(s.get('b').soldeAvant, 190000);
+  assert.equal(s.get('c').soldeApres, 150000);
+  assert.equal(db.soldePrecedentCarte(CARTE, '2026-08-03', 'c'), 165000, 'modifiee : apres b, qui la precede ce jour-la');
+  assert.equal(db.soldePrecedentCarte(CARTE, '2026-08-03', 'b'), 190000);
+  assert.equal(db.soldePrecedentCarte(CARTE, '2026-08-03'), 150000, 'nouvelle : la derniere du jour');
+});
+
+test('dans une journee sans solde releve partout, l’ordre de saisie departage', async () => {
+  await charger({
+    dotationPool: [
+      prise('a', '2026-08-03', 'D45 5083', 25000, { soldeAvant: 100000, soldeReleve: 10 }),
+      prise('b', '2026-08-03', 'D45 5082', 25000, { soldeReleve: '' })
+    ]
+  });
+  assert.deepEqual([...db.suiviDotationPool().keys()], ['a', 'b']);
+});

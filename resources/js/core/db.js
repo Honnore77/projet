@@ -1140,14 +1140,28 @@ export function knownDrivers() {
 
 
 /**
- * Dotations pool dans l'ordre des prises : par date, et a date egale dans
- * l'ordre de saisie (celui du tableau en base).
+ * Dotations pool dans l'ordre des prises, par date.
+ *
+ * Dans une meme journee, chaque prise fait baisser le solde de la carte :
+ * celle qui laisse le solde le plus bas est donc la derniere. Les prises du
+ * jour se rangent ainsi par solde releve sur le ticket, du plus eleve au
+ * plus bas. S'il manque un solde releve ce jour-la, l'ordre de saisie (celui
+ * du tableau en base) departage.
  */
 function ordreDotationPool(list = DB.dotationPool) {
-  return list
-    .map((d, i) => ({ d, i }))
-    .sort((a, b) => String(a.d.date || '').localeCompare(String(b.d.date || '')) || a.i - b.i)
-    .map((x) => x.d);
+  const parJour = new Map();
+  list.forEach((d, i) => {
+    const jour = String(d.date || '');
+    if (!parJour.has(jour)) parJour.set(jour, []);
+    parJour.get(jour).push({ d, i });
+  });
+  return [...parJour.keys()].sort().flatMap((jour) => {
+    const lot = parJour.get(jour);
+    const releves = lot.every((x) => !vide(x.d.soldeReleve));
+    return lot
+      .sort((a, b) => (releves ? num(b.d.soldeReleve) - num(a.d.soldeReleve) : 0) || a.i - b.i)
+      .map((x) => x.d);
+  });
 }
 
 /**
@@ -1197,8 +1211,9 @@ export function suiviDotationPool(list = DB.dotationPool) {
 
 /**
  * Solde apres la prise qui precede, sur cette carte, une prise a cette date.
- * A date egale, une nouvelle prise vient apres celles deja saisies ; une
- * prise modifiee garde sa place parmi elles.
+ * A date egale, une nouvelle prise vient apres celles deja saisies (c'est la
+ * plus recente) ; une prise modifiee sans changer de jour garde sa place
+ * parmi elles.
  *
  * @param {string} [id] la prise en cours de modification, a ecarter
  * @returns {number|''|null} null s'il n'y a pas de prise precedente sur la
@@ -1207,17 +1222,19 @@ export function suiviDotationPool(list = DB.dotationPool) {
 export function soldePrecedentCarte(carte, date, id) {
   const cle = cleCarte(carte);
   const jour = String(date || '');
-  const rang = id ? DB.dotationPool.findIndex((x) => x.id === id) : -1;
   const suivi = suiviDotationPool();
+  const rangs = new Map([...suivi.keys()].map((cleId, i) => [cleId, i]));
+  const elle = id ? DB.dotationPool.find((x) => x.id === id) : null;
+  const memeJour = !!elle && String(elle.date || '') === jour;
   // Les prises qui precedent ne dependent pas de celle-ci : leurs soldes
   // calcules valent tels quels. Le suivi est dans l'ordre des prises, la
   // derniere retenue est donc la plus recente.
   const precedentes = new Set(
     DB.dotationPool
-      .filter((x, i) => {
+      .filter((x) => {
         if (x.id === id || cleCarte(x.carte) !== cle) return false;
         const d = String(x.date || '');
-        return d < jour || (d === jour && (rang < 0 || i < rang));
+        return d < jour || (d === jour && (!memeJour || rangs.get(x.id) < rangs.get(id)));
       })
       .map((x) => x.id)
   );
