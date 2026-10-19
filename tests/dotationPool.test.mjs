@@ -177,3 +177,18 @@ test('dans une journee sans solde releve partout, l’ordre de saisie departage'
   });
   assert.deepEqual([...db.suiviDotationPool().keys()], ['a', 'b']);
 });
+
+test('une carte nommee sans numero est une vraie carte, avec sa propre suite', async () => {
+  await charger({
+    dotationPool: [
+      prise('a', '2026-08-03', 'D45 5083', 25000, { soldeAvant: 3000000 }),
+      prise('b', '2026-08-24', 'D45 5082', 25000, { carte: 'AUTRE CARTE', soldeAvant: 860430 }),
+      prise('c', '2026-08-25', 'D45 5084', 25000, { carte: 'autre carte' }),
+      prise('d', '2026-08-26', 'D45 5083', 25000)
+    ]
+  });
+  assert.equal(db.DB.dotationPool.find((d) => d.id === 'b').carte, 'AUTRE CARTE', 'pas rattachee a la carte numerotee');
+  const s = db.suiviDotationPool();
+  assert.equal(s.get('c').soldeAvant, 835430, 'la casse ne compte pas');
+  assert.equal(s.get('d').soldeAvant, 2975000);
+});
