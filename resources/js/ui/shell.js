@@ -425,6 +425,9 @@ const GROUPES_ALERTE = [
   { classe: 'libre', libelle: 'Non attribué', court: 'Libre' }
 ];
 
+/** Les trois couleurs de la vidange. */
+const VIDANGE = new Set(['rouge', 'orange', 'jaune']);
+
 /**
  * Une pastille par type d'alerte, et non plus par vehicule : la couleur et
  * le libelle disent la nature de l'alerte, la bulle au-dessus le nombre de
@@ -436,6 +439,21 @@ function rendreGroupes(voyants) {
   GROUPES_ALERTE.forEach((g) => {
     const lot = voyants.filter((v) => v.classe === g.classe);
     if (!lot.length) return;
+    // Vidange : un seul vehicule dans la couleur, son immatriculation se lit
+    // directement sur la pastille ; la liste ne sert qu'a partir de deux.
+    if (lot.length === 1 && VIDANGE.has(g.classe)) {
+      const v = lot[0];
+      const seul = el(
+        `<button type="button" class="voyant voyantGroupe ${g.classe}${v.clignote ? ' clignote' : ''}" ` +
+          `data-court="${escapeText(v.immat)}" title="${escapeText(`${g.libelle} — ${v.immat} : ${v.texte}. ${v.titre}`)}">` +
+          `<span aria-hidden="true">${v.icone}</span>` +
+          (etroit ? '' : `<b>${escapeText(v.immat)}</b><span class="voyantKm">${escapeText(v.texte)}</span>`) +
+        '</button>'
+      );
+      seul.onclick = (ev) => { ev.stopPropagation(); fermerListe(); openVehicleSheet(v.go); };
+      alertBarEl.appendChild(seul);
+      return;
+    }
     const b = el(
       `<button type="button" class="voyant voyantGroupe ${g.classe}${lot[0].clignote ? ' clignote' : ''}" ` +
         `data-court="${escapeText(g.court)}" aria-haspopup="true" aria-expanded="false" title="${escapeText(`${g.libelle} : ${lot.length} véhicule(s)`)}">` +
@@ -452,6 +470,7 @@ function rendreGroupes(voyants) {
   // garde que les icones.
   const deborde = () => alertBarEl.scrollWidth > alertBarEl.clientWidth + 1;
   if (!etroit && deborde()) {
+    alertBarEl.querySelectorAll('.voyantKm').forEach((x) => x.remove());
     alertBarEl.querySelectorAll('.voyantGroupe').forEach((btn) => { const x = btn.querySelector('b'); if (x) x.textContent = btn.dataset.court; });
     if (deborde()) alertBarEl.querySelectorAll('.voyantGroupe b').forEach((x) => x.remove());
   }

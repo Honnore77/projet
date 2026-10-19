@@ -37,12 +37,13 @@ test('a date egale, c’est le releve le plus eleve qui compte', async () => {
   assert.equal(db.derniereLectureKm(IMMAT).km, 13850);
 });
 
-test('les paliers du voyant : 1000, 750 et 500 kilometres', () => {
+test('les paliers du voyant : 1000, 700 et 500 kilometres', () => {
   assert.equal(db.niveauVoyantVidange(1200), null, 'au-dela de 1000, rien');
   assert.equal(db.niveauVoyantVidange(1000), 'jaune', 'a 1000 le voyant s’allume');
   assert.equal(db.niveauVoyantVidange(900), 'jaune');
-  assert.equal(db.niveauVoyantVidange(751), 'jaune');
-  assert.equal(db.niveauVoyantVidange(750), 'orange', 'un seuil prend la couleur la plus grave');
+  assert.equal(db.niveauVoyantVidange(750), 'jaune');
+  assert.equal(db.niveauVoyantVidange(701), 'jaune');
+  assert.equal(db.niveauVoyantVidange(700), 'orange', 'un seuil prend la couleur la plus grave');
   assert.equal(db.niveauVoyantVidange(600), 'orange');
   assert.equal(db.niveauVoyantVidange(500), 'rouge', 'idem a 500');
   assert.equal(db.niveauVoyantVidange(10), 'rouge');

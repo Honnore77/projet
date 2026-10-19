@@ -1201,12 +1201,12 @@ export function vidangesASurveiller() {
  * qu'un conducteur sache ce que la couleur veut dire sans avoir a demander
  * comment l'application est reglee.
  */
-export const SEUILS_VOYANT_VIDANGE = { jaune: 1000, orange: 750, rouge: 500 };
+export const SEUILS_VOYANT_VIDANGE = { jaune: 1000, orange: 700, rouge: 500 };
 
 /**
  * Couleur du voyant pour un nombre de kilometres restants.
  *
- * Une valeur pile sur un seuil prend la couleur la plus grave : a 750 km on
+ * Une valeur pile sur un seuil prend la couleur la plus grave : a 700 km on
  * est deja orange. Se tromper du cote prudent ne coute rien, l'inverse si.
  * En dessous de zero la vidange est depassee : le voyant reste rouge tant
  * qu'elle n'est pas faite, c'est-a-dire tant que le kilometrage cible de la
