@@ -1174,8 +1174,8 @@ function ordreDotationPool(list = DB.dotationPool) {
  * - solde avant d'une prise = solde apres de la prise precedente sur la
  *   meme carte, plus ce qui a ete recharge entre les deux ;
  * - solde apres = solde avant moins le montant de la prise ;
- * - nombre de jours = jours ecoules depuis la prise precedente du meme
- *   vehicule, sans compter le jour de la prise (du 03 au 10 : 6 jours) ;
+ * - nombre de jours = ecart entre la date de la prise precedente du meme
+ *   vehicule et celle-ci (du 03 au 10 : 7 jours) ;
  * - ecart = solde releve (ticket de la station) moins solde apres calcule :
  *   positif, la carte a plus que prevu (rechargement oublie, prise payee
  *   autrement) ; negatif, elle a moins (prise non saisie).
@@ -1202,8 +1202,7 @@ export function suiviDotationPool(list = DB.dotationPool) {
 
     const immat = String(d.immat || '').trim().toUpperCase();
     const avant = derniereDate.get(immat);
-    const ecoules = avant && d.date ? daysBetween(avant, d.date) : null;
-    const jours = ecoules === null ? null : Math.max(0, ecoules - 1);
+    const jours = avant && d.date ? daysBetween(avant, d.date) : null;
     if (d.date) derniereDate.set(immat, d.date);
 
     const ecart = vide(d.soldeReleve) || soldeApres === '' ? '' : num(d.soldeReleve) - soldeApres;

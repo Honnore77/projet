@@ -63,7 +63,7 @@ test('chaque carte a sa propre suite de soldes', async () => {
   assert.equal(s.get('c').soldeAvant, 75000);
 });
 
-test('le nombre de jours compte depuis la prise precedente du meme vehicule, sans le jour de prise', async () => {
+test('le nombre de jours est l’ecart entre les dates des prises du meme vehicule', async () => {
   await charger({
     dotationPool: [
       prise('a', '2026-08-03', 'D45 5083', 1, { soldeAvant: 10 }),
@@ -75,7 +75,7 @@ test('le nombre de jours compte depuis la prise precedente du meme vehicule, san
   const s = db.suiviDotationPool();
   assert.equal(s.get('a').jours, null, 'premiere prise du vehicule');
   assert.equal(s.get('b').jours, null, 'un autre vehicule ne compte pas');
-  assert.equal(s.get('c').jours, 6, 'du 03 au 10 : le jour de prise ne compte pas');
+  assert.equal(s.get('c').jours, 7, 'du 03 au 10 : 7 jours');
   assert.equal(s.get('d').jours, 0, 'deux prises le meme jour');
 });
 
