@@ -159,7 +159,12 @@ function renderPool(page) {
   if (f.dateFrom) list = list.filter((d) => !d.date || d.date >= f.dateFrom);
   if (f.dateTo) list = list.filter((d) => !d.date || d.date <= f.dateTo);
   if (f.immat) list = list.filter((d) => norm(d.immat || '').includes(norm(f.immat)));
-  list.sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  // Dans l'ordre des prises, de la plus ancienne a la plus recente (a date
+  // egale, dans l'ordre de saisie) : le solde apres d'une ligne se lit
+  // comme le solde avant de la suivante sur la meme carte.
+  const suivi = suiviDotationPool();
+  const rang = new Map([...suivi.keys()].map((id, i) => [id, i]));
+  list.sort((a, b) => rang.get(a.id) - rang.get(b.id));
 
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Dotations', fmt(list.length), 'sur la période filtrée', COLORS.orange));
@@ -181,7 +186,6 @@ function renderPool(page) {
     return;
   }
 
-  const suivi = suiviDotationPool();
   const headers = [
     'Date', 'Nombre<br>de jours', 'Immatriculation', 'Marque / Modèle', 'Carte<br>carburant', 'Énergie', 'Kilométrage',
     'Quantité<br>(L)', 'Prix / L', 'Montant', 'Solde<br>avant', 'Solde<br>après', 'Écart',
