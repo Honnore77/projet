@@ -161,3 +161,25 @@ test('un releve plus recent ailleurs l’emporte sur une mission plus ancienne',
   });
   assert.equal(db.kmCourant(db.vehicleByImmat(IMMAT)), 10200);
 });
+
+test('la carte ALERTES reprend les trois couleurs des voyants', async () => {
+  await charger({
+    vehicles: {
+      pool: [
+        vehicule({ id: 'v1', immatNouvelle: 'D45 50 1111', km: 10000, kmVidange: 10900 }), // 900 jaune
+        vehicule({ id: 'v2', immatNouvelle: 'D45 50 2222', km: 10000, kmVidange: 10650 }), // 650 orange
+        vehicule({ id: 'v3', immatNouvelle: 'D45 50 3333', km: 10000, kmVidange: 10200 }), // 200 rouge
+        vehicule({ id: 'v4', immatNouvelle: 'D45 50 4444', km: 10000, kmVidange: 9700 })   // -300 rouge
+      ],
+      mission: [], service: []
+    }
+  });
+  const lignes = db.computeAlerts().filter((a) => a.icon === '🛢️');
+  assert.deepEqual(lignes.map((a) => [a.level, a.title]), [
+    ['crit', 'Vidange urgente : 2 véhicules'],
+    ['orange', 'Vidange proche : 1 véhicule'],
+    ['jaune', 'Vidange à prévoir : 1 véhicule']
+  ]);
+  assert.match(lignes[0].detail, /D45 50 4444 : 300 km de retard/);
+  assert.match(lignes[0].detail, /D45 50 3333 : 200 km restants/);
+});

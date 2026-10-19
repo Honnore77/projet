@@ -1183,14 +1183,6 @@ export function etatVidange(v) {
   return { statut: 'ok', restant, cible };
 }
 
-/** Vehicules dont la vidange est due ou proche de l'etre. */
-export function vidangesASurveiller() {
-  return allVehicles()
-    .map((v) => ({ vehicule: v, etat: etatVidange(v) }))
-    .filter((x) => x.etat.statut === 'depassee' || x.etat.statut === 'proche')
-    .sort((a, b) => a.etat.restant - b.etat.restant);
-}
-
 /**
  * Seuils du voyant de vidange, en kilometres restants avant l'echeance.
  *
@@ -1319,6 +1311,13 @@ export function fuelCost(immat) {
   return pool + mission;
 }
 
+/** Les lignes de vidange de la carte ALERTES, une par couleur de voyant. */
+const ALERTES_VIDANGE = [
+  { niveau: 'rouge', level: 'crit', titre: 'Vidange urgente' },
+  { niveau: 'orange', level: 'orange', titre: 'Vidange proche' },
+  { niveau: 'jaune', level: 'jaune', titre: 'Vidange à prévoir' }
+];
+
 /**
  * Alertes calculees a partir des donnees et des seuils de reglage.
  * @returns {{level:'crit'|'warn'|'ok', icon:string, title:string, detail:string, go?:string}[]}
@@ -1374,35 +1373,25 @@ export function computeAlerts() {
     });
   }
 
-  // Vidanges : on compare le kilometrage courant au kilometrage auquel la
-  // vidange est due. C'est plus fiable que l'etat coche a la pompe, qui
-  // n'est mis a jour qu'au moment d'un plein.
-  const surveillance = vidangesASurveiller();
-  const depassees = surveillance.filter((x) => x.etat.statut === 'depassee');
-  const proches = surveillance.filter((x) => x.etat.statut === 'proche');
-
-  if (depassees.length) {
+  // Vidanges : les memes trois couleurs que les voyants du bandeau
+  // (SEUILS_VOYANT_VIDANGE), une ligne par couleur, de la plus grave a la
+  // moins grave.
+  const vidanges = voyantsVidange();
+  ALERTES_VIDANGE.forEach((g) => {
+    const lot = vidanges.filter((x) => x.niveau === g.niveau);
+    if (!lot.length) return;
     out.push({
-      level: 'crit',
+      level: g.level,
       icon: '🛢️',
-      title: `${depassees.length} véhicule(s) à vidanger sans délai`,
-      detail: depassees
-        .map((x) => `${immatOf(x.vehicule) || '(sans immat.)'} : ${fmtKm(-x.etat.restant)} km au-delà`)
+      title: `${g.titre} : ${lot.length} véhicule${lot.length > 1 ? 's' : ''}`,
+      detail: lot
+        .map((x) => `${x.immat || '(sans immat.)'} : ${x.etat.restant <= 0
+          ? `${fmtKm(-x.etat.restant)} km de retard`
+          : `${fmtKm(x.etat.restant)} km restants`}`)
         .join(' · '),
       go: 'VEHICULES'
     });
-  }
-  if (proches.length) {
-    out.push({
-      level: 'warn',
-      icon: '🛢️',
-      title: `${proches.length} véhicule(s) approchent de la vidange`,
-      detail: proches
-        .map((x) => `${immatOf(x.vehicule) || '(sans immat.)'} : ${fmtKm(x.etat.restant)} km restants`)
-        .join(' · '),
-      go: 'VEHICULES'
-    });
-  }
+  });
 
   const immo = allVehicles().filter((v) => v.statut === 'Immobilisé');
   if (immo.length) {

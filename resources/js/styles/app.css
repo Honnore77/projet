@@ -411,6 +411,8 @@ table.dataTable tbody tr:nth-child(even){background:#fbfdfd;}
 .alertItem{display:flex;gap:10px;align-items:flex-start;background:var(--white);border-radius:12px;padding:11px 13px;
   margin-bottom:7px;box-shadow:var(--shadow);border-left:4px solid var(--orange);font-size:13px;line-height:1.5;}
 .alertItem.crit{border-left-color:var(--red);}
+.alertItem.orange{border-left-color:var(--orange);}
+.alertItem.jaune{border-left-color:var(--yellow);}
 .alertItem.ok{border-left-color:var(--green);}
 .alertItem .ic{font-size:16px;line-height:1.2;}
 .alertItem b{display:block;font-size:13px;}
