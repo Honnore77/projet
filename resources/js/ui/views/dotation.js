@@ -11,7 +11,8 @@
 
 import {
   DB, ETATS_VIDANGE, insert, update, remove, knownImmats, vehicleByImmat,
-  carburantMissions, missionsAvecCarburant, ravMontant, prixLitreOptions
+  carburantMissions, missionsAvecCarburant, ravMontant, prixLitreOptions,
+  suiviDotationPool, soldePrecedentCarte, knownDrivers
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
@@ -99,12 +100,16 @@ function poolFields(d = {}) {
       options: prixLitreOptions(d.energie), emptyLabel: '— choisir —', addLabel: 'Autre prix',
       hint: 'Réglé dans RÉGLAGES → Modifier les réglages' },
     { key: 'montant', label: 'Montant calculé', type: 'static', value: d.montant ? fmt(d.montant) : '0' },
+    { key: 'rechargement', label: 'Rechargement de la carte (F)', type: 'number', value: d.rechargement,
+      hint: 'Seulement si la carte a été rechargée depuis la prise précédente' },
     { key: 'soldeAvant', label: 'Solde avant prise', type: 'number', value: d.soldeAvant,
-      hint: 'Repris du solde après prise de la dernière dotation' },
+      hint: 'Solde après la prise précédente sur la carte, plus le rechargement' },
     { key: 'soldeApres', label: 'Solde après prise', type: 'number', readonly: true, value: d.soldeApres,
       hint: 'Solde avant prise moins le montant calculé' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
+    { key: 'conducteur', label: 'Conducteur', value: d.conducteur, list: knownDrivers(),
+      hint: 'Le conducteur qui est allé prendre le carburant' },
     { key: 'observations', label: 'Observations', type: 'textarea', full: true, value: d.observations },
     { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: d.images,
       hint: 'Reçu de la station-service, ticket de la carte carburant' }
@@ -122,7 +127,8 @@ function renderPool(page) {
   page.appendChild(
     card(
       'DOTATION EN CARBURANT — POOL',
-      'Date · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · Solde avant et après prise · Station-service · État vidange.',
+      'Date · Nombre de jours depuis la prise précédente du véhicule · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · ' +
+      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Station-service · État vidange · Conducteur.',
       COLORS.orange
     )
   );
@@ -162,37 +168,44 @@ function renderPool(page) {
     return;
   }
 
+  const suivi = suiviDotationPool();
   const headers = [
-    'Date', 'Immatriculation', 'Marque / Modèle', 'Carte<br>carburant', 'Énergie', 'Kilométrage',
+    'Date', 'Nombre<br>de jours', 'Immatriculation', 'Marque / Modèle', 'Carte<br>carburant', 'Énergie', 'Kilométrage',
     'Quantité<br>(L)', 'Prix / L', 'Montant', 'Solde<br>avant', 'Solde<br>après',
-    'Station-service', 'État<br>vidange', 'Observations', ''
+    'Station-service', 'État<br>vidange', 'Conducteur', ''
   ];
 
-  const rows = list.map((d) => [
-    esc(dateFR(d.date)),
-    `<b>${esc(d.immat || '')}</b>`,
-    esc(d.marqueModele || ''),
-    esc(d.carte || ''),
-    esc(d.energie || ''),
-    `<span style="display:block;text-align:right">${fmt(d.km)}</span>`,
-    `<span style="display:block;text-align:right">${fmt(d.quantite)}</span>`,
-    `<span style="display:block;text-align:right">${fmt(d.prixL)}</span>`,
-    `<span style="display:block;text-align:right"><b>${fmt(d.montant)} F</b></span>`,
-    `<span style="display:block;text-align:right">${soldeCell(d.soldeAvant)}</span>`,
-    `<span style="display:block;text-align:right">${soldeCell(d.soldeApres)}</span>`,
-    esc(d.station || ''),
-    `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
-    esc(d.observations || ''),
-    canWrite()
-      ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
-        `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
-      : ''
-  ]);
+  const rows = list.map((d) => {
+    const s = suivi.get(d.id) || {};
+    return [
+      esc(dateFR(d.date)),
+      `<span style="display:block;text-align:center">${s.jours === null || s.jours === undefined ? '—' : fmt(s.jours)}</span>`,
+      `<b>${esc(d.immat || '')}</b>`,
+      esc(d.marqueModele || ''),
+      esc(d.carte || ''),
+      esc(d.energie || ''),
+      `<span style="display:block;text-align:right">${fmt(d.km)}</span>`,
+      `<span style="display:block;text-align:right">${fmt(d.quantite)}</span>`,
+      `<span style="display:block;text-align:right">${fmt(d.prixL)}</span>`,
+      `<span style="display:block;text-align:right"><b>${fmt(d.montant)} F</b></span>`,
+      `<span style="display:block;text-align:right">${soldeCell(s.soldeAvant)}` +
+        (num(d.rechargement) ? `<small style="display:block;color:${COLORS.green}">dont +${fmt(d.rechargement)} F rechargés</small>` : '') +
+        '</span>',
+      `<span style="display:block;text-align:right">${soldeCell(s.soldeApres)}</span>`,
+      esc(d.station || ''),
+      `<span class="badge" style="background:${d.vidange === 'En retard' ? COLORS.red : COLORS.orange}">${esc(d.vidange || '')}</span>`,
+      esc(d.conducteur || ''),
+      canWrite()
+        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button> ` +
+          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+        : ''
+    ];
+  });
 
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const d = list[i];
-      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.carte} ${d.station} ${d.date}`);
+      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.carte} ${d.station} ${d.date} ${d.conducteur || ''}`);
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openPoolForm(d);
@@ -247,18 +260,25 @@ function openPoolForm(d) {
         if (v) mm.value = `${v.marque || ''} ${v.modele || ''}`.trim();
       }
 
-      // Le vehicule choisi apporte sa carte et le solde qu'y a laisse la
-      // prise precedente. Les deux restent modifiables : on complete des
-      // champs vides, on n'ecrase jamais une saisie.
+      // Le vehicule choisi apporte sa carte, reprise de sa derniere prise ;
+      // elle reste modifiable.
       const carte = scope.querySelector('[data-key="carte"]');
-      const avant = scope.querySelector('[data-key="soldeAvant"]');
-      if (values.immat && ((carte && !carte.value) || (avant && !avant.value))) {
+      if (values.immat && carte && !carte.value) {
         const prec = dernierePrise(values.immat, d && d.id);
-        if (prec) {
-          if (carte && !carte.value && prec.carte) carte.value = prec.carte;
-          if (avant && !avant.value && prec.soldeApres !== '' && prec.soldeApres !== undefined) {
-            avant.value = num(prec.soldeApres);
-          }
+        if (prec && prec.carte) carte.value = prec.carte;
+      }
+
+      // Le solde avant prise suit la carte : solde apres de la prise qui
+      // precede sur cette carte, plus le rechargement. Il ne se saisit que
+      // pour la toute premiere prise d'une carte (solde de depart).
+      const avant = scope.querySelector('[data-key="soldeAvant"]');
+      const precedent = soldePrecedentCarte(carte ? carte.value : values.carte, values.date, d && d.id);
+      if (avant) {
+        const enchaine = precedent !== null && precedent !== '';
+        avant.readOnly = enchaine;
+        if (enchaine) {
+          avant.value = num(precedent) + num(values.rechargement);
+          values.soldeAvant = avant.value;
         }
       }
 
@@ -273,11 +293,14 @@ function openPoolForm(d) {
     },
     onSubmit: (values) => {
       const montant = montantPrise(values);
+      const precedent = soldePrecedentCarte(values.carte, values.date, d && d.id);
+      if (precedent !== null && precedent !== '') values.soldeAvant = num(precedent) + num(values.rechargement);
       const payload = {
         date: values.date,
         immat: String(values.immat || '').trim().toUpperCase(),
         marqueModele: values.marqueModele,
         carte: String(values.carte || '').trim(),
+        rechargement: values.rechargement === '' ? '' : francSup(values.rechargement),
         soldeAvant: values.soldeAvant === '' ? '' : francSup(values.soldeAvant),
         soldeApres: values.soldeAvant === ''
           ? ''
@@ -289,6 +312,7 @@ function openPoolForm(d) {
         montant,
         station: values.station,
         vidange: values.vidange,
+        conducteur: String(values.conducteur || '').trim(),
         observations: values.observations,
         images: values.images
       };

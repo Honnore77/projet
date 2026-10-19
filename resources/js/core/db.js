@@ -366,6 +366,7 @@ export function normalize(raw) {
   migrerSectionsRenommees(db);
   renumeroterMissions(db);
   arrondirMontants(db);
+  migrerDotationsPool(db);
 
   // Traces d'une version connectee a un serveur : sans objet ici, et il
   // serait malvenu de laisser trainer un jeton d'acces sur le disque.
@@ -381,6 +382,38 @@ export function normalize(raw) {
   if (!db.synchro.appareils || typeof db.synchro.appareils !== 'object') db.synchro.appareils = {};
 
   return db;
+}
+
+/** Une carte carburant reelle : au moins six chiffres (« 00 » n'en est pas une). */
+const CARTE_VALIDE = /^\d{6,}$/;
+
+/** Cle d'une carte carburant : sans espaces (« 1405 155 513 » = « 1405155513 »). */
+export function cleCarte(carte) {
+  return String(carte || '').replace(/\s+/g, '').toUpperCase();
+}
+
+/**
+ * Dotations pool d'avant la colonne « Conducteur » et l'enchainement des
+ * soldes par carte.
+ *
+ * - Le nom du conducteur s'ecrivait dans « Observations » : il passe dans
+ *   le champ « Conducteur », une fois pour toutes (le champ existe ensuite,
+ *   meme vide, et la migration ne repasse plus).
+ * - Quand le parc n'a qu'une carte reelle, les prises saisies sans numero
+ *   de carte (ou avec « 00 ») sont rattachees a cette carte : sans quoi
+ *   elles formeraient une suite de soldes a part.
+ */
+function migrerDotationsPool(db) {
+  db.dotationPool.forEach((d) => {
+    if (d.conducteur === undefined) {
+      d.conducteur = String(d.observations || '').trim();
+      d.observations = '';
+    }
+  });
+  const cartes = [...new Set(db.dotationPool.map((d) => cleCarte(d.carte)).filter((c) => CARTE_VALIDE.test(c)))];
+  if (cartes.length === 1) {
+    db.dotationPool.forEach((d) => { if (!CARTE_VALIDE.test(cleCarte(d.carte))) d.carte = cartes[0]; });
+  }
 }
 
 /**
@@ -1095,6 +1128,90 @@ export function knownDrivers() {
   DB.users.forEach((u) => set.add(`${u.nom} ${u.prenoms}`.trim()));
   DB.missions.forEach((m) => m.conducteur && set.add(m.conducteur));
   return [...set].filter(Boolean).sort();
+}
+
+/* ------------------- Suivi des prises de carburant ------------------ */
+
+const vide = (v) => v === '' || v === undefined || v === null;
+
+/**
+ * Dotations pool dans l'ordre des prises : par date, et a date egale dans
+ * l'ordre de saisie (celui du tableau en base).
+ */
+function ordreDotationPool(list = DB.dotationPool) {
+  return list
+    .map((d, i) => ({ d, i }))
+    .sort((a, b) => String(a.d.date || '').localeCompare(String(b.d.date || '')) || a.i - b.i)
+    .map((x) => x.d);
+}
+
+/**
+ * Le suivi des prises du pool, calcule et jamais saisi :
+ *
+ * - solde avant d'une prise = solde apres de la prise precedente sur la
+ *   meme carte, plus ce qui a ete recharge entre les deux ;
+ * - solde apres = solde avant moins le montant de la prise ;
+ * - nombre de jours = ecart avec la prise precedente du meme vehicule.
+ *
+ * Seule la premiere prise d'une carte garde le solde avant saisi : c'est le
+ * solde de depart. Une prise ajoutee, corrigee ou supprimee se repercute
+ * ainsi d'elle-meme sur toutes celles qui suivent.
+ *
+ * @returns {Map<string, {jours:number|null, soldeAvant:number|'', soldeApres:number|''}>}
+ *   par identifiant de dotation, dans l'ordre des prises
+ */
+export function suiviDotationPool(list = DB.dotationPool) {
+  const derniereCarte = new Map();
+  const derniereDate = new Map();
+  const suivi = new Map();
+  ordreDotationPool(list).forEach((d) => {
+    const carte = cleCarte(d.carte);
+    const prec = derniereCarte.get(carte);
+    let soldeAvant;
+    if (prec !== undefined && prec !== '') soldeAvant = prec + num(d.rechargement);
+    else soldeAvant = vide(d.soldeAvant) ? '' : num(d.soldeAvant);
+    const soldeApres = soldeAvant === '' ? '' : soldeAvant - num(d.montant);
+    derniereCarte.set(carte, soldeApres);
+
+    const immat = String(d.immat || '').trim().toUpperCase();
+    const avant = derniereDate.get(immat);
+    const jours = avant && d.date ? daysBetween(avant, d.date) : null;
+    if (d.date) derniereDate.set(immat, d.date);
+
+    suivi.set(d.id, { jours, soldeAvant, soldeApres });
+  });
+  return suivi;
+}
+
+/**
+ * Solde apres la prise qui precede, sur cette carte, une prise a cette date.
+ * A date egale, une nouvelle prise vient apres celles deja saisies ; une
+ * prise modifiee garde sa place parmi elles.
+ *
+ * @param {string} [id] la prise en cours de modification, a ecarter
+ * @returns {number|''|null} null s'il n'y a pas de prise precedente sur la
+ *   carte (la prise sera alors la premiere : son solde avant se saisit)
+ */
+export function soldePrecedentCarte(carte, date, id) {
+  const cle = cleCarte(carte);
+  const jour = String(date || '');
+  const rang = id ? DB.dotationPool.findIndex((x) => x.id === id) : -1;
+  const suivi = suiviDotationPool();
+  // Les prises qui precedent ne dependent pas de celle-ci : leurs soldes
+  // calcules valent tels quels. Le suivi est dans l'ordre des prises, la
+  // derniere retenue est donc la plus recente.
+  const precedentes = new Set(
+    DB.dotationPool
+      .filter((x, i) => {
+        if (x.id === id || cleCarte(x.carte) !== cle) return false;
+        const d = String(x.date || '');
+        return d < jour || (d === jour && (rang < 0 || i < rang));
+      })
+      .map((x) => x.id)
+  );
+  let solde = null;
+  suivi.forEach((s, cleId) => { if (precedentes.has(cleId)) solde = s.soldeApres; });
+  return solde;
 }
 
 /**

@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite } from '../core/db.js';
+import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -166,10 +166,16 @@ export function dsIncidents(list = DB.users) {
 /* ------------------------------ DOTATION --------------------------- */
 
 export function dsDotationPool(list = DB.dotationPool) {
+  // Soldes et ecarts de jours se calculent sur toutes les prises, meme
+  // quand on n'en exporte qu'une partie : la prise qui precede peut etre
+  // hors du filtre.
+  const suivi = suiviDotationPool();
+  const solde = (v) => (v === '' || v === undefined ? '' : num(v));
   return {
     title: 'Dotation pool',
     columns: [
       C('date', 'Date', 12),
+      C('jours', 'Nombre de jours', 10),
       C('immat', 'Immatriculation', 16),
       C('marqueModele', 'Marque / Modèle', 22),
       C('carte', 'Carte carburant', 18),
@@ -178,26 +184,34 @@ export function dsDotationPool(list = DB.dotationPool) {
       C('quantite', 'Quantité (L)', 12),
       C('prixL', 'Prix / L', 11),
       C('montant', 'Montant', 13),
+      C('rechargement', 'Rechargement', 14),
       C('soldeAvant', 'Solde avant prise', 16),
       C('soldeApres', 'Solde après prise', 16),
       C('station', 'Station-service', 22),
-      C('vidange', 'État vidange', 13)
+      C('vidange', 'État vidange', 13),
+      C('conducteur', 'Conducteur', 22)
     ],
-    rows: list.map((d) => ({
-      date: dateFR(d.date),
-      immat: d.immat || '',
-      marqueModele: d.marqueModele || '',
-      carte: d.carte || '',
-      energie: d.energie || '',
-      km: num(d.km),
-      quantite: num(d.quantite),
-      prixL: num(d.prixL),
-      montant: num(d.montant),
-      soldeAvant: d.soldeAvant === '' || d.soldeAvant === undefined ? '' : num(d.soldeAvant),
-      soldeApres: d.soldeApres === '' || d.soldeApres === undefined ? '' : num(d.soldeApres),
-      station: d.station || '',
-      vidange: d.vidange || ''
-    })),
+    rows: list.map((d) => {
+      const s = suivi.get(d.id) || {};
+      return {
+        date: dateFR(d.date),
+        jours: s.jours === null || s.jours === undefined ? '' : s.jours,
+        immat: d.immat || '',
+        marqueModele: d.marqueModele || '',
+        carte: d.carte || '',
+        energie: d.energie || '',
+        km: num(d.km),
+        quantite: num(d.quantite),
+        prixL: num(d.prixL),
+        montant: num(d.montant),
+        rechargement: num(d.rechargement) ? num(d.rechargement) : '',
+        soldeAvant: solde(s.soldeAvant),
+        soldeApres: solde(s.soldeApres),
+        station: d.station || '',
+        vidange: d.vidange || '',
+        conducteur: d.conducteur || ''
+      };
+    }),
     note: `Total : ${sum(list, (d) => d.quantite)} L — ${sum(list, (d) => d.montant)} F`
   };
 }
