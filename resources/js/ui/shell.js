@@ -25,7 +25,6 @@ import { etatPoste, suivrePoste, surReceptionPoste } from '../core/reseauBureau.
 import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
-import { renderPredefinis } from './views/predefinis.js';
 import { ouvrirApparence } from './apparence.js';
 import { annulerApercuTheme } from './theme.js';
 import { renderVehicleSheet } from './views/vehicleSheet.js';
@@ -51,7 +50,6 @@ export const MODULES = [
   // Messagerie interne : chaque compte y ecrit et y lit ses notes.
   { key: 'NOTES', label: 'NOTES', color: '#558B2F', pourTous: true },
   // Ouverte a tous les comptes : style et taille de l'affichage.
-  { key: 'PREDEFINIS', label: 'RÉGLAGES PRÉDÉFINIS', color: '#00897B', pourTous: true },
   // Tous les comptes, le point de leurs notes et le voyant des comptes en utilisation.
   { key: 'COMPTE', label: 'COMPTE', color: '#00695C', pourTous: true },
   { key: 'REGLAGES', label: 'RÉGLAGES', color: '#5b7178', adminOnly: true }
@@ -75,7 +73,6 @@ const TITLES = {
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   NOTES: 'NOTES',
   COMPTE: 'COMPTE',
-  PREDEFINIS: 'RÉGLAGES PRÉDÉFINIS',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
   FICHE_UTILISATEUR: 'FICHE UTILISATEUR',
@@ -328,7 +325,7 @@ function majBadgeNotes() {
 
 /** Change de rubrique. */
 export function navigate(moduleKey, params = {}) {
-  // Un style seulement apercu (RÉGLAGES PRÉDÉFINIS) ne survit pas a la page.
+  // Un style seulement apercu ne survit pas a la page.
   annulerApercuTheme();
   state.module = moduleKey;
   // Chaque ouverture de rubrique est une nouvelle visite (NOTES s'en sert
@@ -555,9 +552,9 @@ export function rerender() {
   // niveau du compte dans la rubrique affichee. Un conducteur garde les
   // siens dans MISSION (rapport) et CONGES (ses demandes).
   const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
-  // RÉGLAGES PRÉDÉFINIS ne touche pas aux donnees : jamais en lecture seule.
-  // NOTES non plus : chacun y ecrit ses propres notes.
-  const reglagesPerso = rub === 'PREDEFINIS' || rub === 'NOTES' || rub === 'COMPTE';
+  // NOTES et COMPTE ne sont jamais en lecture seule : chacun y ecrit ses
+  // propres notes et y regle son propre compte.
+  const reglagesPerso = rub === 'NOTES' || rub === 'COMPTE';
   document.body.classList.toggle('readonly', !peutSaisir(rub) && !sesFiches && !reglagesPerso);
   document.body.classList.toggle('sansSuppression', !peutSupprimer(rub));
   if (pageAutorisee(rub)) {
@@ -587,7 +584,6 @@ function rubriqueDeLaPage() {
 function pageAutorisee(rub) {
   const m = state.module;
   if (m === 'REGLAGES') return canAdmin();
-  if (m === 'PREDEFINIS') return true;
   if (m === 'NOTES' || m === 'COMPTE') return true;
   if (m === 'RECHERCHE_GLOBALE') return true;
   if (m === 'FICHE_VEHICULE') {
@@ -613,7 +609,6 @@ const ROUTES = {
   RAPPORTS: renderReports,
   NOTES: renderNotes,
   COMPTE: renderComptes,
-  PREDEFINIS: renderPredefinis,
   REGLAGES: renderSettings,
   FICHE_VEHICULE: renderVehicleSheet,
   FICHE_UTILISATEUR: renderUserSheet,

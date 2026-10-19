@@ -56,8 +56,8 @@ export function renderSettings(page) {
  * la page.
  */
 function renderApparenceSection(page) {
-  // Style et taille de l'affichage : rubrique RÉGLAGES PRÉDÉFINIS, ouverte
-  // a tous. Ici ne reste que le fond de la page de connexion.
+  // Style et taille de l'affichage : bouton 🎨 de l'en-tete, ouvert a
+  // tous. Ici ne reste que le fond de la page de connexion.
   page.appendChild(sectionLabel('PAGE DE CONNEXION', COLORS.green));
   page.appendChild(apparenceNode({ style: false, taille: false }));
 }

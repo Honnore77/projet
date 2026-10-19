@@ -752,7 +752,6 @@ html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab
 html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="DECHARGE"]::before{content:"📄";}
 html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="SIMULATION"]::before{content:"🧮";}
 html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="RAPPORTS"]::before{content:"📊";}
-html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="PREDEFINIS"]::before{content:"🎛️";}
 html:is([data-theme="moderne"],[data-theme="colore"],[data-theme="sombre"]) .tab[data-mod="REGLAGES"]::before{content:"⚙️";}
 
 /* Le logo garde son fond blanc sur un en-tete colore. */
