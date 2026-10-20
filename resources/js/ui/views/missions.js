@@ -21,10 +21,10 @@ import {
 import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicules.js';
 import { canWrite } from '../../core/auth.js';
 import { filtrer, seulementSiennes, peutModifier } from '../../core/acces.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
-  statTile, dataTable, groupHeader, subEmpty, COLORS
+  statTile, dataTable, groupHeader, subEmpty, cablerMontant, COLORS
 } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
@@ -468,9 +468,9 @@ function openRapportForm(m) {
       { key: 'participant2', label: 'Participant 2', value: (m.participants || [])[1] },
       { key: 'participant3', label: 'Participant 3', value: (m.participants || [])[2] },
       { key: 'participant4', label: 'Participant 4', value: (m.participants || [])[3] },
-      { key: 'dotationCarburant', label: 'Dotation en carburant (F)', type: 'number', value: m.dotationCarburant },
-      { key: 'kmDepart', label: 'Km départ', type: 'number', value: m.kmDepart },
-      { key: 'kmArrivee', label: 'Km arrivée', type: 'number', value: m.kmArrivee },
+      { key: 'dotationCarburant', label: 'Dotation en carburant (F)', type: 'montant', value: m.dotationCarburant },
+      { key: 'kmDepart', label: 'Km départ', type: 'nombre', value: m.kmDepart },
+      { key: 'kmArrivee', label: 'Km arrivée', type: 'nombre', value: m.kmArrivee },
       { key: 'distance', label: 'Distance parcourue (compteur)', type: 'static', value: '' },
       { key: 'parcours', label: 'Parcours calculé (aller-retour)', type: 'static',
         value: libelleParcours(parcoursMission(m)) || 'destinations sans distance',
@@ -504,7 +504,7 @@ function openRapportForm(m) {
         '<div class="fRow"><label>Date</label><input type="date" data-rdate></div>' +
         '<div class="fRow"><label>Point de ravitaillement</label><input data-rstation></div>' +
         '<div class="fRow"><label>Prix du litre</label>' + champPrixHtml() + '</div>' +
-        '<div class="fRow"><label>Quantité (L)</label><input type="number" step="any" data-rqte></div>' +
+        '<div class="fRow"><label>Quantité (L)</label><input type="text" inputmode="decimal" autocomplete="off" data-montant data-rqte></div>' +
         '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
         '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>TOTAL</b></span><b data-rtotal>0 L — 0 F</b></div></div>'
       );
@@ -512,6 +512,7 @@ function openRapportForm(m) {
       const liste = bloc.querySelector('[data-ravlist]');
       const total = bloc.querySelector('[data-rtotal]');
       cablerPrix(bloc);
+      cablerMontant(bloc.querySelector('[data-rqte]'));
 
       const dessiner = () => {
         liste.innerHTML = rav.length
@@ -533,7 +534,7 @@ function openRapportForm(m) {
 
       bloc.querySelector('[data-radd]').onclick = () => {
         const station = bloc.querySelector('[data-rstation]').value.trim();
-        const quantite = num(bloc.querySelector('[data-rqte]').value);
+        const quantite = num(lireMontant(bloc.querySelector('[data-rqte]').value));
         const prixL = francSup(bloc.querySelector('[data-rprix]').value);
         if (!station || quantite <= 0) {
           toast('Renseignez le point de ravitaillement et une quantité valide.', 'err');
@@ -631,7 +632,7 @@ function missionFields(m = {}) {
     { key: 'dateRetour', label: 'Date retour', type: 'date', value: m.dateRetour },
     { key: 'jours', label: 'Nombre de jours', type: 'static', value: m.jours,
       hint: 'Jour de départ inclus' },
-    { key: 'montant', label: 'Frais de mission (F)', type: 'number', value: m.montant,
+    { key: 'montant', label: 'Frais de mission (F)', type: 'montant', value: m.montant,
       hint: 'Dotation mise à la disposition du conducteur pour la mission — à ne pas confondre avec la prime' }
   ];
 }
@@ -784,7 +785,7 @@ function openPaymentForm(m) {
     intro: `Conducteur : ${m.conducteur} · ${m.jours || 0} jour(s). Les frais de mission (dotation) ne changent pas.`,
     fields: [
       { key: 'datePaiement', label: 'Date de paiement', type: 'date', required: true, value: todayISO() },
-      { key: 'montantPrime', label: 'Montant de la prime versée (F)', type: 'number', value: m.montantPrime },
+      { key: 'montantPrime', label: 'Montant de la prime versée (F)', type: 'montant', value: m.montantPrime },
       { key: 'referencePaiement', label: 'Référence du paiement', value: m.referencePaiement }
     ],
     okLabel: 'Confirmer le paiement',
@@ -1276,7 +1277,7 @@ function openTrajetForm(t) {
     fields: [
       { key: 'a', label: 'De', required: true, value: t && t.a, list: villes },
       { key: 'b', label: 'À', required: true, value: t && t.b, list: villes },
-      { key: 'km', label: 'Distance par la route (km)', type: 'number', required: true, value: t && t.km,
+      { key: 'km', label: 'Distance par la route (km)', type: 'nombre', required: true, value: t && t.km,
         hint: 'Lue par exemple sur l’itinéraire Google Maps' }
     ],
     okLabel: 'Enregistrer le trajet',
@@ -1314,7 +1315,7 @@ function openDestinationForm(d) {
       { key: 'localisation', label: 'Localisation', full: true, value: d && d.localisation,
         placeholder: 'Coordonnées (ex. 7.6939, -5.0303), lien Google Maps ou adresse',
         hint: 'Sur Google Maps, un clic droit sur le lieu affiche ses coordonnées : un clic dessus les copie. Collées ici, elles donnent la distance.' },
-      { key: 'distanceKm', label: 'Distance depuis Abidjan (km)', type: 'number', value: d && d.distanceKm,
+      { key: 'distanceKm', label: 'Distance depuis Abidjan (km)', type: 'nombre', value: d && d.distanceKm,
         hint: 'Calculée à partir des coordonnées (estimation), ou lue sur « Itinéraire depuis Abidjan »' }
     ],
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la destination',
@@ -1349,7 +1350,7 @@ function openDestinationForm(d) {
       if (!champ) return;
       const coord = coordonneesDe(values.localisation);
       const proposee = coord ? distanceEstimee(coord) : null;
-      if (proposee && (champ.value === '' || Number(champ.value) === estimationProposee)) {
+      if (proposee && (champ.value === '' || lireMontant(champ.value) === estimationProposee)) {
         champ.value = proposee;
         estimationProposee = proposee;
         estimee = true;

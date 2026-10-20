@@ -573,19 +573,19 @@ function openSettingsForm() {
       // Le prix a la pompe est le meme pour tout le monde a une date donnee :
       // il se fixe ici et se choisit ensuite dans une liste, au lieu de se
       // retaper a chaque prise de carburant.
-      { key: 'prixLitreEssence', label: 'Prix du litre (Essence)', type: 'number', value: s.prixLitreEssence,
+      { key: 'prixLitreEssence', label: 'Prix du litre (Essence)', type: 'montant', value: s.prixLitreEssence,
         hint: 'Proposé dans le champ « Prix / L » des dotations et des rapports de mission' },
-      { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'number', value: s.prixLitreDiesel,
+      { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'montant', value: s.prixLitreDiesel,
         hint: 'Laisser à 0 tant que le prix n’est pas connu : il n’est alors pas proposé' },
-      { key: 'fraisOmParParticipant', label: 'Frais OM par participant et par destination', type: 'number', value: fraisOmParParticipant(),
+      { key: 'fraisOmParParticipant', label: 'Frais OM par participant et par destination', type: 'montant', value: fraisOmParParticipant(),
         hint: 'Utilisé par SIMULATION : frais OM = participants × ce montant' },
-      { key: 'parcoursInterneKmParJour', label: 'Parcours en interne (km par jour)', type: 'number', value: kmInterneParJour(),
+      { key: 'parcoursInterneKmParJour', label: 'Parcours en interne (km par jour)', type: 'nombre', value: kmInterneParJour(),
         hint: 'Utilisé par SIMULATION : km à l’intérieur d’une destination = jours sur place × ce nombre. 0 = non réglé' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
-      { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'number', value: s.seuilVidangeKm,
+      { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,
         hint: 'Sert à proposer le kilométrage de la prochaine vidange' },
-      { key: 'seuilAlerteVidangeKm', label: 'Alerte vidange (km restants)', type: 'number', value: s.seuilAlerteVidangeKm,
+      { key: 'seuilAlerteVidangeKm', label: 'Alerte vidange (km restants)', type: 'nombre', value: s.seuilAlerteVidangeKm,
         hint: 'Alerte dès qu’il reste moins que cela à parcourir' }
     ],
     okLabel: 'Enregistrer',

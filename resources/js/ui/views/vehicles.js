@@ -14,7 +14,7 @@ import {
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, fmt, num, norm, dateFR } from '../../core/utils.js';
+import { esc, fmt, num, norm, dateFR, grouperMilliers, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   dataTable, COLORS
@@ -90,7 +90,7 @@ function vehicleFields(v = {}, cat = 'pool') {
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
       options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
-    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', step: '0.1', value: v.consommation,
+    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'nombre', step: '0.1', value: v.consommation,
       placeholder: 'Ex. 9,5', hint: 'Reprise par SIMULATION quand on choisit ce véhicule' },
     { key: 'statut', label: 'Statut', type: 'select', options: statuts, value: v.statut || 'Disponible' },
     ...(withSection
@@ -119,10 +119,10 @@ function vehicleFields(v = {}, cat = 'pool') {
           }
         ]
       : []),
-    { key: 'km', label: 'Kilométrage', type: 'number', value: v.km,
+    { key: 'km', label: 'Kilométrage', type: 'nombre', value: v.km,
       hint: 'Repris du dernier relevé du compteur : dotation carburant, entrée ou retour de garage, rapport de mission' },
     { key: 'sourceKm', label: 'Origine du kilométrage', type: 'static', value: '' },
-    { key: 'kmVidange', label: 'Kilométrage de vidange', type: 'number', value: v.kmVidange,
+    { key: 'kmVidange', label: 'Kilométrage de vidange', type: 'nombre', value: v.kmVidange,
       hint: 'Kilométrage auquel la vidange devra être faite' },
     { key: 'etatVidange', label: 'Suivi de la vidange', type: 'static', value: '' },
     { key: 'categorie', label: 'Catégorie', type: 'select', options: CATEGORIES.map((c) => ({ value: c.key, label: c.label })), value: cat },
@@ -325,7 +325,7 @@ export function openVehicleForm(vehicle, cat) {
           // autres rubriques ne connaissent pas encore. Le chiffre du releve
           // precedent n'a plus rien a faire la : il serait enregistre pour un
           // vehicule qui n'a jamais affiche ce compteur.
-          if (km.value === kmPose) km.value = '';
+          if (km.value === grouperMilliers(kmPose)) km.value = '';
           kmPose = null;
           km.readOnly = false;
         }
@@ -340,14 +340,14 @@ export function openVehicleForm(vehicle, cat) {
       // Sur un vehicule neuf, on propose le kilometrage courant augmente de
       // l'intervalle de vidange. La proposition ne se fait qu'une fois : si
       // l'utilisateur efface ou corrige, on ne la lui réimpose pas.
-      const kmActuel = num(km ? km.value : values.km);
+      const kmActuel = num(km ? lireMontant(km.value) : values.km);
       if (cible && !cible.value && !propositionFaite && kmActuel > 0) {
         cible.value = kmActuel + num(DB.settings.seuilVidangeKm);
         propositionFaite = true;
       }
 
       if (suivi) {
-        const e = etatVidange({ km: km ? km.value : values.km, kmVidange: cible ? cible.value : '' });
+        const e = etatVidange({ km: km ? lireMontant(km.value) : values.km, kmVidange: cible ? lireMontant(cible.value) : '' });
         suivi.value =
           e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange'
             : e.statut === 'depassee' ? `⚠ Vidange dépassée de ${fmt(-e.restant)} km`

@@ -18,7 +18,7 @@ import {
   destinationsDe, texteDestinations
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, subtabs, emptyState, openForm, openModal, confirmDialog, toast, statTile, dataTable, COLORS
 } from '../components.js';
@@ -261,7 +261,7 @@ function simulationFields(s = {}) {
       hint: 'Véhicules de la rubrique VÉHICULES ; ils remplissent les deux champs suivants' },
     { key: 'marqueModele', label: 'Véhicule utilisé (marque et modèle)', value: s.marqueModele },
     { key: 'energie', label: 'Véhicule utilisé — énergie', type: 'select', options: ENERGIES, value: s.energie || 'Essence' },
-    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', step: '0.1', required: true, value: s.consommation,
+    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'nombre', step: '0.1', required: true, value: s.consommation,
       hint: 'Reprise de la fiche du véhicule (VÉHICULES), sinon de sa dernière simulation' },
     { key: 'prixL', label: 'Prix du litre (F)', type: 'selectAdd', required: true, value: s.prixL,
       options: prixLitreOptions(s.energie || 'Essence'), emptyLabel: '— choisir —', addLabel: 'Autre prix',
@@ -271,7 +271,7 @@ function simulationFields(s = {}) {
     { key: 'fraisOm', label: 'Frais OM', type: 'static', value: '',
       hint: `Participants × destinations × ${fmt(fraisOmParParticipant())} F — réglable dans RÉGLAGES` },
     // Saisis tels quels : le montant total des peages du trajet.
-    { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'number', value: s.fraisPeage,
+    { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: s.fraisPeage,
       hint: 'Montant total des péages, aller et retour' },
     { key: 'carburant', label: 'Carburant', type: 'static', full: true, value: '',
       hint: '(Parcours + parcours en interne) × consommation ÷ 100 × prix du litre ; parcours en interne = jours sur place × km par jour (RÉGLAGES)' },
@@ -317,10 +317,10 @@ function openSimulationForm(sim) {
     const r = calculerSimulation({
       parcoursKm: parcoursCalcule.total,
       interne: parcours.map((e) => ({ km: kmInterne(e.nom) || 0 })),
-      consommation: valeur('consommation'),
+      consommation: lireMontant(valeur('consommation')),
       prixL: valeur('prixL') === '__ajout__' ? '' : valeur('prixL'),
       participants: valeur('participants'),
-      fraisPeage: valeur('fraisPeage')
+      fraisPeage: lireMontant(valeur('fraisPeage'))
     });
     const j = joursMission(valeur('dateDepart'), valeur('dateRetour'));
     champ('jours').value = j === null || j < 1 ? '—' : `${j} j`;

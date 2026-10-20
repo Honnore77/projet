@@ -31,7 +31,7 @@ function champsReforme(v) {
     { key: 'dateReforme', label: 'Date de la réforme', type: 'date', required: true, value: v.dateReforme || todayISO() },
     { key: 'beneficiaire', label: 'Bénéficiaire', value: v.beneficiaire,
       placeholder: 'Personne ou structure à qui le véhicule est cédé' },
-    { key: 'kmReforme', label: 'Kilométrage à la réforme', type: 'number', value: vide(v.kmReforme) ? kmCourant(v) || '' : v.kmReforme },
+    { key: 'kmReforme', label: 'Kilométrage à la réforme', type: 'nombre', value: vide(v.kmReforme) ? kmCourant(v) || '' : v.kmReforme },
     { key: 'etatReforme', label: 'État du véhicule à la réforme', type: 'selectAdd', value: v.etatReforme,
       options: ETATS_REFORME, emptyLabel: '— choisir —', addLabel: 'Autre état' }
   ];
@@ -50,7 +50,7 @@ function champsVehicule(v) {
     { key: 'couleur', label: 'Couleur', type: 'selectAdd', value: v.couleur,
       options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
-    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'number', step: '0.1', value: v.consommation },
+    { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'nombre', step: '0.1', value: v.consommation },
     { key: 'origine', label: 'Catégorie avant la réforme', type: 'select',
       options: CATEGORIES.map((c) => ({ value: c.key, label: c.label })), value: v.origine || 'pool' },
     { key: 'section', label: 'Section', type: 'select', options: SECTIONS, allowEmpty: true, emptyLabel: '— aucune —', value: v.section },

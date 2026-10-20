@@ -3,7 +3,7 @@
    confirmation, notifications, cartes, tableaux.
    =================================================================== */
 
-import { esc, el } from '../core/utils.js';
+import { esc, el, grouperMilliers, lireMontant } from '../core/utils.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 import { voitTout, rubriqueCourante } from '../core/acces.js';
 import { isAndroid } from '../core/storage.js';
@@ -161,6 +161,13 @@ function fieldHtml(f) {
     case 'number':
       input = `<input id="${id}" data-key="${esc(f.key)}" type="number" inputmode="decimal" step="${f.step || 'any'}" value="${esc(val)}"${req}${ro}${ph}>`;
       break;
+    // Un montant (ou un kilometrage, des litres : type « nombre ») s'ecrit
+    // « 3 000 000 » pendant la frappe : un champ texte, puisqu'un
+    // champ nombre refuse les espaces ; readFields rend le nombre.
+    case 'montant':
+    case 'nombre':
+      input = `<input id="${id}" data-key="${esc(f.key)}" data-montant type="text" inputmode="${f.type === 'nombre' ? 'decimal' : 'numeric'}" autocomplete="off" value="${esc(grouperMilliers(val))}"${req}${ro}${ph}>`;
+      break;
     case 'date':
       input = `<input id="${id}" data-key="${esc(f.key)}" type="date" value="${esc(val)}"${req}${ro}>`;
       break;
@@ -209,11 +216,44 @@ export function buildFieldsNode(fields) {
   grid.innerHTML = fields.map(fieldHtml).join('');
   grid.querySelectorAll('select[data-add-label]').forEach(cablerAjout);
   grid.querySelectorAll('textarea[data-tiret]').forEach(cablerTirets);
+  grid.querySelectorAll('input[data-montant]').forEach(cablerMontant);
   fields.filter((f) => f.type === 'images').forEach((f) => {
     const zone = grid.querySelector(`[data-images="${f.key}"]`);
     if (zone) cablerImages(zone, f);
   });
   return grid;
+}
+
+/* --------------------------- Champ montant ------------------------- */
+
+/**
+ * Regroupe les milliers a chaque frappe sans deplacer le curseur : on compte
+ * les caracteres utiles (hors espaces) avant le curseur, et on le replace
+ * apres le meme nombre de caracteres utiles dans le texte regroupe.
+ */
+export function cablerMontant(input) {
+  input.addEventListener('input', () => {
+    const brut = input.value;
+    const propre = grouperMilliers(brut);
+    if (propre === brut) return;
+    const curseur = input.selectionStart === null ? brut.length : input.selectionStart;
+    const utiles = brut.slice(0, curseur).replace(/[^\d.,-]/g, '').length;
+    input.value = propre;
+    let pos = 0;
+    for (let n = 0; pos < propre.length && n < utiles; pos++) {
+      if (propre[pos] !== ' ') n++;
+    }
+    try { input.setSelectionRange(pos, pos); } catch { /* champ non focalise */ }
+  });
+}
+
+/** Regroupe les montants poses par le code (soldes proposes, calcules). */
+export function regrouperMontants(scope) {
+  scope.querySelectorAll('input[data-montant]').forEach((n) => {
+    if (n === document.activeElement) return;
+    const propre = grouperMilliers(n.value);
+    if (propre !== n.value) n.value = propre;
+  });
 }
 
 /* --------------------------- Champ images -------------------------- */
@@ -416,6 +456,7 @@ export function readFields(scope, fields) {
     // Une liste selectAdd laissee sur « + Ajouter… » ne designe aucune valeur.
     if (v === '__ajout__') v = '';
     if (f.type === 'number') v = v === '' ? '' : Number(v);
+    else if (f.type === 'montant' || f.type === 'nombre') v = lireMontant(v);
     else if (f.lignesTiret) v = normaliserLignesTiret(v);
     else if (typeof v === 'string') v = v.trim();
     out[f.key] = v;
@@ -477,7 +518,7 @@ export function openForm(cfg) {
 
   if (cfg.extra) cfg.extra(wrap, modal);
   if (cfg.onInput) {
-    const handler = () => cfg.onInput(readFields(wrap, cfg.fields), wrap);
+    const handler = () => { cfg.onInput(readFields(wrap, cfg.fields), wrap); regrouperMontants(wrap); };
     wrap.addEventListener('input', handler);
     wrap.addEventListener('change', handler);
     handler();

@@ -41,6 +41,30 @@ export function francSup(v) {
   return Math.ceil(num(v));
 }
 
+/**
+ * Ecriture d'un montant en cours de saisie : les chiffres de la partie
+ * entiere groupes par trois, separes d'une espace (3000000 → « 3 000 000 »).
+ * Tout ce qui n'est ni chiffre, ni signe, ni virgule est ecarte.
+ */
+export function grouperMilliers(v) {
+  const s = String(v === undefined || v === null ? '' : v).replace(/[^\d.,-]/g, '');
+  if (!s) return '';
+  const signe = s.startsWith('-') ? '-' : '';
+  const corps = s.replace(/-/g, '');
+  const i = corps.search(/[.,]/);
+  const entier = (i < 0 ? corps : corps.slice(0, i)).replace(/\D/g, '');
+  const decimales = i < 0 ? null : corps.slice(i + 1).replace(/\D/g, '');
+  return signe + entier.replace(/\B(?=(\d{3})+(?!\d))/g, ' ') + (decimales === null ? '' : `,${decimales}`);
+}
+
+/** Valeur d'un montant saisi avec ses espaces : un nombre, ou '' si vide. */
+export function lireMontant(v) {
+  const s = String(v === undefined || v === null ? '' : v).replace(/\s/g, '').replace(',', '.');
+  if (!s) return '';
+  const n = Number(s);
+  return isFinite(n) ? n : '';
+}
+
 /** Nombre de jours entre deux dates ISO (yyyy-mm-dd). null si incalculable. */
 export function daysBetween(d1, d2) {
   if (!d1 || !d2) return null;

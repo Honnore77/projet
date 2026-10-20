@@ -52,14 +52,17 @@ function cartesConnues() {
 }
 
 /**
- * Montant d'une prise : les litres au prix du litre, arrondi au franc
- * superieur.
+ * Quantite d'une prise : le montant saisi divise par le prix du litre,
+ * arrondie au centilitre. A la pompe on demande un montant, les litres en
+ * decoulent.
  *
  * L'apercu et l'enregistrement passent tous deux par ici, pour que le champ
- * « Montant calcule » annonce le chiffre qui sera reellement inscrit.
+ * « Quantite (L) » annonce le chiffre qui sera reellement inscrit.
  */
-function montantPrise(values) {
-  return francSup(num(values.quantite) * francSup(values.prixL));
+function quantitePrise(values) {
+  const prix = francSup(values.prixL);
+  if (!prix) return 0;
+  return Math.round((francSup(values.montant) / prix) * 100) / 100;
 }
 
 /**
@@ -91,21 +94,22 @@ function poolFields(d = {}) {
     { key: 'carte', label: 'Numéro de la carte carburant', value: d.carte, list: cartesConnues(),
       hint: 'Repris de la dernière prise du véhicule' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ['Essence', 'Diesel'], value: d.energie || 'Essence' },
-    { key: 'km', label: 'Kilométrage', type: 'number', value: d.km },
-    { key: 'quantite', label: 'Quantité (L)', type: 'number', required: true, value: d.quantite },
+    { key: 'km', label: 'Kilométrage', type: 'nombre', value: d.km },
     // Le prix a la pompe se regle une fois dans REGLAGES et se choisit ici :
     // il est le meme pour tout le monde a une date donnee. « + Autre prix »
     // reste ouvert pour une prise ancienne ou un prix qui vient de changer.
     { key: 'prixL', label: 'Prix / L', type: 'selectAdd', required: true, value: d.prixL,
       options: prixLitreOptions(d.energie), emptyLabel: '— choisir —', addLabel: 'Autre prix',
       hint: 'Réglé dans RÉGLAGES → Modifier les réglages' },
-    { key: 'montant', label: 'Montant calculé', type: 'static', value: d.montant ? fmt(d.montant) : '0' },
-    { key: 'rechargement', label: 'Rechargement de la carte (F)', type: 'number', value: d.rechargement,
+    { key: 'montant', label: 'Montant (F)', type: 'montant', required: true, value: d.montant },
+    { key: 'quantite', label: 'Quantité (L)', type: 'static', value: d.quantite ? fmt(d.quantite) : '0',
+      hint: 'Calculée : montant divisé par le prix du litre' },
+    { key: 'rechargement', label: 'Rechargement de la carte (F)', type: 'montant', value: d.rechargement,
       hint: 'Seulement si la carte a été rechargée depuis la prise précédente' },
-    { key: 'soldeAvant', label: 'Solde avant prise', type: 'number', value: d.soldeAvant,
+    { key: 'soldeAvant', label: 'Solde avant prise', type: 'montant', value: d.soldeAvant,
       hint: 'Lu sur le ticket. Proposé : solde après la prise précédente sur la carte, plus le rechargement' },
-    { key: 'soldeApres', label: 'Solde après prise', type: 'number', readonly: true, value: d.soldeApres,
-      hint: 'Solde avant prise moins le montant calculé' },
+    { key: 'soldeApres', label: 'Solde après prise', type: 'montant', readonly: true, value: d.soldeApres,
+      hint: 'Solde avant prise moins le montant' },
     { key: 'station', label: 'Station-service', value: d.station, list: [...new Set(DB.dotationPool.map((x) => x.station).filter(Boolean))] },
     { key: 'vidange', label: 'État vidange', type: 'select', options: ETATS_VIDANGE, value: d.vidange || 'À jour' },
     { key: 'conducteur', label: 'Conducteur', value: d.conducteur, list: knownDrivers(),
@@ -252,13 +256,6 @@ function openPoolForm(d) {
     fields: poolFields(d || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la dotation',
     onInput: (values, scope) => {
-      // Le montant se lit ici exactement comme il sera enregistre : arrondi
-      // au franc superieur. Un apercu non arrondi annoncerait une depense que
-      // la ligne enregistree contredirait d'un franc.
-      const montant = montantPrise(values);
-      const mNode = scope.querySelector('[data-key="montant"]');
-      if (mNode) mNode.value = `${fmt(montant)} F`;
-
       // Le prix suit l'energie : passer au diesel doit proposer le prix du
       // diesel, pas laisser celui de l'essence. On ne remplace que le vide ou
       // notre propre proposition — un prix choisi a la main tient.
@@ -268,8 +265,15 @@ function openPoolForm(d) {
         if (propose && [...prix.options].some((o) => o.value === propose)) {
           prix.value = propose;
           prixPropose = propose;
+          values.prixL = propose;
         }
       }
+
+      // La quantite se lit ici exactement comme elle sera enregistree :
+      // montant divise par le prix du litre, au centilitre pres.
+      const montant = francSup(values.montant);
+      const qNode = scope.querySelector('[data-key="quantite"]');
+      if (qNode) qNode.value = `${fmt(quantitePrise(values))} L`;
 
       const mm = scope.querySelector('[data-key="marqueModele"]');
       if (mm && !mm.value && values.immat) {
@@ -308,7 +312,7 @@ function openPoolForm(d) {
       }
     },
     onSubmit: (values) => {
-      const montant = montantPrise(values);
+      const montant = francSup(values.montant);
       const payload = {
         date: values.date,
         immat: String(values.immat || '').trim().toUpperCase(),
@@ -321,7 +325,7 @@ function openPoolForm(d) {
           : francSup(values.soldeAvant) - montant,
         energie: values.energie,
         km: values.km,
-        quantite: num(values.quantite),
+        quantite: quantitePrise(values),
         prixL: francSup(values.prixL),
         montant,
         station: values.station,

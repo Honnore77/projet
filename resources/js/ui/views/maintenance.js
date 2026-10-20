@@ -28,7 +28,7 @@ function ficheFields(m = {}) {
     { key: 'modele', label: 'Modèle', type: 'selectAdd', value: m.modele,
       options: valeursVehicules('modele', MODELES), emptyLabel: '— choisir —', addLabel: 'Autre modèle' },
     { key: 'dateEntree', label: 'Date entrée', type: 'date', required: true, value: m.dateEntree || todayISO() },
-    { key: 'kmEntree', label: 'Km entrée', type: 'number', value: m.kmEntree },
+    { key: 'kmEntree', label: 'Km entrée', type: 'nombre', value: m.kmEntree },
     { key: 'conducteurEntree', label: 'Conducteur à l’entrée', value: m.conducteurEntree, list: knownDrivers() },
     // Un passage au garage cumule souvent plusieurs problemes : chacun sur sa
     // ligne, ouverte par un tiret. Entree pose le tiret suivant.
@@ -48,7 +48,7 @@ function interventionFields(iv = {}) {
     { key: 'observation', label: 'Observation / diagnostic', type: 'textarea', full: true, value: iv.observation },
     { key: 'travaux', label: 'Travaux effectués', type: 'textarea', full: true, value: iv.travaux },
     { key: 'pieces', label: 'Pièces remplacées', type: 'textarea', full: true, value: iv.pieces },
-    { key: 'cout', label: 'Coût (F)', type: 'number', value: iv.cout },
+    { key: 'cout', label: 'Coût (F)', type: 'montant', value: iv.cout },
     { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: iv.images,
       hint: 'Facture de ce garage, pièce remplacée, travaux réalisés' }
   ];
@@ -57,7 +57,7 @@ function interventionFields(iv = {}) {
 function retourFields(m = {}) {
   return [
     { key: 'dateRetour', label: 'Date de sortie', type: 'date', required: true, value: m.dateRetour || todayISO() },
-    { key: 'kmRetour', label: 'Km sortie', type: 'number', value: m.kmRetour },
+    { key: 'kmRetour', label: 'Km sortie', type: 'nombre', value: m.kmRetour },
     { key: 'conducteurRetour', label: 'Conducteur du retour', value: m.conducteurRetour, list: knownDrivers() },
     { key: 'observationRetour', label: 'Observation du conducteur', type: 'textarea', full: true,
       lignesTiret: true, value: m.observationRetour,
