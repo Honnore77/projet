@@ -137,3 +137,24 @@ test('avec plusieurs cartes numerotees, une prise sans carte reste sans carte', 
   });
   assert.equal(db.DB.dotationPool.find((d) => d.id === 'a').carte, '');
 });
+
+test('ancienne et nouvelle immatriculation : les prises forment une seule suite', async () => {
+  await charger({
+    vehicles: { pool: [{ id: 'v1', immatAncienne: 'D45 846', immatNouvelle: 'D45 5082' }], mission: [], service: [] },
+    dotationPool: [
+      prise('a', '2026-08-03', 'D45 846', 10000, { km: 12000 }),
+      prise('b', '2026-08-10', 'D45 5082', 10000, { km: 12400 }),
+      prise('c', '2026-08-12', 'D45846', 10000),
+      prise('d', '2026-08-13', 'D45 5081', 10000)
+    ]
+  });
+  const s = db.suiviDotationPool();
+  assert.equal(s.get('b').jours, 7, 'la nouvelle plaque reprend apres l’ancienne');
+  assert.equal(s.get('c').jours, 2, 'les espaces ne comptent pas');
+  assert.equal(s.get('d').jours, null, 'un autre vehicule a sa propre suite');
+  assert.ok(db.memeVehicule('D45 846', 'D45 5082'));
+  assert.ok(!db.memeVehicule('D45 846', 'D45 5081'));
+  assert.equal(db.immatActuelle('D45 846'), 'D45 5082');
+  assert.equal(db.immatActuelle('D45 9999'), 'D45 9999', 'plaque inconnue : gardee telle quelle');
+  assert.equal(db.derniereLectureKm('D45 846').km, 12400, 'un seul compteur pour les deux plaques');
+});

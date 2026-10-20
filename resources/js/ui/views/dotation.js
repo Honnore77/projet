@@ -10,9 +10,9 @@
    =================================================================== */
 
 import {
-  DB, ETATS_VIDANGE, insert, update, remove, knownImmats, vehicleByImmat,
+  DB, ETATS_VIDANGE, insert, update, remove, knownImmats,
   carburantMissions, missionsAvecCarburant, ravMontant, prixLitreOptions,
-  suiviDotationPool, soldePrecedentCarte, knownDrivers
+  suiviDotationPool, soldePrecedentCarte, knownDrivers, cleVehicule, vehiculeDeLImmat
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
@@ -78,10 +78,11 @@ function quantitePrise(values) {
  * @param {string} [exclureId] identifiant de la dotation en cours d'edition
  */
 function dernierePrise(immat, exclureId) {
-  const cle = String(immat || '').trim().toUpperCase();
+  const cle = cleVehicule(immat);
   if (!cle) return null;
+  // Ancienne ou nouvelle immatriculation : la suite du meme vehicule.
   return DB.dotationPool
-    .filter((x) => x.id !== exclureId && String(x.immat || '').trim().toUpperCase() === cle)
+    .filter((x) => x.id !== exclureId && cleVehicule(x.immat) === cle)
     .sort((a, b) => String(a.date).localeCompare(String(b.date)))
     .pop() || null;
 }
@@ -93,7 +94,8 @@ function poolFields(d = {}) {
     { key: 'marqueModele', label: 'Marque / Modèle', value: d.marqueModele, hint: 'Rempli automatiquement si le véhicule est connu' },
     { key: 'carte', label: 'Numéro de la carte carburant', value: d.carte, list: cartesConnues(),
       hint: 'Repris de la dernière prise du véhicule' },
-    { key: 'energie', label: 'Énergie', type: 'select', options: ['Essence', 'Diesel'], value: d.energie || 'Essence' },
+    { key: 'energie', label: 'Énergie', type: 'select', options: ['Essence', 'Diesel'], value: d.energie || 'Essence',
+      hint: 'Reprise de la fiche du véhicule (rubrique VÉHICULES)' },
     { key: 'km', label: 'Kilométrage', type: 'nombre', value: d.km },
     // Le prix a la pompe se regle une fois dans REGLAGES et se choisit ici :
     // il est le meme pour tout le monde a une date donnee. « + Autre prix »
@@ -131,6 +133,40 @@ function ecartCell(ecart) {
     `${signe}${fmt(Math.abs(ecart))} F</span>`;
 }
 
+/**
+ * L'immatriculation saisie et celles du vehicule dans la rubrique VEHICULES :
+ * de quoi retrouver une prise par l'une ou l'autre plaque.
+ */
+function immatsLigne(immat) {
+  const v = vehiculeDeLImmat(immat);
+  return [immat, v && v.immatAncienne, v && v.immatNouvelle].filter(Boolean);
+}
+
+/**
+ * Sous l'immatriculation d'une prise, l'autre plaque du meme vehicule :
+ * « nouvelle : D45 5082 » sous une prise faite avec l'ancienne, « ancienne :
+ * D45 846 » sous une prise faite avec la nouvelle.
+ */
+function autreImmat(immat) {
+  const v = vehiculeDeLImmat(immat);
+  if (!v || !v.immatAncienne || !v.immatNouvelle) return '';
+  const cle = (x) => String(x || '').replace(/\s+/g, '').toUpperCase();
+  const ancienne = cle(immat) === cle(v.immatAncienne);
+  const autre = ancienne ? v.immatNouvelle : v.immatAncienne;
+  return `<small style="display:block;color:${COLORS.grey};white-space:nowrap">${ancienne ? 'nouvelle' : 'ancienne'} : ${esc(autre)}</small>`;
+}
+
+/**
+ * Sous l'energie d'une prise, celle de la fiche du vehicule quand elles
+ * different : une prise d'essence pour un vehicule diesel est le plus
+ * souvent une erreur de saisie, et le prix du litre en depend.
+ */
+function energieVehicule(d) {
+  const v = vehiculeDeLImmat(d.immat);
+  if (!v || !v.energie || !d.energie || v.energie === d.energie) return '';
+  return `<small style="display:block;color:${COLORS.red};white-space:nowrap" title="Énergie de la fiche du véhicule (rubrique VÉHICULES)">⚠ véhicule : ${esc(v.energie)}</small>`;
+}
+
 /** Un solde non renseigne se lit mieux « — » que « 0 ». */
 function soldeCell(v) {
   return v === '' || v === undefined || v === null ? '—' : `${fmt(v)} F`;
@@ -160,7 +196,9 @@ function renderPool(page) {
   let list = filtrer('DOTATION', DB.dotationPool.slice());
   if (f.dateFrom) list = list.filter((d) => !d.date || d.date >= f.dateFrom);
   if (f.dateTo) list = list.filter((d) => !d.date || d.date <= f.dateTo);
-  if (f.immat) list = list.filter((d) => norm(d.immat || '').includes(norm(f.immat)));
+  // Chercher l'une des deux immatriculations d'un vehicule montre toutes ses
+  // prises, sous l'ancienne comme sous la nouvelle.
+  if (f.immat) list = list.filter((d) => norm(immatsLigne(d.immat).join(' ')).includes(norm(f.immat)));
   // L'ordre des prises a rebours : la plus recente en haut, la plus
   // ancienne en bas ; dans une journee, la derniere prise (le solde apres
   // le plus bas) en haut. Le solde avant d'une ligne se lit ainsi comme le
@@ -200,10 +238,10 @@ function renderPool(page) {
     return [
       esc(dateFR(d.date)),
       `<span style="display:block;text-align:center">${s.jours === null || s.jours === undefined ? '—' : fmt(s.jours)}</span>`,
-      `<b>${esc(d.immat || '')}</b>`,
+      `<b>${esc(d.immat || '')}</b>${autreImmat(d.immat)}`,
       esc(d.marqueModele || ''),
       esc(d.carte || ''),
-      esc(d.energie || ''),
+      esc(d.energie || '') + energieVehicule(d),
       `<span style="display:block;text-align:right">${fmt(d.km)}</span>`,
       `<span style="display:block;text-align:right">${fmt(d.quantite)}</span>`,
       `<span style="display:block;text-align:right">${fmt(d.prixL)}</span>`,
@@ -226,7 +264,7 @@ function renderPool(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const d = list[i];
-      tr.dataset.search = norm(`${d.immat} ${d.marqueModele} ${d.carte} ${d.station} ${d.date} ${d.conducteur || ''}`);
+      tr.dataset.search = norm(`${immatsLigne(d.immat).join(' ')} ${d.marqueModele} ${d.carte} ${d.station} ${d.date} ${d.conducteur || ''}`);
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openPoolForm(d);
@@ -250,12 +288,30 @@ function openPoolForm(d) {
   // ce qu'on a le droit de remplacer quand l'energie change : une valeur
   // choisie a la main n'est jamais ecrasee, la notre l'est volontiers.
   let prixPropose = null;
+  // Vehicule pour lequel l'energie a ete reprise. A l'ouverture d'une prise
+  // existante, c'est le sien : son energie enregistree reste telle quelle
+  // tant qu'on ne change pas de vehicule.
+  let vehiculeRepris = isEdit ? cleVehicule(d.immat) : '';
 
   openForm({
     title: isEdit ? `Modifier la dotation — ${d.immat}` : 'Nouvelle dotation — POOL',
     fields: poolFields(d || {}),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la dotation',
     onInput: (values, scope) => {
+      // L'energie est celle du vehicule dans la rubrique VEHICULES (ancienne
+      // ou nouvelle immatriculation) : reprise des que le vehicule change,
+      // avant que le prix du litre ne s'aligne dessus. Elle reste modifiable.
+      const cle = cleVehicule(values.immat);
+      if (cle && cle !== vehiculeRepris) {
+        vehiculeRepris = cle;
+        const v = vehiculeDeLImmat(values.immat);
+        const en = scope.querySelector('select[data-key="energie"]');
+        if (v && en && [...en.options].some((o) => o.value === v.energie)) {
+          en.value = v.energie;
+          values.energie = v.energie;
+        }
+      }
+
       // Le prix suit l'energie : passer au diesel doit proposer le prix du
       // diesel, pas laisser celui de l'essence. On ne remplace que le vide ou
       // notre propre proposition — un prix choisi a la main tient.
@@ -277,7 +333,7 @@ function openPoolForm(d) {
 
       const mm = scope.querySelector('[data-key="marqueModele"]');
       if (mm && !mm.value && values.immat) {
-        const v = vehicleByImmat(values.immat);
+        const v = vehiculeDeLImmat(values.immat);
         if (v) mm.value = `${v.marque || ''} ${v.modele || ''}`.trim();
       }
 

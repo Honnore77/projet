@@ -2,7 +2,7 @@
    FICHE VÉHICULE — tout ce que l application sait d une immatriculation.
    =================================================================== */
 
-import { DB, vehicleByImmat, vehiculeReformeParImmat, kmCourant, ravMontant } from '../../core/db.js';
+import { DB, vehicleByImmat, vehiculeReformeParImmat, kmCourant, ravMontant, memeVehicule } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, esc, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { urlImage, octetsImage } from '../../core/images.js';
@@ -188,8 +188,9 @@ function carteIdentite(vehicle, cat, immat) {
   return carte;
 }
 
+/** Meme vehicule, qu'il soit designe par l'ancienne ou la nouvelle immatriculation. */
 function same(a, b) {
-  return String(a || '').trim().toUpperCase() === String(b || '').trim().toUpperCase();
+  return memeVehicule(a, b);
 }
 
 function stripCat(v) {

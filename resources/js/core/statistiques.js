@@ -15,7 +15,7 @@
    =================================================================== */
 
 import {
-  DB, allVehicles, immatOf, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
+  DB, allVehicles, immatOf, immatActuelle, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
   destinationsDe, parcoursMission, dureeIndisponibilite, indisponibilitesEnCours, nomComplet,
   vehiculesDeLAgent
 } from './db.js';
@@ -224,8 +224,10 @@ export function statsDotation(annee) {
       blocMensuel('Litres par mois', mensuel),
       blocMensuel('Montant du carburant par mois (pool et missions)', mensuelMontant, { 'Montant (F)': F }),
       blocClassement('Carburant pool par véhicule', ['Véhicule', 'Prises', 'Litres', 'Montant'],
-        repartition(pool, (d) => d.immat, { valeur: (d) => d.quantite }).lignes.map((l) => {
-          const lot = pool.filter((d) => String(d.immat || '').trim() === l.libelle || (!d.immat && l.libelle === 'non renseigné'));
+        // Un vehicule, une ligne : les prises sous l'ancienne immatriculation
+        // se comptent avec celles sous la nouvelle.
+        repartition(pool, (d) => immatActuelle(d.immat), { valeur: (d) => d.quantite }).lignes.map((l) => {
+          const lot = pool.filter((d) => immatActuelle(d.immat) === l.libelle || (!d.immat && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(lot.length), `${fmt(l.nombre)} L`, F(sum(lot, (d) => d.montant))];
         }), 15),
       blocRepartition('Litres pool par station-service', repartition(pool, (d) => d.station, { valeur: (d) => d.quantite, limite: 8 }), { type: 'bar', entete: 'Litres' }),

@@ -803,6 +803,49 @@ export function immatOf(v) {
   return (v && (v.immatNouvelle || v.immatAncienne)) || '';
 }
 
+/** Immatriculation ramenee a sa forme de comparaison : majuscules, sans espaces. */
+function immatComparable(x) {
+  return String(x || '').replace(/\s+/g, '').toUpperCase();
+}
+
+/**
+ * Vehicule de la rubrique VEHICULES (reformes compris) qui porte cette
+ * immatriculation, ancienne ou nouvelle. Les espaces ne comptent pas :
+ * « D45 846 » et « D45846 » designent la meme plaque.
+ */
+export function vehiculeDeLImmat(immat) {
+  const cle = immatComparable(immat);
+  if (!cle) return null;
+  const tous = allVehicles().concat((DB.vehicles[CAT_REFORME] || []).map((v) => Object.assign({ _cat: CAT_REFORME }, v)));
+  return tous.find((v) => immatComparable(v.immatNouvelle) === cle || immatComparable(v.immatAncienne) === cle) || null;
+}
+
+/**
+ * Cle d'un vehicule a partir de l'une de ses immatriculations.
+ *
+ * Un vehicule passe de l'ancienne immatriculation (D45 846) a la nouvelle
+ * (D45 5082) sans changer de vehicule : ses prises, ses missions et ses
+ * passages au garage enregistres sous l'une ou l'autre forment une seule
+ * suite. La rubrique VEHICULES fait le lien ; une plaque qu'elle ne connait
+ * pas reste sa propre cle.
+ */
+export function cleVehicule(immat) {
+  const v = vehiculeDeLImmat(immat);
+  return v ? immatComparable(v.immatNouvelle || v.immatAncienne) : immatComparable(immat);
+}
+
+/** Deux immatriculations designent-elles le meme vehicule ? */
+export function memeVehicule(a, b) {
+  const ka = cleVehicule(a);
+  return !!ka && ka === cleVehicule(b);
+}
+
+/** Immatriculation actuelle du vehicule (la nouvelle s'il en a une). */
+export function immatActuelle(immat) {
+  const v = vehiculeDeLImmat(immat);
+  return v ? immatOf(v) : String(immat || '').trim();
+}
+
 /**
  * Derniere lecture du compteur d'un vehicule, toutes rubriques confondues.
  *
@@ -816,9 +859,10 @@ export function immatOf(v) {
  *          lecture datee n'existe pour cette immatriculation.
  */
 export function derniereLectureKm(immat) {
-  const cle = String(immat || '').trim().toUpperCase();
+  const cle = cleVehicule(immat);
   if (!cle) return null;
-  const memeImmat = (x) => String(x || '').trim().toUpperCase() === cle;
+  // Ancienne et nouvelle immatriculation : un seul compteur.
+  const memeImmat = (x) => cleVehicule(x) === cle;
   const lectures = [];
   const ajouter = (date, km, source) => {
     if (date && km !== '' && km !== undefined && km !== null) {
@@ -1171,7 +1215,8 @@ function ordreDotationPool(list = DB.dotationPool) {
  * - solde avant : saisi, tel que lu sur le ticket ;
  * - solde apres = solde avant moins le montant de la prise ;
  * - nombre de jours = ecart entre la date de la prise precedente du meme
- *   vehicule et celle-ci (du 03 au 10 : 7 jours) ;
+ *   vehicule (ancienne ou nouvelle immatriculation) et celle-ci (du 03 au
+ *   10 : 7 jours) ;
  * - ecart = solde apres de la prise precedente sur la meme carte (plus un
  *   eventuel rechargement entre les deux) moins le solde avant de celle-ci.
  *   Nul quand la suite est continue ; sinon il signale un trou : prise
@@ -1195,7 +1240,9 @@ export function suiviDotationPool(list = DB.dotationPool) {
       : prec + num(d.rechargement) - soldeAvant;
     derniereCarte.set(carte, soldeApres);
 
-    const immat = String(d.immat || '').trim().toUpperCase();
+    // Les prises sous l'ancienne immatriculation et celles sous la nouvelle
+    // se suivent : c'est le meme vehicule.
+    const immat = cleVehicule(d.immat);
     const avant = derniereDate.get(immat);
     const jours = avant && d.date ? daysBetween(avant, d.date) : null;
     if (d.date) derniereDate.set(immat, d.date);
