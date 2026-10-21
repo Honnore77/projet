@@ -224,14 +224,16 @@ Dans les fiches de véhicule, **« Kilométrage de vidange »** est le kilométr
 - dans le tableau des véhicules, une colonne **« Prochaine vidange »** donne le kilométrage visé et une colonne **« Suivi vidange »** l'état — verte tant qu'il reste de la marge, orange à l'approche, rouge une fois dépassée ;
 - sur le tableau de bord, deux alertes cliquables : les véhicules **à vidanger sans délai** et ceux qui **approchent de la vidange**, avec pour chacun le nombre de kilomètres concernés.
 
-Deux réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
+Quatre réglages pilotent ce suivi (**Réglages → Modifier les réglages**) :
 
 | Réglage | Défaut | Rôle |
 | --- | --- | --- |
 | Intervalle de vidange (km) | 5 000 | À la saisie d'un véhicule, propose une première fois `kilométrage courant + intervalle`. La valeur proposée reste modifiable, et n'est plus reproposée ensuite. |
-| Alerte vidange (km restants) | 500 | Marge à partir de laquelle l'alerte « approche » se déclenche. |
+| 🟡 Voyant jaune à partir de (km restants) | 1 000 | Le voyant de vidange s'allume ; la vidange est dite « à prévoir » dans les exports et les statistiques. |
+| 🟡 Jaune jusqu'à (km restants, inclus) | 700 | En dessous, le voyant passe à l'orange. |
+| 🟠 Orange jusqu'à (km restants, inclus) | 500 | En dessous, le voyant passe au rouge. |
 
-Après une vidange, il suffit de reporter le nouveau kilométrage cible dans la fiche : les pastilles et les alertes repassent au vert.
+Les trois seuils doivent aller du plus grand au plus petit ; sinon l'enregistrement est refusé. Dans le tableau des véhicules, la pastille de vidange prend les **trois couleurs des voyants** (jaune, orange, rouge ; voir le bandeau ci-dessous), et reste verte au-dessus du seuil jaune. Après une vidange, il suffit de reporter le nouveau kilométrage cible dans la fiche : les pastilles et les alertes repassent au vert.
 
 Un véhicule sans kilométrage de vidange n'est simplement pas suivi (« non suivie ») ; il ne déclenche aucune alerte. Les exports Excel et PDF du parc reprennent les colonnes *Prochaine vidange (km)*, *Km avant vidange* et *Suivi vidange*.
 
@@ -239,17 +241,17 @@ Un véhicule sans kilométrage de vidange n'est simplement pas suivi (« non sui
 
 Les alertes du tableau de bord ne se voient que sur le tableau de bord. Un **bandeau** les porte donc en permanence, **au centre de la ligne du logo**, quelle que soit la rubrique ouverte. Il reste **vide quand tout va bien** : un bandeau qui affiche toujours quelque chose finit par ne plus rien vouloir dire.
 
-**Voyants de vidange** — dès qu'il reste moins de 1 000 km avant l'échéance, un voyant **clignotant** donne l'immatriculation et les kilomètres restants :
+**Voyants de vidange** — dès qu'il reste 1 000 km ou moins (seuils par défaut) avant l'échéance, un voyant **clignotant** donne l'immatriculation et les kilomètres restants :
 
 | Kilomètres restants | Voyant |
 | --- | --- |
-| 1 000 à 750 | 🟡 jaune |
-| 750 à 500 | 🟠 orange |
-| moins de 500 | 🔴 rouge |
+| 1 000 à 700 | 🟡 jaune |
+| 699 à 500 | 🟠 orange |
+| 499 et moins | 🔴 rouge |
 
-Une valeur pile sur un seuil prend la couleur la plus grave : à 750 km on est déjà orange. Une fois l'échéance dépassée, le voyant reste rouge et compte le retard (« 300 km de retard ») **jusqu'à ce que la vidange soit faite** — c'est-à-dire jusqu'à ce que le kilométrage cible de la fiche soit reporté plus loin. Le voyant s'éteint alors immédiatement, sans qu'on ait à recharger.
+Chaque couleur va jusqu'à son seuil inclus : à 700 km on est encore jaune, à 500 km encore orange. Une fois l'échéance dépassée, le voyant reste rouge et compte le retard (« 300 km de retard ») **jusqu'à ce que la vidange soit faite** — c'est-à-dire jusqu'à ce que le kilométrage cible de la fiche soit reporté plus loin. Le voyant s'éteint alors immédiatement, sans qu'on ait à recharger.
 
-Ces seuils sont **fixes** et ne se règlent pas : c'est une règle d'atelier, pas une préférence. Le réglage *Alerte vidange* garde son rôle ailleurs — il décide de la pastille « approche » dans le tableau des véhicules.
+Ces chiffres sont les seuils **par défaut** : ils se règlent dans **Réglages → Modifier les réglages** (voir plus haut). Le bandeau, la carte ALERTES, la pastille du tableau des véhicules, les exports et les statistiques suivent tous ces mêmes seuils.
 
 **Véhicules immobilisés** — un voyant **gris, fixe**, avec l'immatriculation et le nombre de jours d'immobilisation. Sont retenus les véhicules **au garage** (fiche d'entretien sans retour) et ceux qu'une fiche déclare *Immobilisé* — réunis, pour qu'aucun ne paraisse deux fois ni ne manque. Le gris est délibéré : il laisse le jaune, l'orange et le rouge ne vouloir dire qu'une seule chose, l'échéance de vidange.
 

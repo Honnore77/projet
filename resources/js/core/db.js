@@ -151,9 +151,11 @@ export function emptyDB() {
       // Intervalle courant entre deux vidanges : sert a proposer le
       // kilometrage de la prochaine quand on saisit un vehicule.
       seuilVidangeKm: 5000,
-      // Marge d'alerte : on previent des qu'il reste moins que cela a
-      // parcourir avant la vidange due.
-      seuilAlerteVidangeKm: 500,
+      // Seuils des voyants de vidange, en km restants (voir
+      // seuilsVoyantVidange) : chaque couleur va jusqu'a son seuil inclus.
+      seuilVoyantJaune: 1000,
+      seuilVoyantOrange: 700,
+      seuilVoyantRouge: 500,
       seuilImmobilisationJours: 7,
       seuilMissionImpayeeJours: 30,
       // Prix du litre a la pompe, par energie. Ils alimentent la liste
@@ -1370,27 +1372,39 @@ export function etatVidange(v) {
 
   const restant = cible - actuel;
   if (restant <= 0) return { statut: 'depassee', restant, cible };
-  if (restant <= num(DB.settings.seuilAlerteVidangeKm)) return { statut: 'proche', restant, cible };
+  // « A prevoir » des que le voyant jaune s'allume : exports, statistiques,
+  // pastilles et bandeau parlent ainsi du meme seuil.
+  if (restant <= seuilsVoyantVidange().jaune) return { statut: 'proche', restant, cible };
   return { statut: 'ok', restant, cible };
 }
 
 /**
- * Seuils du voyant de vidange, en kilometres restants avant l'echeance.
- *
- * Ils sont fixes et ne se reglent pas : c'est une regle d'atelier, pas une
- * preference. Le seuil de REGLAGES (« Alerte vidange ») garde son role
- * ailleurs — il decide de la pastille « approche » dans le tableau des
- * vehicules ; le voyant, lui, previent toujours au meme kilometrage, pour
- * qu'un conducteur sache ce que la couleur veut dire sans avoir a demander
- * comment l'application est reglee.
+ * Seuils par defaut du voyant de vidange, en kilometres restants avant
+ * l'echeance. Ils se reglent dans REGLAGES (seuilVoyantJaune / Orange /
+ * Rouge) ; le bandeau, la carte ALERTES, la pastille du tableau des
+ * vehicules, les exports et les statistiques suivent tous ces trois chiffres.
  */
 export const SEUILS_VOYANT_VIDANGE = { jaune: 1000, orange: 700, rouge: 500 };
 
 /**
+ * Seuils en vigueur : ceux de REGLAGES, ou ceux par defaut s'ils manquent
+ * (base enregistree avant que les seuils ne se reglent) ou ne se suivent pas
+ * du plus grand au plus petit.
+ */
+export function seuilsVoyantVidange() {
+  const s = DB.settings || {};
+  const jaune = num(s.seuilVoyantJaune);
+  const orange = num(s.seuilVoyantOrange);
+  const rouge = num(s.seuilVoyantRouge);
+  if (!(jaune > orange && orange > rouge && rouge > 0)) return { ...SEUILS_VOYANT_VIDANGE };
+  return { jaune, orange, rouge };
+}
+
+/**
  * Couleur du voyant pour un nombre de kilometres restants.
  *
- * Une valeur pile sur un seuil prend la couleur la plus grave : a 700 km on
- * est deja orange. Se tromper du cote prudent ne coute rien, l'inverse si.
+ * Chaque couleur va jusqu'a son seuil inclus, comme l'utilisateur l'a fixe :
+ * par defaut jaune de 1000 a 700, orange de 699 a 500, rouge a 499 et moins.
  * En dessous de zero la vidange est depassee : le voyant reste rouge tant
  * qu'elle n'est pas faite, c'est-a-dire tant que le kilometrage cible de la
  * fiche n'a pas ete reporte plus loin.
@@ -1399,9 +1413,10 @@ export const SEUILS_VOYANT_VIDANGE = { jaune: 1000, orange: 700, rouge: 500 };
  */
 export function niveauVoyantVidange(restant) {
   if (restant === null || restant === undefined) return null;
-  if (restant > SEUILS_VOYANT_VIDANGE.jaune) return null;
-  if (restant > SEUILS_VOYANT_VIDANGE.orange) return 'jaune';
-  if (restant > SEUILS_VOYANT_VIDANGE.rouge) return 'orange';
+  const seuils = seuilsVoyantVidange();
+  if (restant > seuils.jaune) return null;
+  if (restant >= seuils.orange) return 'jaune';
+  if (restant >= seuils.rouge) return 'orange';
   return 'rouge';
 }
 
@@ -1565,7 +1580,7 @@ export function computeAlerts() {
   }
 
   // Vidanges : les memes trois couleurs que les voyants du bandeau
-  // (SEUILS_VOYANT_VIDANGE), une ligne par couleur, de la plus grave a la
+  // (seuilsVoyantVidange), une ligne par couleur, de la plus grave a la
   // moins grave.
   const vidanges = voyantsVidange();
   ALERTES_VIDANGE.forEach((g) => {

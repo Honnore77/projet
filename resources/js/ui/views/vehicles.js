@@ -10,7 +10,7 @@
 import {
   DB, CATEGORIES, CAT_REFORME, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
-  insert, update, remove, moveVehicle, immatOf, etatVidange,
+  insert, update, remove, moveVehicle, immatOf, etatVidange, niveauVoyantVidange,
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
@@ -45,18 +45,29 @@ export function statutColor(s) {
   return COLORS.red;
 }
 
-/** Pastille resumant l'etat de la vidange d'un vehicule. */
+/** Memes teintes que les voyants du bandeau (app.css, .voyant.*). */
+const FOND_VOYANT = {
+  jaune: 'background:var(--yellow);color:#4a3a00',
+  orange: 'background:var(--orange)',
+  rouge: 'background:var(--red)'
+};
+
+/**
+ * Pastille resumant l'etat de la vidange d'un vehicule. Elle prend les trois
+ * couleurs des voyants (niveauVoyantVidange) : le tableau et le bandeau
+ * disent la meme chose du meme vehicule.
+ */
 export function badgeVidange(e) {
   if (e.statut === 'inconnu') {
     return '<span style="color:#8aa0a6">non suivie</span>';
   }
-  if (e.statut === 'depassee') {
-    return `<span class="badge" style="background:${COLORS.red}">Dépassée de ${fmt(-e.restant)} km</span>`;
+  const niveau = niveauVoyantVidange(e.restant);
+  if (!niveau) {
+    return `<span class="badge" style="background:${COLORS.green}">Dans ${fmt(e.restant)} km</span>`;
   }
-  if (e.statut === 'proche') {
-    return `<span class="badge" style="background:${COLORS.orange}">⚠ Dans ${fmt(e.restant)} km</span>`;
-  }
-  return `<span class="badge" style="background:${COLORS.green}">Dans ${fmt(e.restant)} km</span>`;
+  const texte = e.restant < 0 ? `Dépassée de ${fmt(-e.restant)} km`
+    : e.restant === 0 ? 'Vidange due' : `⚠ Dans ${fmt(e.restant)} km`;
+  return `<span class="badge" style="${FOND_VOYANT[niveau]}">${texte}</span>`;
 }
 
 /** Champs du formulaire vehicule (partages creation / modification). */
@@ -351,7 +362,7 @@ export function openVehicleForm(vehicle, cat) {
         suivi.value =
           e.statut === 'inconnu' ? 'Renseignez le kilométrage de vidange'
             : e.statut === 'depassee' ? `⚠ Vidange dépassée de ${fmt(-e.restant)} km`
-              : e.statut === 'proche' ? `⚠ Vidange dans ${fmt(e.restant)} km`
+              : niveauVoyantVidange(e.restant) ? `⚠ Vidange dans ${fmt(e.restant)} km`
                 : `Vidange dans ${fmt(e.restant)} km`;
       }
     },

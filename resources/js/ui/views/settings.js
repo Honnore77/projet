@@ -3,7 +3,7 @@
    Rubrique reservee aux administrateurs (voir MODULES dans shell.js).
    =================================================================== */
 
-import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour, nomsUtilisateurs } from '../../core/db.js';
+import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour, nomsUtilisateurs, seuilsVoyantVidange } from '../../core/db.js';
 import { ROLES_ACCES, NIVEAUX, RUBRIQUES_ACCES, reglesDuRole, reglesParDefaut } from '../../core/acces.js';
 import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
@@ -538,6 +538,7 @@ export function openChangeOwnPassword(onDone) {
 function renderThresholdsSection(page) {
   page.appendChild(sectionLabel('SEUILS D’ALERTE ET IDENTITÉ', COLORS.orange));
   const s = DB.settings;
+  const voyant = seuilsVoyantVidange();
   page.appendChild(
     el(
       '<div class="card"><h3 style="color:#F47B20">PARAMÈTRES ACTUELS</h3><p>' +
@@ -552,7 +553,8 @@ function renderThresholdsSection(page) {
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
         `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
 ` +
-        `Alerte vidange quand il reste moins de : ${num(s.seuilAlerteVidangeKm)} km` +
+        `Voyants de vidange : jaune de ${num(voyant.jaune)} à ${num(voyant.orange)} km, ` +
+        `orange de ${num(voyant.orange - 1)} à ${num(voyant.rouge)} km, rouge à ${num(voyant.rouge - 1)} km et moins` +
         '</p></div>'
     )
   );
@@ -585,11 +587,23 @@ function openSettingsForm() {
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,
         hint: 'Sert à proposer le kilométrage de la prochaine vidange' },
-      { key: 'seuilAlerteVidangeKm', label: 'Alerte vidange (km restants)', type: 'nombre', value: s.seuilAlerteVidangeKm,
-        hint: 'Alerte dès qu’il reste moins que cela à parcourir' }
+      // Chaque couleur va jusqu'a son seuil inclus : avec 1000 / 700 / 500,
+      // jaune de 1000 a 700, orange de 699 a 500, rouge a 499 et moins.
+      { key: 'seuilVoyantJaune', label: '🟡 Voyant jaune à partir de (km restants)', type: 'nombre', value: voyant.jaune,
+        hint: 'Le voyant de vidange s’allume en jaune à ce kilométrage restant' },
+      { key: 'seuilVoyantOrange', label: '🟡 Jaune jusqu’à (km restants, inclus)', type: 'nombre', value: voyant.orange,
+        hint: 'En dessous, le voyant passe à l’orange' },
+      { key: 'seuilVoyantRouge', label: '🟠 Orange jusqu’à (km restants, inclus)', type: 'nombre', value: voyant.rouge,
+        hint: 'En dessous, le voyant passe au rouge' }
     ],
     okLabel: 'Enregistrer',
     onSubmit: (v) => {
+      const jaune = num(v.seuilVoyantJaune);
+      const orange = num(v.seuilVoyantOrange);
+      const rouge = num(v.seuilVoyantRouge);
+      if (!(jaune > orange && orange > rouge && rouge > 0)) {
+        return 'Voyants de vidange : il faut jaune > fin du jaune > fin de l’orange > 0 (par exemple 1000, 700, 500).';
+      }
       saveSettings({
         organisation: v.organisation || 'PDU',
         ville: v.ville || 'Abidjan',
@@ -602,7 +616,9 @@ function openSettingsForm() {
         seuilImmobilisationJours: num(v.seuilImmobilisationJours) || 7,
         seuilMissionImpayeeJours: num(v.seuilMissionImpayeeJours) || 30,
         seuilVidangeKm: num(v.seuilVidangeKm) || 5000,
-        seuilAlerteVidangeKm: num(v.seuilAlerteVidangeKm) || 500
+        seuilVoyantJaune: jaune,
+        seuilVoyantOrange: orange,
+        seuilVoyantRouge: rouge
       });
       toast('Réglages enregistrés.', 'ok');
       rerender();

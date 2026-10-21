@@ -43,13 +43,39 @@ test('les paliers du voyant : 1000, 700 et 500 kilometres', () => {
   assert.equal(db.niveauVoyantVidange(900), 'jaune');
   assert.equal(db.niveauVoyantVidange(750), 'jaune');
   assert.equal(db.niveauVoyantVidange(701), 'jaune');
-  assert.equal(db.niveauVoyantVidange(700), 'orange', 'un seuil prend la couleur la plus grave');
+  assert.equal(db.niveauVoyantVidange(700), 'jaune', 'jaune jusqu’a 700 inclus');
+  assert.equal(db.niveauVoyantVidange(699), 'orange');
   assert.equal(db.niveauVoyantVidange(600), 'orange');
-  assert.equal(db.niveauVoyantVidange(500), 'rouge', 'idem a 500');
+  assert.equal(db.niveauVoyantVidange(500), 'orange', 'orange jusqu’a 500 inclus');
+  assert.equal(db.niveauVoyantVidange(499), 'rouge');
   assert.equal(db.niveauVoyantVidange(10), 'rouge');
   assert.equal(db.niveauVoyantVidange(0), 'rouge');
   assert.equal(db.niveauVoyantVidange(-300), 'rouge', 'depassee : rouge jusqu’a la vidange');
   assert.equal(db.niveauVoyantVidange(null), null, 'sans echeance, pas de voyant');
+});
+
+test('les trois seuils se reglent dans REGLAGES', async () => {
+  await charger({ settings: { seuilVoyantJaune: 2000, seuilVoyantOrange: 1200, seuilVoyantRouge: 300 } });
+  assert.deepEqual(db.seuilsVoyantVidange(), { jaune: 2000, orange: 1200, rouge: 300 });
+  assert.equal(db.niveauVoyantVidange(2001), null);
+  assert.equal(db.niveauVoyantVidange(2000), 'jaune');
+  assert.equal(db.niveauVoyantVidange(1200), 'jaune');
+  assert.equal(db.niveauVoyantVidange(1199), 'orange');
+  assert.equal(db.niveauVoyantVidange(300), 'orange');
+  assert.equal(db.niveauVoyantVidange(299), 'rouge');
+  // La vidange est « a prevoir » (exports, statistiques) des le jaune.
+  await charger({
+    settings: { seuilVoyantJaune: 2000, seuilVoyantOrange: 1200, seuilVoyantRouge: 300 },
+    vehicles: parc(vehicule({ id: 'v1', immatNouvelle: IMMAT, km: 10000, kmVidange: 11800 }))
+  });
+  assert.equal(db.etatVidange(db.vehicleByImmat(IMMAT)).statut, 'proche');
+});
+
+test('des seuils absents ou dans le desordre reviennent a 1000 / 700 / 500', async () => {
+  await charger({ settings: {} });
+  assert.deepEqual(db.seuilsVoyantVidange(), { jaune: 1000, orange: 700, rouge: 500 });
+  await charger({ settings: { seuilVoyantJaune: 500, seuilVoyantOrange: 700, seuilVoyantRouge: 1000 } });
+  assert.deepEqual(db.seuilsVoyantVidange(), { jaune: 1000, orange: 700, rouge: 500 });
 });
 
 test('un vehicule sans kilometrage de vidange n’allume aucun voyant', async () => {
