@@ -565,6 +565,7 @@ function renderThresholdsSection(page) {
 
 function openSettingsForm() {
   const s = DB.settings;
+  const voyant = seuilsVoyantVidange();
   openForm({
     title: 'Réglages de l’application',
     fields: [
