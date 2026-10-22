@@ -7,8 +7,8 @@ android {
         applicationId "ci.pdu.parcauto"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 4442
-        versionName "4.4.42"
+        versionCode 4443
+        versionName "4.4.43"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
