@@ -1591,8 +1591,8 @@ export function computeAlerts() {
       icon: '🛢️',
       title: `${g.titre} : ${lot.length} véhicule${lot.length > 1 ? 's' : ''}`,
       detail: lot
-        .map((x) => `${x.immat || '(sans immat.)'} : ${x.etat.restant <= 0
-          ? `${fmtKm(-x.etat.restant)} km de retard`
+        .map((x) => `${x.immat || '(sans immat.)'} : ${x.etat.restant < 0
+          ? `-${fmtKm(-x.etat.restant)} km (dépassée)`
           : `${fmtKm(x.etat.restant)} km restants`}`)
         .join(' · '),
       go: 'VEHICULES'

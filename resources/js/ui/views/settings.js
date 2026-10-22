@@ -590,13 +590,28 @@ function openSettingsForm() {
         hint: 'Sert à proposer le kilométrage de la prochaine vidange' },
       // Chaque couleur va jusqu'a son seuil inclus : avec 1000 / 700 / 500,
       // jaune de 1000 a 700, orange de 699 a 500, rouge a 499 et moins.
-      { key: 'seuilVoyantJaune', label: '🟡 Voyant jaune à partir de (km restants)', type: 'nombre', value: voyant.jaune,
+      { key: 'seuilVoyantJaune', label: '🟡 Jaune : de (km restants)', type: 'nombre', value: voyant.jaune,
         hint: 'Le voyant de vidange s’allume en jaune à ce kilométrage restant' },
-      { key: 'seuilVoyantOrange', label: '🟡 Jaune jusqu’à (km restants, inclus)', type: 'nombre', value: voyant.orange,
-        hint: 'En dessous, le voyant passe à l’orange' },
-      { key: 'seuilVoyantRouge', label: '🟠 Orange jusqu’à (km restants, inclus)', type: 'nombre', value: voyant.rouge,
-        hint: 'En dessous, le voyant passe au rouge' }
+      { key: 'seuilVoyantOrange', label: '🟡 Jaune : à (km restants)', type: 'nombre', value: voyant.orange,
+        hint: 'L’orange commence au kilomètre suivant' },
+      { key: 'seuilVoyantRouge', label: '🟠 Orange : à (km restants)', type: 'nombre', value: voyant.rouge,
+        hint: 'Le rouge commence au kilomètre suivant' }
     ],
+    // Les trois couleurs telles qu'elles s'appliqueront, recalculees a chaque
+    // frappe : jaune de 1000 a 700, orange de 699 a 500, rouge a 499 et moins.
+    extra: (scope) => {
+      scope.querySelector('.fGrid').after(el('<div class="modalMsg" data-voyants style="margin-top:10px"></div>'));
+    },
+    onInput: (v, scope) => {
+      const zone = scope.querySelector('[data-voyants]');
+      const jaune = num(v.seuilVoyantJaune);
+      const orange = num(v.seuilVoyantOrange);
+      const rouge = num(v.seuilVoyantRouge);
+      zone.textContent = jaune > orange && orange > rouge && rouge > 0
+        ? `Voyants de vidange : 🟡 jaune de ${num(jaune)} à ${num(orange)} km · ` +
+          `🟠 orange de ${num(orange - 1)} à ${num(rouge)} km · 🔴 rouge à ${num(rouge - 1)} km et moins`
+        : 'Voyants de vidange : les trois chiffres doivent aller du plus grand au plus petit (par exemple 1000, 700, 500).';
+    },
     okLabel: 'Enregistrer',
     onSubmit: (v) => {
       const jaune = num(v.seuilVoyantJaune);

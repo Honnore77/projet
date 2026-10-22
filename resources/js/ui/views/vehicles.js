@@ -253,9 +253,7 @@ export function renderVehicles(page) {
   page.appendChild(
     dataTable(headers, rows, (tr, i) => {
       const v = list[i];
-      tr.dataset.search = norm(
-        `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.numeroChassis || ''} ${v.statut} ${v.section} ${v.utilisateur}`
-      );
+      tr.dataset.search = texteRecherche(v);
       tr.querySelector('[data-sheet]').onclick = () => openVehicleSheet(immatOf(v));
 
       const ed = tr.querySelector('[data-edit]');
@@ -278,6 +276,38 @@ export function renderVehicles(page) {
       }
     })
   );
+}
+
+/** Ce que la recherche de l'en-tete lit d'une ligne du tableau. */
+function texteRecherche(v) {
+  return norm(
+    `${v.marque} ${v.modele} ${v.immatNouvelle} ${v.immatAncienne} ${v.numeroChassis || ''} ${v.statut} ${v.section} ${v.utilisateur}`
+  );
+}
+
+/**
+ * La recherche de l'en-tete parcourt POOL, MISSION et SERVICE : si rien ne
+ * correspond dans la sous-rubrique ouverte, on passe a celle qui contient le
+ * vehicule cherche (D45 5082 tapee depuis POOL ouvre SERVICE). Les filtres
+ * statut / section sont alors remis a zero, sans quoi le vehicule trouve
+ * pourrait rester cache.
+ * @returns {boolean} vrai si la sous-rubrique a change (la page est a redessiner)
+ */
+export function suivreRechercheVehicules(query) {
+  const q = norm(query).trim();
+  const cat = state.sub.VEHICULES || 'pool';
+  if (q.length < 2 || !CATEGORIES.some((c) => c.key === cat)) return false;
+  const f = state.filters.vehicules;
+  const trouve = (c, avecFiltres) => filtrer('VEHICULES', DB.vehicles[c]).some((v) =>
+    (!avecFiltres || ((!f.statut || v.statut === f.statut) && (!f.section || v.section === f.section))) &&
+    texteRecherche(v).includes(q));
+  if (trouve(cat, true)) return false;
+  const autre = CATEGORIES.find((c) => c.key !== cat && trouve(c.key, false));
+  if (!autre) return false;
+  state.sub.VEHICULES = autre.key;
+  f.statut = '';
+  f.section = '';
+  return true;
 }
 
 /**

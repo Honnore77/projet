@@ -206,6 +206,6 @@ test('la carte ALERTES reprend les trois couleurs des voyants', async () => {
     ['orange', 'Vidange proche : 1 véhicule'],
     ['jaune', 'Vidange à prévoir : 1 véhicule']
   ]);
-  assert.match(lignes[0].detail, /D45 50 4444 : 300 km de retard/);
+  assert.match(lignes[0].detail, /D45 50 4444 : -300 km \(dépassée\)/);
   assert.match(lignes[0].detail, /D45 50 3333 : 200 km restants/);
 });

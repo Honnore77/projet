@@ -12,7 +12,7 @@ import {
 const logoUrl = './logo-pdu.png';
 
 import { renderDashboard } from './views/dashboard.js';
-import { renderVehicles } from './views/vehicles.js';
+import { renderVehicles, suivreRechercheVehicules } from './views/vehicles.js';
 import { renderUsers } from './views/users.js';
 import { renderDotation } from './views/dotation.js';
 import { renderMissions } from './views/missions.js';
@@ -196,6 +196,8 @@ export function mountShell(appRoot, { onLogout }) {
       state.query = searchInput.value;
       if (state.module === 'RECHERCHE_GLOBALE') return rerender();
       globalBtn.style.display = state.query.trim().length >= 2 ? 'block' : 'none';
+      // VEHICULES cherche aussi dans ses autres sous-rubriques.
+      if (state.module === 'VEHICULES' && suivreRechercheVehicules(state.query)) return rerender();
       applyLocalFilter();
     }, 130)
   );
@@ -377,8 +379,9 @@ function renderAlertBar() {
       clignote: true,
       icone: '🛢️',
       immat: x.immat || '(sans immat.)',
-      texte: x.etat.restant <= 0
-        ? `${fmt(-x.etat.restant)} km de retard`
+      // Le moins dit que l'echeance est passee : -1 033 km = 1 033 km de retard.
+      texte: x.etat.restant < 0
+        ? `-${fmt(-x.etat.restant)} km`
         : `${fmt(x.etat.restant)} km`,
       titre: `Vidange due à ${fmt(x.etat.cible)} km`,
       go: x.immat
