@@ -43,7 +43,8 @@ export function renderStatistiques(page, cle) {
   page.appendChild(
     card(
       `STATISTIQUES — ${def.titre.toUpperCase()}`,
-      def.datee
+      def.intro ? def.intro(annee)
+        : def.datee
         ? `Les chiffres de la rubrique ${annee ? `pour l’année ${annee}` : 'toutes années confondues'}. Choisissez une autre année ci-dessous ; les exports reprennent ce qui est affiché.`
         : 'L’état du parc aujourd’hui : les véhicules ne sont pas datés, ces chiffres ne dépendent pas de l’année.',
       couleur

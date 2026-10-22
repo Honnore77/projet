@@ -120,10 +120,21 @@ function blocClassement(titre, entetes, lignes, limite = 10) {
   return { titre, entetes, lignes: lignes.slice(0, limite), graphique: null };
 }
 
+/**
+ * Frequence de sortie : un histogramme du nombre de sorties par conducteur
+ * ou par vehicule, le plus frequent d'abord.
+ */
+function blocFrequence(titre, rep, entete = 'Sorties') {
+  return blocRepartition(titre, rep, { type: 'bar', entete });
+}
+
 /* ============================ VÉHICULES ============================ */
 
-export function statsVehicules() {
+export function statsVehicules(annee = '') {
   const tous = allVehicles();
+  // Une sortie du pool, c'est une decharge : un conducteur part avec un
+  // vehicule deposer un courrier. Seules ces sorties dependent de l'annee.
+  const sorties = deLAnnee(DB.decharges || [], (d) => d.date, annee);
   const vid = tous.map((v) => etatVidange(v).statut);
   const LIB = { ok: 'à jour', proche: 'à prévoir', depassee: 'dépassée', inconnu: 'non suivie' };
   const avecConso = tous.filter((v) => num(v.consommation) > 0);
@@ -135,9 +146,15 @@ export function statsVehicules() {
       { titre: 'Au garage ou immobilisés', valeur: fmt(tous.filter((v) => v.statut && ['En entretien', 'Immobilisé'].includes(v.statut)).length), detail: 'en entretien ou immobilisés' },
       { titre: 'Vidanges à surveiller', valeur: fmt(vid.filter((s) => s === 'proche' || s === 'depassee').length), detail: `${fmt(vid.filter((s) => s === 'depassee').length)} dépassée(s)` },
       { titre: 'Kilométrage moyen', valeur: `${fmt(kms.length ? Math.round(sum(kms, (k) => k) / kms.length) : 0)} km`, detail: `${kms.length} véhicule(s) relevé(s)` },
-      { titre: 'Consommation moyenne', valeur: avecConso.length ? `${(sum(avecConso, (v) => v.consommation) / avecConso.length).toFixed(1).replace('.', ',')} L/100` : '—', detail: `${avecConso.length} véhicule(s) renseigné(s)` }
+      { titre: 'Consommation moyenne', valeur: avecConso.length ? `${(sum(avecConso, (v) => v.consommation) / avecConso.length).toFixed(1).replace('.', ',')} L/100` : '—', detail: `${avecConso.length} véhicule(s) renseigné(s)` },
+      { titre: 'Sorties du pool', valeur: fmt(sorties.length), detail: `décharges ${annee ? `en ${annee}` : 'toutes années'}` }
     ],
     blocs: [
+      blocFrequence('Fréquence de sortie des conducteurs du pool (décharges)', repartition(sorties, (d) => d.conducteur, { limite: 15 })),
+      blocFrequence('Fréquence de sortie des véhicules du pool (décharges)',
+        // Ancienne et nouvelle immatriculation : un seul vehicule.
+        repartition(sorties, (d) => immatActuelle(d.immat), { limite: 15 })),
+      blocMensuel('Sorties du pool par mois', parMois(sorties, (d) => d.date, annee, { Sorties: () => 1 })),
       blocRepartition('Véhicules par catégorie', repartition(tous, (v) => String(v._cat || '').toUpperCase())),
       blocRepartition('Véhicules par statut', repartition(tous, (v) => v.statut)),
       blocRepartition('Véhicules par énergie', repartition(tous, (v) => v.energie)),
@@ -259,6 +276,8 @@ export function statsMissions(annee) {
       { titre: 'Non payées', valeur: fmt(nonPayees.length), detail: F(sum(nonPayees, (m) => m.montant)) }
     ],
     blocs: [
+      blocFrequence('Fréquence de sortie des conducteurs en mission', repartition(ms, (m) => m.conducteur, { limite: 15 }), 'Missions'),
+      blocFrequence('Fréquence de sortie des véhicules en mission', repartition(ms, (m) => immatActuelle(m.vehicule), { limite: 15 }), 'Missions'),
       blocMensuel('Missions et jours par mois', parMois(ms, (m) => m.dateDepart, annee, { Missions: () => 1, Jours: (m) => m.jours })),
       blocClassement('Missions par conducteur', ['Conducteur', 'Missions', 'Jours', 'Km au compteur'],
         repartition(ms, (m) => m.conducteur).lignes.map((l) => {
@@ -365,7 +384,10 @@ export function statsSimulations(annee) {
 
 /** Les statistiques d'une rubrique, par sa cle dans le menu. */
 export const STATISTIQUES = {
-  VEHICULES: { titre: 'Véhicules', calcul: statsVehicules, datee: false },
+  // Le parc se compte tel qu'il est aujourd'hui ; l'annee ne porte que sur
+  // les sorties du pool.
+  VEHICULES: { titre: 'Véhicules', calcul: statsVehicules, datee: true,
+    intro: (annee) => `L’état du parc aujourd’hui, et les sorties du pool (décharges) ${annee ? `de l’année ${annee}` : 'de toutes les années'}. L’année choisie ci-dessous ne porte que sur les sorties ; les exports reprennent ce qui est affiché.` },
   UTILISATEURS: { titre: 'Utilisateurs', calcul: statsUtilisateurs, datee: true },
   DOTATION: { titre: 'Dotation en carburant', calcul: statsDotation, datee: true },
   MISSION: { titre: 'Missions', calcul: statsMissions, datee: true },

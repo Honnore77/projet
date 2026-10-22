@@ -16,7 +16,7 @@ import {
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
   destinationsDe, texteDestinations, parcoursDe, parcoursMission, libelleParcours,
   distanceEntre, enregistrerTrajet, cleTrajet, lienParcours, lienEtape, ORIGINE_MISSIONS,
-  totaliser, distanceSurPlace, vehicleByImmat
+  totaliser, distanceSurPlace, vehicleByImmat, totauxRapportMission, quantiteRavitaillement
 } from '../../core/db.js';
 import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicules.js';
 import { canWrite } from '../../core/auth.js';
@@ -346,6 +346,9 @@ function openRapportVue(m) {
       ligne('Distance parcourue sur place', texteSurPlace(d.surPlace)) +
       '</div>' +
       `<div class="subBlock"><h5>État du véhicule</h5><div class="subEntryRow"><span>${esc(d.observations || "—")}</span></div></div>` +
+      `<div class="subBlock"><h5>Total des dépenses de la mission</h5>${lignesTotaux(d.totaux)}` +
+      (d.justificationDivers ? `<div class="subEntryRow"><span>Justification de la dépense divers : ${esc(d.justificationDivers)}</span></div>` : '') +
+      '</div>' +
       '</div>'
   );
 
@@ -454,9 +457,25 @@ function problemesVehiculeMission(m) {
     autres.map((s) => `${String(s.probleme || '').split('\n')[0]} (depuis le ${dateFR(s.dateSignalement)})`).join(' ; ');
 }
 
+/** Lignes « carburant, frais OM, peage, divers, TOTAL » du rapport. */
+function lignesTotaux(t) {
+  const ligne = (k, v, gras) => `<div class="subEntryRow"><span>${gras ? `<b>${k}</b>` : k}</span><b>${fmt(v)} F</b></div>`;
+  return ligne('Carburant (ravitaillements)', t.carburant) + ligne('Frais OM', t.fraisOm) +
+    ligne('Frais de péage', t.fraisPeage) + ligne('Dépense divers', t.depenseDivers) + ligne('TOTAL', t.total, true);
+}
+
 /** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
 function openRapportForm(m) {
   const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
+  let zoneTotaux = null;
+  let champsTotaux = null;
+  const majTotaux = () => {
+    if (!zoneTotaux) return;
+    const lire = (k) => lireMontant((champsTotaux.querySelector(`[data-key="${k}"]`) || {}).value || '');
+    zoneTotaux.innerHTML = lignesTotaux(totauxRapportMission({
+      ravitaillements: rav, fraisOm: lire('fraisOm'), fraisPeage: lire('fraisPeage'), depenseDivers: lire('depenseDivers')
+    }));
+  };
 
   openForm({
     title: `Rapport de mission — ${m.ref || m.conducteur}`,
@@ -482,11 +501,16 @@ function openRapportForm(m) {
       { key: 'observations', label: 'État du véhicule', type: 'textarea', full: true, value: m.observations,
         placeholder: 'RAS, ou le problème constaté pendant la mission',
         hint: problemesVehiculeMission(m) },
+      { key: 'fraisOm', label: 'Frais OM (F)', type: 'montant', value: m.fraisOm },
+      { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: m.fraisPeage },
+      { key: 'depenseDivers', label: 'Dépense divers (F)', type: 'montant', value: m.depenseDivers },
+      { key: 'justificationDivers', label: 'Justification de la dépense divers', value: m.justificationDivers },
       { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
         hint: 'Ordre de mission signé, justificatifs de frais' }
     ],
     okLabel: 'Enregistrer le rapport',
     onInput: (values, scope) => {
+      majTotaux();
       const node = scope.querySelector('[data-key="distance"]');
       if (node) node.value = `${fmt(num(values.kmArrivee) - num(values.kmDepart))} km`;
       const sp = scope.querySelector('[data-key="surPlace"]');
@@ -504,15 +528,30 @@ function openRapportForm(m) {
         '<div class="fRow"><label>Date</label><input type="date" data-rdate></div>' +
         '<div class="fRow"><label>Point de ravitaillement</label><input data-rstation></div>' +
         '<div class="fRow"><label>Prix du litre</label>' + champPrixHtml() + '</div>' +
-        '<div class="fRow"><label>Quantité (L)</label><input type="text" inputmode="decimal" autocomplete="off" data-montant data-rqte></div>' +
+        '<div class="fRow"><label>Montant (F)</label><input type="text" inputmode="numeric" autocomplete="off" data-montant data-rmontant></div>' +
+        '<div class="fRow"><label>Quantité (L)</label><input type="text" readonly tabindex="-1" data-rqte placeholder="montant ÷ prix du litre"></div>' +
         '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
         '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>TOTAL</b></span><b data-rtotal>0 L — 0 F</b></div></div>'
       );
+      // Carburant + frais saisis : recalcule a chaque frappe et a chaque
+      // ravitaillement ajoute ou retire.
+      const recap = el('<div class="subBlock" style="margin-top:14px"><h5>Total des dépenses de la mission</h5><div data-recap></div></div>');
+      zoneTotaux = recap.querySelector('[data-recap]');
+      champsTotaux = scope;
 
       const liste = bloc.querySelector('[data-ravlist]');
       const total = bloc.querySelector('[data-rtotal]');
       cablerPrix(bloc);
-      cablerMontant(bloc.querySelector('[data-rqte]'));
+      cablerMontant(bloc.querySelector('[data-rmontant]'));
+      // La quantite se deduit du montant et du prix du litre, a chaque frappe.
+      const prixSaisi = () => bloc.querySelector('[data-rprix]').value;
+      const montantSaisi = () => lireMontant(bloc.querySelector('[data-rmontant]').value);
+      const majQuantite = () => {
+        const q = quantiteRavitaillement(montantSaisi(), prixSaisi());
+        bloc.querySelector('[data-rqte]').value = q ? `${fmt(q)} L` : '';
+      };
+      bloc.addEventListener('input', majQuantite);
+      bloc.addEventListener('change', majQuantite);
 
       const dessiner = () => {
         liste.innerHTML = rav.length
@@ -526,6 +565,7 @@ function openRapportForm(m) {
               .join('')
           : subEmpty('Aucun ravitaillement ajouté');
         total.textContent = `${fmt(sum(rav, (r) => r.quantite))} L — ${fmt(sum(rav, ravMontant))} F`;
+        majTotaux();
         liste.querySelectorAll('[data-rdel]').forEach((b) => {
           b.onclick = () => { rav.splice(Number(b.dataset.rdel), 1); dessiner(); };
         });
@@ -534,19 +574,22 @@ function openRapportForm(m) {
 
       bloc.querySelector('[data-radd]').onclick = () => {
         const station = bloc.querySelector('[data-rstation]').value.trim();
-        const quantite = num(lireMontant(bloc.querySelector('[data-rqte]').value));
-        const prixL = francSup(bloc.querySelector('[data-rprix]').value);
-        if (!station || quantite <= 0) {
-          toast('Renseignez le point de ravitaillement et une quantité valide.', 'err');
+        const prixL = francSup(prixSaisi());
+        const montant = francSup(montantSaisi());
+        if (!station || !prixL || montant <= 0) {
+          toast('Renseignez le point de ravitaillement, le prix du litre et un montant valide.', 'err');
           return;
         }
-        rav.push({ date: bloc.querySelector('[data-rdate]').value, station, quantite, prixL });
+        rav.push({ date: bloc.querySelector('[data-rdate]').value, station, prixL, montant, quantite: quantiteRavitaillement(montant, prixL) });
         bloc.querySelector('[data-rstation]').value = '';
+        bloc.querySelector('[data-rmontant]').value = '';
         bloc.querySelector('[data-rqte]').value = '';
         dessiner();
       };
 
       scope.insertBefore(bloc, scope.querySelector('.err'));
+      scope.insertBefore(recap, scope.querySelector('.err'));
+      majTotaux();
     },
     onSubmit: (v) => {
       update('missions', m.id, {
@@ -556,6 +599,10 @@ function openRapportForm(m) {
         kmArrivee: v.kmArrivee,
         ravitaillements: rav,
         observations: v.observations,
+        fraisOm: v.fraisOm === '' ? '' : francSup(v.fraisOm),
+        fraisPeage: v.fraisPeage === '' ? '' : francSup(v.fraisPeage),
+        depenseDivers: v.depenseDivers === '' ? '' : francSup(v.depenseDivers),
+        justificationDivers: v.justificationDivers,
         images: v.images
       });
       const lien = relierRapportMission(m, v.observations);

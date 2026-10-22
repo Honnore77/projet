@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours, distanceSurPlace } from '../core/db.js';
+import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours, distanceSurPlace, totauxRapportMission } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -18,7 +18,7 @@ const CREME = [253, 238, 210];        // colonne « MONTANT » et ligne « TOTAL
 const NOIR = [0, 0, 0];
 
 /** Nombre de lignes vides laissees dans le tableau de ravitaillement. */
-const LIGNES_MINIMUM = 8;
+const LIGNES_MINIMUM = 6;
 
 /**
  * Extrait du dossier de mission tout ce que le formulaire affiche.
@@ -84,8 +84,22 @@ export function reportData(m) {
     distance: m.kmDepart !== '' && m.kmArrivee !== '' && m.kmArrivee !== undefined
       ? num(m.kmArrivee) - num(m.kmDepart)
       : null,
-    observations: m.observations || ''
+    observations: m.observations || '',
+    justificationDivers: m.justificationDivers || '',
+    // Carburant + frais OM + peage + divers.
+    totaux: totauxRapportMission(m)
   };
+}
+
+/** Lignes du tableau « DEPENSES DE LA MISSION » (PDF et impression). */
+function lignesDepenses(d) {
+  const t = d.totaux;
+  return [
+    ['CARBURANT (TOTAL DES RAVITAILLEMENTS)', t.carburant],
+    ['FRAIS OM', t.fraisOm],
+    ['FRAIS DE PEAGE', t.fraisPeage],
+    [`DEPENSE DIVERS${d.justificationDivers ? ` : ${d.justificationDivers}` : ''}`, t.depenseDivers]
+  ];
 }
 
 /* ============================== PDF ================================ */
@@ -140,7 +154,7 @@ export function buildMissionReport(mission) {
   y += 3;
 
   /* ---- participants ---- */
-  const hLigne = 7;
+  const hLigne = 6.5;
   doc.setFillColor(...BLEU_ENTETE);
   doc.rect(M, y, W, hLigne, 'FD');
   doc.setFont('helvetica', 'bold');
@@ -157,7 +171,7 @@ export function buildMissionReport(mission) {
     doc.text(d.participants[i] || '', M + 10, y + 4.8);
     y += hLigne;
   }
-  y += 8;
+  y += 6;
 
   /* ---- dotation en carburant ---- */
   doc.setFont('helvetica', 'bold');
@@ -166,7 +180,7 @@ export function buildMissionReport(mission) {
   doc.line(M, y + 1, M + doc.getTextWidth('DOTATION EN CARBURANT :'), y + 1); // souligne
   doc.setFont('helvetica', 'normal');
   doc.text(pointilles(doc, d.dotation, M + W - xDot), xDot, y);
-  y += 8;
+  y += 6;
 
   /* ---- tableau des ravitaillements ---- */
   const cols = [
@@ -233,7 +247,7 @@ export function buildMissionReport(mission) {
   doc.setFillColor(...CREME);
   doc.rect(x, y, cols[4].l, hLigne, 'FD');
   doc.text(fmt(d.totalMontant), x + cols[4].l / 2, y + 4.8, { align: 'center' });
-  y += hLigne + 8;
+  y += hLigne + 6;
 
   /* ---- kilometrage ---- */
   const demi = W / 2;
@@ -269,30 +283,66 @@ export function buildMissionReport(mission) {
   doc.text('ÉTAT DU VÉHICULE', pageW / 2, y + 4.8, { align: 'center' });
   y += hLigne;
 
-  const hObs = 30;
+  const hObs = 22;
   doc.rect(M, y, W, hObs);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   if (d.observations) {
     doc.text(doc.splitTextToSize(nettoyer(d.observations), W - 4), M + 2, y + 5.5);
   }
-  y += hObs + 6;
+  y += hObs + 4;
 
-  /* ---- pied de page ---- */
-  doc.setFontSize(7.5);
-  doc.setTextColor(120);
+  // Ce qui ne tient plus sur la page passe sur la suivante.
+  const basUtile = doc.internal.pageSize.getHeight() - 16;
+  const place = (h) => { if (y + h > basUtile) { doc.addPage(); y = 18; } };
+
+  /* ---- depenses de la mission : carburant + frais ---- */
+  const depenses = lignesDepenses(d);
+  const lMontant = 40;
+  place(hLigne * (depenses.length + 2));
+  doc.setFillColor(...BLEU_ENTETE);
+  doc.rect(M, y, W, hLigne, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(9.5);
+  doc.text('DEPENSES DE LA MISSION', pageW / 2, y + 4.8, { align: 'center' });
+  y += hLigne;
+  doc.setFontSize(8.5);
+  depenses.forEach(([libelle, montant]) => {
+    doc.rect(M, y, W - lMontant, hLigne);
+    doc.setFillColor(...CREME);
+    doc.rect(M + W - lMontant, y, lMontant, hLigne, 'FD');
+    doc.setFont('helvetica', 'normal');
+    doc.text(nettoyer(libelle), M + 2, y + 4.8, { maxWidth: W - lMontant - 4 });
+    doc.text(fmt(montant), M + W - lMontant / 2, y + 4.8, { align: 'center' });
+    y += hLigne;
+  });
+  doc.setFillColor(...CREME);
+  doc.rect(M, y, W - lMontant, hLigne, 'FD');
+  doc.rect(M + W - lMontant, y, lMontant, hLigne, 'FD');
+  doc.setFont('helvetica', 'bold');
+  doc.text('TOTAL :', M + (W - lMontant) / 2, y + 4.8, { align: 'center' });
+  doc.text(fmt(d.totaux.total), M + W - lMontant / 2, y + 4.8, { align: 'center' });
+  y += hLigne + 6;
+
+  /* ---- pied de page, sur chaque page ---- */
   const basPage = doc.internal.pageSize.getHeight() - 8;
-  doc.text(
-    nettoyer(`${d.organisation} - Gestion du parc automobile${d.reference ? ` - mission ${d.reference}` : ''}`),
-    M,
-    basPage
-  );
-  doc.text(
-    nettoyer(mentionLieuDate(DB.settings && DB.settings.ville)),
-    doc.internal.pageSize.getWidth() - M,
-    basPage,
-    { align: 'right' }
-  );
+  for (let p = 1; p <= doc.getNumberOfPages(); p++) {
+    doc.setPage(p);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(120);
+    doc.text(
+      nettoyer(`${d.organisation} - Gestion du parc automobile${d.reference ? ` - mission ${d.reference}` : ''}`),
+      M,
+      basPage
+    );
+    doc.text(
+      nettoyer(mentionLieuDate(DB.settings && DB.settings.ville)),
+      doc.internal.pageSize.getWidth() - M,
+      basPage,
+      { align: 'right' }
+    );
+  }
 
   const nom = `Rapport_mission_${(d.reference || d.chauffeur || 'sans-reference').replace(/[^A-Za-z0-9_-]+/g, '_')}`;
   return { bytes: new Uint8Array(doc.output('arraybuffer')), filename: `${nom}.pdf` };
@@ -407,6 +457,15 @@ export function printMissionReport(mission) {
 
       <div class="bandeau" style="margin-top:14px">ÉTAT DU VÉHICULE</div>
       <div class="obs">${esc(d.observations)}</div>
+
+      <div class="bandeau" style="margin-top:14px">DEPENSES DE LA MISSION</div>
+      <table style="margin-top:0">
+        <tbody>${lignesDepenses(d).map(([libelle, montant]) =>
+          `<tr><td style="border-top:none">${esc(libelle)}</td><td class="c montant" style="width:110px;border-top:none">${fmt(montant)}</td></tr>`
+        ).join('')}
+          <tr class="total"><td class="libelle">TOTAL :</td><td class="montant">${fmt(d.totaux.total)}</td></tr>
+        </tbody>
+      </table>
       <div class="mention">${esc(mentionLieuDate(DB.settings && DB.settings.ville))}</div>
     </body></html>`;
 

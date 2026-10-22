@@ -1469,9 +1469,39 @@ export function vehiculesImmobilises() {
   return [...parImmat.values()].sort((a, b) => (b.jours || 0) - (a.jours || 0));
 }
 
-/** Montant d'un ravitaillement de rapport de mission, au franc superieur. */
+/**
+ * Montant d'un ravitaillement de rapport de mission, au franc superieur :
+ * le montant saisi a la pompe, ou pour les ravitaillements saisis en litres
+ * (avant la 4.4.43), quantite x prix du litre.
+ */
 export function ravMontant(r) {
+  if (r.montant !== undefined && r.montant !== '') return francSup(r.montant);
   return francSup(num(r.quantite) * num(r.prixL));
+}
+
+/**
+ * Litres d'un ravitaillement saisi en montant : montant / prix du litre, au
+ * centilitre, comme les prises de DOTATION POOL.
+ */
+export function quantiteRavitaillement(montant, prixL) {
+  const prix = francSup(prixL);
+  if (!prix) return 0;
+  return Math.round((francSup(montant) / prix) * 100) / 100;
+}
+
+/**
+ * Totaux du rapport de mission : le carburant (somme des ravitaillements)
+ * plus les frais saisis a la main — frais OM, peage et depense divers.
+ * Le formulaire, la fenetre « Voir », le PDF et l'impression partent tous
+ * de ce calcul.
+ * @param {object} m mission (ou ses valeurs en cours de saisie)
+ */
+export function totauxRapportMission(m) {
+  const carburant = (m.ravitaillements || []).reduce((t, r) => t + ravMontant(r), 0);
+  const fraisOm = num(m.fraisOm);
+  const fraisPeage = num(m.fraisPeage);
+  const depenseDivers = num(m.depenseDivers);
+  return { carburant, fraisOm, fraisPeage, depenseDivers, total: carburant + fraisOm + fraisPeage + depenseDivers };
 }
 
 /** Missions dont le rapport porte au moins un ravitaillement. */

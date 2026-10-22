@@ -2,7 +2,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { charger } from './aide.mjs';
+import { charger, vehicule } from './aide.mjs';
 
 const st = await import('../resources/js/core/statistiques.js');
 const sansEspace = (s) => String(s).replace(/[\s  ]/g, ' ');
@@ -75,4 +75,30 @@ test('les couts d’entretien par garage et les durees d’immobilisation', asyn
   assert.equal(t['Durée moyenne'], '6,0 j');
   const parGarage = s.blocs.find((b) => b.titre === 'Coût par garage');
   assert.deepEqual(parGarage.lignes.map((l) => [l[0], sansEspace(l[1])]), [['G1', '30 000 F'], ['G2', '5 000 F']]);
+});
+
+test('frequence de sortie : decharges pour le pool, missions pour MISSION', async () => {
+  await charger({
+    vehicles: { pool: [vehicule({ id: 'p1', immatNouvelle: 'D45 5082', immatAncienne: '1234 AB 01' })], mission: [], service: [] },
+    decharges: [
+      { id: 'd1', date: '2026-01-07', conducteur: 'DELON CALIXE', immat: 'D45 5082' },
+      { id: 'd2', date: '2026-02-03', conducteur: 'DELON CALIXE', immat: '1234 AB 01' },
+      { id: 'd3', date: '2026-02-04', conducteur: 'AGBO', immat: 'D45 5082' },
+      { id: 'd4', date: '2025-12-30', conducteur: 'AGBO', immat: 'D45 5082' }
+    ],
+    missions: [
+      { id: 'm1', dateDepart: '2026-03-01', conducteur: 'AGBO', vehicule: 'D45 5070' },
+      { id: 'm2', dateDepart: '2026-03-09', conducteur: 'AGBO', vehicule: 'D45 5070' }
+    ]
+  });
+  const bloc = (s, debut) => s.blocs.find((b) => b.titre.startsWith(debut));
+  const v = st.statsVehicules('2026');
+  assert.deepEqual(bloc(v, 'Fréquence de sortie des conducteurs du pool').lignes.map((l) => [l[0], l[1]]), [['DELON CALIXE', '2'], ['AGBO', '1']]);
+  // L'ancienne immatriculation compte pour le meme vehicule.
+  assert.deepEqual(bloc(v, 'Fréquence de sortie des véhicules du pool').lignes.map((l) => [l[0], l[1]]), [['D45 5082', '3']]);
+  assert.equal(bloc(v, 'Fréquence de sortie des véhicules du pool').graphique.type, 'bar');
+  assert.equal(st.statsVehicules('').tuiles.find((t) => t.titre === 'Sorties du pool').valeur, '4');
+  const m = st.statsMissions('2026');
+  assert.deepEqual(bloc(m, 'Fréquence de sortie des conducteurs en mission').lignes.map((l) => [l[0], l[1]]), [['AGBO', '2']]);
+  assert.deepEqual(bloc(m, 'Fréquence de sortie des véhicules en mission').lignes.map((l) => [l[0], l[1]]), [['D45 5070', '2']]);
 });
