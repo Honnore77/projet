@@ -181,7 +181,7 @@ function renderListe(page) {
       `<span style="white-space:nowrap">${escLignes(u.telephone || '')}</span>`,
       esc(u.email || ''),
       esc(u.permis || ''),
-      `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist>${hist.length} incident(s)</button>`,
+      `<button class="miniBtn" style="background:${hist.length ? COLORS.orange : COLORS.grey};padding:5px 8px" data-hist data-export="${hist.length}">${hist.length} incident(s)</button>`,
       esc(u.observations || ''),
       `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-fiche>Fiche</button>` +
         (canWrite()

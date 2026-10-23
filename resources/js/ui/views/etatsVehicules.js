@@ -32,6 +32,12 @@ function vehiculeDe(immat) {
   return c ? allVehicles().find((v) => [v.immatNouvelle, v.immatAncienne].some((p) => cle(p) === c)) || null : null;
 }
 
+/** D'ou vient un signalement : « Rapport de mission M-004 », « Dotation pool du 03/08/2026 »… ('' : saisi ici). */
+function origine(s) {
+  if (s.origineLibelle) return s.origineLibelle;
+  return s.missionId ? `Rapport de mission ${s.missionRef || ''}`.trim() : '';
+}
+
 /** Ce que le compte peut voir : tout, ou les problemes de ses vehicules. */
 function visibles() {
   const tous = (DB.etatsVehicules || []).slice();
@@ -46,6 +52,7 @@ export function renderEtatsVehicules(page) {
   page.appendChild(card(
     'ÉTAT DES VÉHICULES',
     'Les problèmes constatés sur les véhicules : qui les a signalés, à qui, et quand ils ont été résolus. ' +
+      'Les observations notées ailleurs s’y ajoutent d’elles-mêmes : rapport de mission, dotation, entrée et retour du garage, incident, fiche du véhicule. ' +
       'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État actuel du véhicule » des tableaux POOL, MISSION et SERVICE.',
     COULEUR_ETAT
   ));
@@ -100,7 +107,7 @@ export function renderEtatsVehicules(page) {
       `<b style="white-space:nowrap">${esc(s.immat || '')}</b>` +
         (v ? `<br><small style="color:#5b7178">${esc(`${v.marque || ''} ${v.modele || ''}`.trim())}</small>` : ''),
       escLignes(s.probleme || '') +
-        (s.missionId ? `<br><small style="color:#C2185B">via le rapport de mission ${esc(s.missionRef || '')}</small>` : ''),
+        (origine(s) ? `<br><small style="color:${COULEUR_ETAT}">via ${esc(origine(s))}</small>` : ''),
       esc(dateFR(s.dateSignalement)),
       esc(s.signalePar || ''),
       esc(s.signaleA || ''),
@@ -110,8 +117,10 @@ export function renderEtatsVehicules(page) {
       esc(dateFR(s.dateResolution)),
       canWrite()
         ? (estResolu(s) ? '' : `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-resolu data-write title="Marquer comme résolu aujourd’hui">✓ Résolu</button> `) +
-          `<button class="miniBtn" style="background:#008A3B;padding:5px 8px" data-edit data-write>✎</button> ` +
-          `<button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
+          `<button class="miniBtn" style="background:#008A3B;padding:5px 8px" data-edit data-write>✎</button>` +
+          // Un signalement venu d'ailleurs reviendrait au prochain
+          // enregistrement : il se retire a sa source, ou se dit resolu.
+          (origine(s) ? '' : ` <button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`)
         : ''
     ];
   });
@@ -159,12 +168,17 @@ export function ouvrirSignalement(s, depart = {}) {
     .map((v) => ({ value: immatOf(v), label: `${immatOf(v)} — ${`${v.marque || ''} ${v.modele || ''}`.trim()}` }))
     .sort((a, b) => a.value.localeCompare(b.value));
   const x = s || {};
+  // Venu d'ailleurs, le vehicule et le probleme se corrigent a la source.
+  const source = origine(x);
   const fields = [
-    { key: 'immat', label: 'Immatriculation du véhicule', type: 'selectAdd', required: true, value: x.immat || depart.immat,
-      options: vehicules, emptyLabel: '— choisir —', addLabel: 'Autre immatriculation' },
+    source
+      ? { key: 'immat', label: 'Immatriculation du véhicule', type: 'static', value: x.immat }
+      : { key: 'immat', label: 'Immatriculation du véhicule', type: 'selectAdd', required: true, value: x.immat || depart.immat,
+        options: vehicules, emptyLabel: '— choisir —', addLabel: 'Autre immatriculation' },
     { key: 'dateSignalement', label: 'Date du signalement', type: 'date', required: true, value: x.dateSignalement || todayISO() },
     { key: 'probleme', label: 'Problème constaté', type: 'textarea', required: true, full: true, rows: 3, value: x.probleme,
-      hint: 'Ex. bruit au freinage, pneu avant gauche usé, voyant moteur allumé' },
+      readonly: !!source,
+      hint: source ? `Vient de : ${source}. Pour le changer, modifiez-le là-bas.` : 'Ex. bruit au freinage, pneu avant gauche usé, voyant moteur allumé' },
     { key: 'signalePar', label: 'Signalé par', type: 'selectAdd', required: true,
       value: x.signalePar || (moi && (agentConnecte() || moi.nom)) || '',
       options: nomsProposes('signalePar'), emptyLabel: '— choisir —', addLabel: 'Autre nom' },
@@ -219,7 +233,7 @@ export function dsEtatsVehicules(list) {
     columns: [
       C('immat', 'Immatriculation', 16), C('vehicule', 'Véhicule', 18), C('probleme', 'Problème constaté', 40),
       C('dateSignalement', 'Date du signalement', 14), C('signalePar', 'Signalé par', 20), C('signaleA', 'Signalé à', 20),
-      C('resolu', 'Problème résolu', 12), C('dateResolution', 'Date de résolution', 14)
+      C('resolu', 'Problème résolu', 12), C('dateResolution', 'Date de résolution', 14), C('origine', 'Origine', 24)
     ],
     rows: list.map((s) => {
       const v = vehiculeDe(s.immat);
@@ -231,7 +245,8 @@ export function dsEtatsVehicules(list) {
         signalePar: s.signalePar || '',
         signaleA: s.signaleA || '',
         resolu: estResolu(s) ? 'Oui' : 'Non',
-        dateResolution: dateFR(s.dateResolution)
+        dateResolution: dateFR(s.dateResolution),
+        origine: origine(s) || 'saisi dans ÉTAT DES VÉHICULES'
       };
     })
   };

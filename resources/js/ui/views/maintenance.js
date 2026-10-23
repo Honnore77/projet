@@ -4,8 +4,9 @@
 
 import {
   DB, insert, update, remove, touch, knownImmats, knownDrivers, vehicleByImmat,
-  openMaintenance, valeursVehicules, MARQUES, MODELES
+  openMaintenance, valeursVehicules, MARQUES, MODELES, nomsGarages, garageParNom, assurerGarage
 } from '../../core/db.js';
+import { renderGarages, COULEUR_GARAGES } from './garages.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import {
@@ -13,6 +14,7 @@ import {
   statTile, sectionLabel, subEmpty, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
+import { ouvrirFicheLigne } from '../ficheLigne.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -36,14 +38,20 @@ function ficheFields(m = {}) {
       lignesTiret: true, value: m.motif,
       hint: 'Une ligne par problème — Entrée ouvre la suivante avec un tiret' },
     { key: 'signalePar', label: 'Signalé par', value: m.signalePar, list: knownDrivers() },
+    // Un garage tape ici rejoint la sous-rubrique GARAGES a l'enregistrement.
+    { key: 'garage', label: 'Nom du garage', type: 'selectAdd', value: m.garage,
+      options: nomsGarages(), emptyLabel: '— choisir —', addLabel: 'Nouveau garage',
+      hint: 'Un nouveau garage est ajouté à la sous-rubrique GARAGES' },
     { key: 'images', label: 'Photos et documents', type: 'images', full: true, value: m.images,
       hint: 'Photo de l’avarie, facture du garage, pièce remplacée' }
   ];
 }
 
-function interventionFields(iv = {}) {
+function interventionFields(iv = {}, m = {}) {
   return [
-    { key: 'garage', label: 'Nom du garage', required: true, value: iv.garage, list: [...new Set(DB.maintenance.flatMap((m) => (m.interventions || []).map((x) => x.garage)).filter(Boolean))] },
+    // Par defaut, le garage de la fiche d'entretien.
+    { key: 'garage', label: 'Nom du garage', type: 'selectAdd', required: true, value: iv.garage || m.garage,
+      options: nomsGarages(), emptyLabel: '— choisir —', addLabel: 'Nouveau garage' },
     { key: 'date', label: 'Date de l’intervention', type: 'date', value: iv.date || todayISO() },
     { key: 'observation', label: 'Observation / diagnostic', type: 'textarea', full: true, value: iv.observation },
     { key: 'travaux', label: 'Travaux effectués', type: 'textarea', full: true, value: iv.travaux },
@@ -65,12 +73,14 @@ function retourFields(m = {}) {
   ];
 }
 
-const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, SOUS_RUBRIQUE_STATS];
+const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
 
 export function renderMaintenance(page) {
   const sub = state.sub.ENTRETIEN || 'liste';
-  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); }, { liste: COLORS.red, stats: COLORS.grey }));
+  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); },
+    { liste: COLORS.red, garages: COULEUR_GARAGES, stats: COLORS.grey }));
   if (sub === 'stats') return renderStatistiques(page, 'ENTRETIEN');
+  if (sub === 'garages') return renderGarages(page);
   const f = state.filters.maintenance;
 
   page.appendChild(
@@ -155,9 +165,10 @@ function fichesFiltrees(f) {
  * l'ecran est ce qu'on retrouvera dans le classeur ou le PDF, sans avoir a
  * exporter pour savoir ce que l'export dira.
  *
- * Le detail d'un passage — interventions, retour, boutons — ne s'empile plus
- * sous le tableau : il se lit dans la fiche du vehicule, ouverte par le
- * bouton de bout de ligne, comme dans la rubrique VEHICULES. Deroulant tout
+ * Le bouton de bout de ligne ouvre la fiche de la ligne, sur place ; le
+ * detail d'un passage — interventions, retour, boutons — se lit dans la
+ * fiche du vehicule (immatriculation, ou « Fiche du véhicule → » de la
+ * fiche). Il ne s'empile plus sous le tableau : deroulant tout
  * le parc a la suite, la page devenait longue de plusieurs ecrans avant
  * qu'on ait rien pu faire.
  */
@@ -171,6 +182,8 @@ function renderRecapitulatif(page, list) {
     .sort((a, b) => String(b.m.dateEntree).localeCompare(String(a.m.dateEntree)));
 
   const aDroite = new Set(['kmEntree', 'kmRetour', 'cout', 'duree']);
+  // Les libelles des colonnes, tels que la fiche d'une ligne les affiche.
+  const entetes = [...ds.columns.map((c) => c.label), ''];
 
   page.appendChild(
     dataTable(
@@ -183,6 +196,8 @@ function renderRecapitulatif(page, list) {
           }
           if (c.key === 'cout') return `<span style="display:block;text-align:right"><b>${fmt(v)} F</b></span>`;
           if (aDroite.has(c.key)) return `<span style="display:block;text-align:right">${v === '' ? '—' : fmt(v)}</span>`;
+          // L'immatriculation mene a la fiche du vehicule (rubrique VÉHICULES).
+          if (c.key === 'immat' && v) return `<a href="#" data-veh title="Ouvrir la fiche du véhicule" style="color:${COLORS.blue}">${esc(v)}</a>`;
           return escLignes(v === undefined || v === null ? '' : v);
         }),
         `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>`
@@ -190,14 +205,19 @@ function renderRecapitulatif(page, list) {
       (tr, i) => {
         const { r, m } = lignes[i];
         tr.dataset.search = norm(Object.values(r).join(' '));
-        tr.querySelector('[data-sheet]').onclick = () => {
-          // L'immatriculation est obligatoire a la saisie : seule une fiche
-          // reprise d'une version ancienne peut en manquer. Elle n'a pas de
-          // fiche vehicule ou aller — on ouvre la sienne, pour qu'elle reste
-          // atteignable et qu'on puisse lui rendre sa plaque.
-          if (m.immat) openVehicleSheet(m.immat);
-          else openFicheForm(m);
-        };
+        const veh = tr.querySelector('[data-veh]');
+        if (veh) veh.onclick = (ev) => { ev.preventDefault(); openVehicleSheet(m.immat); };
+        // La fiche montre la ligne du recapitulatif, sur place. Elle reste
+        // reliee a VÉHICULES : un bouton ouvre la fiche du vehicule, ou l'on
+        // agit sur le passage (interventions, retour du garage). Une fiche
+        // reprise d'une version ancienne, sans immatriculation, n'a pas de
+        // vehicule ou aller : on propose de lui rendre sa plaque.
+        tr.querySelector('[data-sheet]').onclick = () => ouvrirFicheLigne(tr, entetes, {
+          boutons: [m.immat
+            ? { label: '🚗 Fiche du véhicule →', onClick: (close) => { close(); openVehicleSheet(m.immat); } }
+            : canWrite() && { label: '✎ Modifier la fiche', onClick: (close) => { close(); openFicheForm(m); } }
+          ].filter(Boolean)
+        });
       }
     )
   );
@@ -241,7 +261,8 @@ export function renderMaintenanceEntries(container, group) {
         `<div class="row1"><h4>${esc(m.marque || '')} ${esc(m.modele || '')} — ${esc(m.immat)}</h4>` +
         `<span class="badge" style="background:${enCours ? COLORS.orange : COLORS.green}">${enCours ? 'Au garage' : 'Sorti'}</span></div>` +
         `<div class="meta">Entrée : ${esc(dateFR(m.dateEntree) || '—')} · Km : ${fmt(m.kmEntree)}${m.conducteurEntree ? ` · ${esc(m.conducteurEntree)}` : ''}</div>` +
-        `<div class="fields"><b>Motif :</b><br>${escLignes(m.motif || '—')}${m.signalePar ? `<br><b>Signalé par :</b> ${esc(m.signalePar)}` : ''}</div>` +
+        `<div class="fields"><b>Motif :</b><br>${escLignes(m.motif || '—')}${m.signalePar ? `<br><b>Signalé par :</b> ${esc(m.signalePar)}` : ''}` +
+        `${m.garage ? `<br><b>Garage :</b> ${esc(m.garage)}` : ''}</div>` +
         `<div class="subBlock"><h5>Interventions du garage (${iv.length}) — total ${fmt(cout)} F</h5>${ivHtml}` +
         (canWrite() ? '<button class="smallBtn" data-addiv>+ Ajouter une intervention</button>' : '') +
         '</div>' +
@@ -251,7 +272,8 @@ export function renderMaintenanceEntries(container, group) {
           : `<div class="fields"><b>Retour :</b> ${esc(dateFR(m.dateRetour))} · <b>Km sortie :</b> ${fmt(m.kmRetour)}` +
             `${diffKm !== null ? ` · <b>Δ km :</b> ${fmt(diffKm)}` : ''} · <b>Durée :</b> ${duree === null ? '—' : `${duree} j`}` +
             `${m.conducteurRetour ? `<br><b>Repris par :</b> ${esc(m.conducteurRetour)}` : ''}` +
-            `${m.observationRetour ? `<br><b>Observation :</b><br>${escLignes(m.observationRetour)}` : ''}</div>`) +
+            `${m.observationRetour ? `<br><b>Observation :</b><br>${escLignes(m.observationRetour)}` : ''}</div>` +
+            (canWrite() ? `<div class="actions"><button class="miniBtn" style="background:${COLORS.blue}" data-retour data-write>✎ Modifier le retour du garage</button></div>` : '')) +
         '<div class="actions">' +
         (canWrite() ? `<button class="miniBtn" style="background:${COLORS.green}" data-edit data-write>✎ Modifier la fiche</button>` : '') +
         (canWrite() ? `<button class="miniBtn" style="background:${COLORS.red}" data-del data-write>Supprimer</button>` : '') +
@@ -332,7 +354,12 @@ export function openFicheForm(m, prefillImmat) {
       }
     },
     onSubmit: (values) => {
-      const payload = Object.assign({}, values, { immat: String(values.immat || '').trim().toUpperCase() });
+      const connu = garageParNom(values.garage);
+      const payload = Object.assign({}, values, {
+        immat: String(values.immat || '').trim().toUpperCase(),
+        garage: connu ? connu.nom : String(values.garage || '').trim()
+      });
+      assurerGarage(payload.garage);
       if (isEdit) {
         update('maintenance', m.id, payload);
         toast('Fiche mise à jour.', 'ok');
@@ -350,10 +377,12 @@ function openInterventionForm(m, iv) {
   const isEdit = !!iv;
   openForm({
     title: isEdit ? 'Modifier l’intervention' : `Nouvelle intervention — ${m.immat}`,
-    fields: interventionFields(iv || {}),
+    fields: interventionFields(iv || {}, m),
     okLabel: isEdit ? 'Enregistrer' : 'Ajouter l’intervention',
     onSubmit: (values) => {
-      const payload = Object.assign({}, values, { cout: francSup(values.cout) });
+      const connu = garageParNom(values.garage);
+      const payload = Object.assign({}, values, { cout: francSup(values.cout), garage: connu ? connu.nom : values.garage });
+      assurerGarage(payload.garage);
       if (isEdit) Object.assign(iv, payload);
       else {
         m.interventions = m.interventions || [];
@@ -367,12 +396,17 @@ function openInterventionForm(m, iv) {
   });
 }
 
+/**
+ * Retour du garage : a la sortie du vehicule, puis — une fois sorti — pour
+ * corriger la date, le kilometrage, le conducteur ou l'observation.
+ */
 function openRetourForm(m) {
+  const modif = !!m.dateRetour;
   openForm({
-    title: `Retour du garage — ${m.immat}`,
+    title: `${modif ? 'Modifier le retour du garage' : 'Retour du garage'} — ${m.immat}`,
     intro: `Entrée le ${dateFR(m.dateEntree)} · Km entrée ${fmt(m.kmEntree)}`,
     fields: retourFields(m),
-    okLabel: 'Clôturer l’entretien',
+    okLabel: modif ? 'Enregistrer les modifications' : 'Clôturer l’entretien',
     onSubmit: (values) => {
       if (values.dateRetour && m.dateEntree && values.dateRetour < m.dateEntree) {
         return 'La date de sortie est antérieure à la date d’entrée.';
@@ -381,7 +415,7 @@ function openRetourForm(m) {
         return 'Le kilométrage de sortie est inférieur à celui de l’entrée.';
       }
       update('maintenance', m.id, values);
-      toast('Retour enregistré, le véhicule est sorti du garage.', 'ok');
+      toast(modif ? 'Retour du garage modifié.' : 'Retour enregistré, le véhicule est sorti du garage.', 'ok');
       rerender();
       return null;
     }

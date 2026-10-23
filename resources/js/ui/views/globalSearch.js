@@ -130,6 +130,8 @@ export function renderGlobalSearch(page) {
   results.forEach((r) => {
     const e = el('<div class="entry"></div>');
     e.style.borderLeftColor = r.color;
+    // Repere pour « Exporter le résultat » (ui/exportRecherche.js).
+    e.dataset.resultat = '';
     e.innerHTML =
       `<div class="row1"><h4>${esc(r.title)}</h4><span class="badge" style="background:${r.color}">${esc(r.type)}</span></div>` +
       // Un motif d'entretien tient sur plusieurs lignes : le resume les garde.

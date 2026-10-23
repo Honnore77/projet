@@ -58,13 +58,16 @@ export function buildPdf(datasets, opts = {}) {
   let first = true;
   let debut = 24;
   datasets.forEach((ds) => {
+    // Un graphique joint (STATISTIQUES) passe au-dessus de son tableau, a la
+    // largeur de la page, sans depasser la moitie de sa hauteur.
+    const image = ds.image ? tailleImage(ds.image, pageW - 20, (pageH - 40) / 2) : null;
     if (opts.enchaine && !first) {
       // A la suite du tableau precedent (et de sa note), sous un titre de
       // section. Trop pres du bas, la section part sur la page suivante
       // plutot que de laisser son titre seul en fin de page.
       const fin = doc.lastAutoTable && doc.lastAutoTable.finalY ? doc.lastAutoTable.finalY : 24;
       debut = fin + (datasets[datasets.indexOf(ds) - 1].note ? 16 : 10);
-      if (debut > pageH - 40) { doc.addPage(); debut = 16; }
+      if (debut > pageH - 40 - (image ? image.h : 0)) { doc.addPage(); debut = 16; }
       doc.setTextColor(0, 138, 59);
       doc.setFontSize(10);
       doc.setFont('helvetica', 'bold');
@@ -85,6 +88,12 @@ export function buildPdf(datasets, opts = {}) {
       debut = 24;
     }
     first = false;
+
+    if (image) {
+      // 'FAST' compresse l'image : sans lui, chaque graphique pese ~200 Ko.
+      doc.addImage(ds.image.dataUrl, 'PNG', (pageW - image.w) / 2, debut + 1, image.w, image.h, undefined, 'FAST');
+      debut += image.h + 5;
+    }
 
     drawTable(doc, {
       startY: debut,
@@ -150,6 +159,12 @@ export async function exportPdf(datasets, baseName, opts = {}) {
     mime: 'application/pdf',
     title: 'Aperçu avant export PDF'
   });
+}
+
+/** Taille (mm) d'une image dans une boite, proportions gardees. */
+function tailleImage(image, largeurMax, hauteurMax) {
+  const k = Math.min(largeurMax / image.largeur, hauteurMax / image.hauteur);
+  return { w: image.largeur * k, h: image.hauteur * k };
 }
 
 function text(v) {

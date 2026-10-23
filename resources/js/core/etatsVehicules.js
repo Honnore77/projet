@@ -8,8 +8,8 @@
    « État du véhicule » des tableaux POOL, MISSION et SERVICE.
    =================================================================== */
 
-import { DB } from './db.js';
-import { norm } from './utils.js';
+import { DB, avantEnregistrement } from './db.js';
+import { norm, dateFR, uid } from './utils.js';
 
 /** Une immatriculation comparable : sans espaces ni accents, en minuscules. */
 const cle = (immat) => norm(immat || '').replace(/\s+/g, '');
@@ -80,6 +80,132 @@ export function relierRapportMission(m, texte, db = DB, aujourdhui = new Date().
   });
   return 'cree';
 }
+
+/* ==================================================================
+   Observations saisies ailleurs → ÉTAT DES VÉHICULES.
+
+   Tout ce qu'on note sur un vehicule, ou que ce soit dans l'application,
+   devient un signalement relie a sa source (`origine`) :
+     - rapport de mission, champ « État du véhicule » ;
+     - dotation pool, champ « Observations » ;
+     - entree au garage, « Motif / problème » — resolu des que le vehicule
+       sort du garage, a la date de sortie ;
+     - retour du garage, « Observation du conducteur » ;
+     - incident d'un agent sur un vehicule (nature et circonstances) ;
+     - fiche du vehicule, champ « Observations ».
+   La source fait foi : son texte modifie met le signalement a jour ; vide,
+   « RAS » ou supprimee, elle retire le signalement s'il n'est pas resolu
+   (resolu, il reste : c'est l'historique du vehicule).
+   ================================================================== */
+
+const CATEGORIES_EN_SERVICE = ['pool', 'mission', 'service'];
+
+/** Les observations de toute la base, chacune avec sa source. */
+export function observationsSources(db = DB) {
+  const out = [];
+  const ajouter = (o) => { if (String(o.immat || '').trim()) out.push(o); };
+
+  (db.missions || []).forEach((m) => ajouter({
+    origine: `mission:${m.id}`, missionId: m.id, missionRef: m.ref || '',
+    libelle: `Rapport de mission ${m.ref || ''}`.trim(),
+    immat: m.vehicule, texte: m.observations, date: m.dateRetour || m.dateDepart, par: m.conducteur
+  }));
+  (db.dotationPool || []).forEach((d) => ajouter({
+    origine: `dotation:${d.id}`, libelle: `Dotation pool du ${dateFR(d.date)}`,
+    immat: d.immat, texte: d.observations, date: d.date, par: d.conducteur
+  }));
+  (db.maintenance || []).forEach((m) => {
+    ajouter({
+      origine: `entretien:${m.id}`, libelle: `Entrée au garage du ${dateFR(m.dateEntree)}`,
+      immat: m.immat, texte: m.motif, date: m.dateEntree, par: m.signalePar || m.conducteurEntree,
+      resoluLe: m.dateRetour || ''
+    });
+    if (m.dateRetour) {
+      ajouter({
+        origine: `retour:${m.id}`, libelle: `Retour du garage du ${dateFR(m.dateRetour)}`,
+        immat: m.immat, texte: m.observationRetour, date: m.dateRetour, par: m.conducteurRetour
+      });
+    }
+  });
+  (db.users || []).forEach((u) => (u.historique || []).forEach((h) => {
+    // Un incident n'avait pas d'identifiant : il en recoit un, pour rester
+    // relie a son signalement.
+    if (!h.id) h.id = uid();
+    ajouter({
+      origine: `incident:${h.id}`, libelle: `Incident — ${`${u.nom || ''} ${u.prenoms || ''}`.trim()}`,
+      immat: h.vehicule,
+      texte: [h.nature, h.circonstances].map((x) => String(x || '').trim()).filter(Boolean).join(' — '),
+      date: h.date, par: `${u.nom || ''} ${u.prenoms || ''}`.trim()
+    });
+  }));
+  CATEGORIES_EN_SERVICE.forEach((c) => ((db.vehicles || {})[c] || []).forEach((v) => ajouter({
+    origine: `vehicule:${v.id}`, libelle: 'Fiche du véhicule',
+    immat: v.immatNouvelle || v.immatAncienne, texte: v.observations, date: '', par: ''
+  })));
+  return out;
+}
+
+/** La source d'un signalement (les anciens signalements de mission n'ont que `missionId`). */
+const origineDe = (s) => s.origine || (s.missionId ? `mission:${s.missionId}` : '');
+
+/**
+ * Accorde ÉTAT DES VÉHICULES avec les observations de toute la base.
+ * Modifie `db.etatsVehicules` sur place.
+ * @returns {number} le nombre de signalements crees, modifies ou retires
+ */
+export function synchroniserEtats(db = DB, aujourdhui = new Date().toISOString().slice(0, 10)) {
+  if (!Array.isArray(db.etatsVehicules)) db.etatsVehicules = [];
+  const liste = db.etatsVehicules;
+  const vues = new Set();
+  let n = 0;
+
+  observationsSources(db).forEach((src) => {
+    vues.add(src.origine);
+    const i = liste.findIndex((s) => origineDe(s) === src.origine);
+    const lie = i >= 0 ? liste[i] : null;
+    const probleme = String(src.texte || '').trim();
+    const immat = String(src.immat || '').trim().toUpperCase();
+
+    if (rienASignaler(probleme)) {
+      if (lie && !estResolu(lie)) { liste.splice(i, 1); n += 1; }
+      return;
+    }
+    if (lie) {
+      const patch = { probleme, immat, origine: src.origine, origineLibelle: src.libelle };
+      // Sorti du garage : le motif d'entree est regle a la date de sortie.
+      if (src.resoluLe && !estResolu(lie)) Object.assign(patch, { resolu: 'Oui', dateResolution: src.resoluLe });
+      if (Object.keys(patch).some((k) => lie[k] !== patch[k])) { Object.assign(lie, patch); n += 1; }
+      return;
+    }
+    liste.push({
+      // Identifiant tire de la source : deux postes qui creent le meme
+      // signalement creent la meme fiche, que la synchronisation reunit.
+      id: `ev_${src.origine.replace(/[^A-Za-z0-9]+/g, '_')}`,
+      origine: src.origine,
+      origineLibelle: src.libelle,
+      ...(src.missionId ? { missionId: src.missionId, missionRef: src.missionRef } : {}),
+      immat,
+      probleme,
+      dateSignalement: src.date || aujourdhui,
+      signalePar: src.par || '',
+      signaleA: '',
+      resolu: src.resoluLe ? 'Oui' : 'Non',
+      dateResolution: src.resoluLe || ''
+    });
+    n += 1;
+  });
+
+  // Source disparue (fiche supprimee, vehicule reforme...) : le signalement
+  // part s'il n'est pas resolu.
+  for (let i = liste.length - 1; i >= 0; i -= 1) {
+    const o = origineDe(liste[i]);
+    if (o && !vues.has(o) && !estResolu(liste[i])) { liste.splice(i, 1); n += 1; }
+  }
+  return n;
+}
+
+// Chaque enregistrement, d'ou qu'il vienne, accorde ÉTAT DES VÉHICULES.
+avantEnregistrement((db) => synchroniserEtats(db));
 
 /**
  * Raison de refuser un signalement, ou null. La date de resolution ne

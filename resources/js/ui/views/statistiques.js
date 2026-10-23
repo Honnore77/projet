@@ -7,10 +7,16 @@
    =================================================================== */
 
 import { STATISTIQUES, anneesDisponibles } from '../../core/statistiques.js';
-import { el, esc } from '../../core/utils.js';
+import { el, esc, fmt } from '../../core/utils.js';
 import { card, toolbar, filterBar, statTile, dataTable, sectionLabel, emptyState, toast, COLORS } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
-import { chartCardTypes, destroyCharts, colorsFor } from '../charts.js';
+import { chartCardTypes, destroyCharts, colorsFor, dessinerGraphique, imageDuGraphique } from '../charts.js';
+import { allVehicles } from '../../core/db.js';
+import {
+  dsVehicles, dsUsers, dsIncidents, dsIndisponibilites, dsDotationPool, dsRavitaillementsMissions,
+  dsMissions, dsCarburantMissions, dsMaintenance, dsInterventions, dsDecharges, dsDestinataires, dsSimulations
+} from '../../export/datasets.js';
+import { analyserColonnes, mesuresPossibles, libelleMesure, regrouper, lignesDeLAnnee } from '../../core/graphiqueLibre.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord } from '../../export/word.js';
@@ -66,9 +72,9 @@ export function renderStatistiques(page, cle) {
 
   page.appendChild(
     toolbar([
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', def, stats, annee) },
-      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', def, stats, annee) },
-      { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', def, stats, annee) }
+      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', def, avecLibre(stats, cle), annee) },
+      { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', def, avecLibre(stats, cle), annee) },
+      { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', def, avecLibre(stats, cle), annee) }
     ])
   );
 
@@ -82,6 +88,10 @@ export function renderStatistiques(page, cle) {
     page.appendChild(emptyState('Pas encore de données à analyser pour cette période.'));
     return;
   }
+
+  // Les graphiques au choix (jusqu'a quatre), composes a partir des colonnes
+  // des tableaux de la rubrique.
+  sectionGraphiquesAuChoix(page, cle, annee, couleur, def);
 
   // Les graphiques d'abord, deux par ligne sur un grand ecran. Chacun a sa
   // liste de formes ; le choix est retenu, graphique par graphique.
@@ -112,6 +122,249 @@ export function renderStatistiques(page, cle) {
   if (vides.length) {
     page.appendChild(el(`<p style="color:#8aa0a6;margin:10px 4px"><small>Sans données pour cette période : ${vides.map((b) => esc(b.titre)).join(' · ')}.</small></p>`));
   }
+}
+
+/* -------------------------- Graphique au choix -------------------------- */
+
+/**
+ * Les tableaux de chaque rubrique (les memes que ses exports) et la colonne
+ * qui porte leur date, pour le filtre d'annee. Sans date, le tableau se lit
+ * tel qu'il est aujourd'hui.
+ */
+const TABLEAUX = {
+  VEHICULES: [{ titre: 'Véhicules', ds: () => dsVehicles(allVehicles()) }],
+  UTILISATEURS: [
+    { titre: 'Utilisateurs', ds: () => dsUsers() },
+    { titre: 'Incidents', ds: () => dsIncidents(), date: 'date' },
+    { titre: 'Congés et absences', ds: () => dsIndisponibilites(), date: 'dateDepart' }
+  ],
+  DOTATION: [
+    { titre: 'Dotation pool', ds: () => dsDotationPool(), date: 'date' },
+    { titre: 'Ravitaillements des missions', ds: () => dsRavitaillementsMissions(), date: 'date' }
+  ],
+  MISSION: [
+    { titre: 'Missions', ds: () => dsMissions(), date: 'dateDepart' },
+    { titre: 'Carburant des missions', ds: () => dsCarburantMissions(), date: 'dateDepart' },
+    { titre: 'Ravitaillements', ds: () => dsRavitaillementsMissions(), date: 'date' }
+  ],
+  ENTRETIEN: [
+    { titre: 'Passages au garage', ds: () => dsMaintenance(), date: 'dateEntree' },
+    { titre: 'Interventions garage', ds: () => dsInterventions(), date: 'dateEntree' }
+  ],
+  DECHARGE: [
+    { titre: 'Décharges', ds: () => dsDecharges(), date: 'date' },
+    { titre: 'Destinataires', ds: () => dsDestinataires() }
+  ],
+  SIMULATION: [{ titre: 'Simulations', ds: () => dsSimulations(), date: 'periode' }]
+};
+
+/** Au plus quatre graphiques au choix par rubrique. */
+const MAX_LIBRES = 4;
+
+/**
+ * Les choix des graphiques au choix, retenus sur ce poste, rubrique par
+ * rubrique : une liste, un element par graphique. L'ancien format (un seul
+ * graphique, un objet) se lit comme une liste d'un element.
+ */
+const CLE_LIBRE = 'pdu_graphique_au_choix';
+function reglagesLibres(cle) {
+  try {
+    const r = (JSON.parse(localStorage.getItem(CLE_LIBRE) || '{}') || {})[cle];
+    if (Array.isArray(r) && r.length) return r.slice(0, MAX_LIBRES).map((x) => x || {});
+    return [r && typeof r === 'object' ? r : {}];
+  } catch (e) { return [{}]; }
+}
+function retenirLibres(cle, liste) {
+  try {
+    const tout = JSON.parse(localStorage.getItem(CLE_LIBRE) || '{}') || {};
+    tout[cle] = liste;
+    localStorage.setItem(CLE_LIBRE, JSON.stringify(tout));
+  } catch (e) { /* stockage indisponible : les choix valent pour cette page */ }
+}
+
+/**
+ * Les graphiques au choix de la page, par rubrique : leurs choix, le bloc
+ * chiffre et le graphique dessine. Les exports les reprennent, image comprise.
+ */
+const libresParRubrique = {};
+
+/** Les blocs des graphiques au choix, chacun avec l'image de son graphique. */
+function blocsLibres(cle) {
+  return (libresParRubrique[cle] || [])
+    .filter((e) => e.bloc)
+    .map((e) => Object.assign({}, e.bloc, { image: imageDuGraphique(e.chart) }));
+}
+
+/** Les blocs de la page, les graphiques au choix en tete. */
+function avecLibre(stats, cle) {
+  const libres = blocsLibres(cle);
+  return libres.length ? Object.assign({}, stats, { blocs: [...libres, ...stats.blocs] }) : stats;
+}
+
+/**
+ * Les graphiques au choix : un bandeau (ajouter, exporter), puis jusqu'a
+ * quatre cartes, deux par ligne sur un grand ecran.
+ */
+function sectionGraphiquesAuChoix(page, cle, annee, couleur, def) {
+  if (!TABLEAUX[cle]) return;
+  const reglages = reglagesLibres(cle);
+  const etats = reglages.map((choix) => ({ choix, bloc: null, chart: null }));
+  libresParRubrique[cle] = etats;
+  const enregistrer = () => retenirLibres(cle, etats.map((e) => e.choix));
+  const periode = annee || 'toutes années';
+  const titreExport = `Graphiques au choix — ${def.titre.toLowerCase()} — ${periode}`;
+
+  page.appendChild(sectionLabel(`GRAPHIQUES AU CHOIX (${etats.length} sur ${MAX_LIBRES})`, couleur));
+  page.appendChild(toolbar([
+    etats.length < MAX_LIBRES && {
+      label: '+ Ajouter un graphique',
+      color: couleur,
+      onClick: () => {
+        enregistrer();
+        retenirLibres(cle, [...etats.map((e) => e.choix), {}]);
+        rerender();
+      }
+    },
+    { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporterLibres('excel', cle, def, annee, titreExport) },
+    { label: '⬇ PDF', color: COLORS.red, onClick: () => exporterLibres('pdf', cle, def, annee, titreExport) },
+    { label: '⬇ Word', color: '#2B579A', onClick: () => exporterLibres('word', cle, def, annee, titreExport) }
+  ]));
+
+  const grille = el('<div class="chartGrid graphiquesAuChoix"></div>');
+  etats.forEach((etat, i) => {
+    grille.appendChild(carteGraphiqueLibre(cle, annee, etat, {
+      numero: i + 1,
+      surChoix: enregistrer,
+      // Le dernier graphique reste : on le change, on ne le retire pas.
+      retirer: etats.length > 1
+        ? () => { retenirLibres(cle, etats.filter((e) => e !== etat).map((e) => e.choix)); rerender(); }
+        : null
+    }));
+  });
+  page.appendChild(grille);
+}
+
+/** Exporte les seuls graphiques au choix : chacun son image, puis ses chiffres. */
+async function exporterLibres(kind, cle, def, annee, titre) {
+  const blocs = blocsLibres(cle);
+  if (!blocs.length) { toast('Aucun graphique à exporter pour cette période.', 'info'); return; }
+  try {
+    const datasets = blocs.map(blocVersDataset);
+    const nom = `PDU_graphiques_${nomFichier(def.titre)}_${annee || 'toutes'}`;
+    const res = kind === 'excel'
+      ? await exportExcel(datasets, nom)
+      : kind === 'word'
+        ? await exportWord(datasets, nom, { title: titre, orientation: 'p', enchaine: true })
+        : await exportPdf(datasets, nom, { title: titre, orientation: 'p', enchaine: true });
+    toast(res ? 'Export terminé.' : 'Export annulé.', res ? 'ok' : 'info');
+  } catch (e) {
+    console.error(e);
+    toast("L'export a échoué.", 'err');
+  }
+}
+
+/**
+ * Une carte « Graphique au choix » : Tableau, Regrouper par, Valeur, Forme.
+ * Chaque changement redessine la carte seule, pas la page.
+ * @param {object} etat  { choix, bloc, chart } — tenu a jour par la carte
+ * @param {{numero:number, surChoix:Function, retirer:Function|null}} opts
+ */
+function carteGraphiqueLibre(cle, annee, etat, { numero, surChoix, retirer }) {
+  const tableaux = TABLEAUX[cle];
+  const carte = el(
+    '<div class="chartCard graphiqueLibre">' +
+      '<div class="glTete">' +
+        `<h3>Graphique ${numero}</h3>` +
+        (retirer ? '<button type="button" class="miniBtn glRetirer" title="Retirer ce graphique">✕ Retirer</button>' : '') +
+      '</div>' +
+      '<div class="glChoix">' +
+        '<label>Tableau<select data-gl="tableau"></select></label>' +
+        '<label>Regrouper par<select data-gl="colonne"></select></label>' +
+        '<label>Valeur<select data-gl="mesure"></select></label>' +
+        '<label>Forme<select data-gl="forme"></select></label>' +
+      '</div>' +
+      '<div class="chartBox"><canvas></canvas></div>' +
+      '<div class="glVide" hidden></div>' +
+      '<div class="glTableau"></div>' +
+    '</div>'
+  );
+  if (retirer) carte.querySelector('.glRetirer').onclick = retirer;
+  const sel = (k) => carte.querySelector(`[data-gl="${k}"]`);
+  const remplir = (select, options, voulu) => {
+    select.innerHTML = options.map((o) => `<option value="${esc(o.value)}">${esc(o.label)}</option>`).join('');
+    select.value = options.some((o) => o.value === voulu) ? voulu : (options[0] || {}).value || '';
+  };
+  const canvas = carte.querySelector('canvas');
+  const boite = carte.querySelector('.chartBox');
+  const videEl = carte.querySelector('.glVide');
+  const tableauEl = carte.querySelector('.glTableau');
+  const retenu = etat.choix;
+
+  remplir(sel('tableau'), tableaux.map((t, i) => ({ value: String(i), label: t.titre })), retenu.tableau);
+
+  const dessiner = (depuis) => {
+    const t = tableaux[Number(sel('tableau').value)] || tableaux[0];
+    const ds = t.ds();
+    const rows = lignesDeLAnnee(ds.rows, t.date, annee);
+    const colonnes = analyserColonnes(ds, rows);
+    // Un autre tableau : ses propres colonnes, en gardant le choix s'il y existe.
+    if (depuis === 'debut' || depuis === 'tableau') {
+      const regroupables = colonnes.filter((c) => c.regroupe);
+      const voulue = depuis === 'debut' ? retenu.colonne : sel('colonne').value;
+      // D'office, la premiere colonne de texte qui regroupe vraiment
+      // plusieurs lignes (Conducteur, Immatriculation…).
+      const parDefaut = (regroupables.find((c) => !c.unique && !c.chiffree && !c.date) ||
+        regroupables.find((c) => !c.unique) || regroupables[0] || {}).key;
+      remplir(sel('colonne'), regroupables.map((c) => ({ value: c.key, label: c.date ? `${c.label} (par mois)` : c.label })),
+        regroupables.some((c) => c.key === voulue) ? voulue : parDefaut);
+      remplir(sel('mesure'), mesuresPossibles(colonnes), depuis === 'debut' ? retenu.mesure : sel('mesure').value);
+    }
+    const colonne = colonnes.find((c) => c.key === sel('colonne').value);
+    const mesure = sel('mesure').value || 'nombre';
+    const r = colonne && rows.length ? regrouper(rows, colonne, mesure, { annee }) : { libelles: [], valeurs: [], total: 0 };
+    const nomMesure = libelleMesure(mesure, colonnes);
+    const g = {
+      // Des categories : une couleur par barre ; des mois : une seule couleur.
+      type: colonne && colonne.date ? 'bar' : 'doughnut',
+      libelles: r.libelles,
+      series: [{ nom: nomMesure, valeurs: r.valeurs }]
+    };
+    remplir(sel('forme'), formesPossibles(g), depuis === 'debut' ? retenu.forme : sel('forme').value);
+    etat.choix = { tableau: sel('tableau').value, colonne: sel('colonne').value, mesure, forme: sel('forme').value };
+    surChoix();
+
+    if (!r.libelles.length) {
+      boite.style.display = 'none';
+      videEl.hidden = false;
+      videEl.textContent = 'Pas de données dans ce tableau pour cette période.';
+      tableauEl.innerHTML = '';
+      etat.bloc = null;
+      return;
+    }
+    boite.style.display = '';
+    videEl.hidden = true;
+    etat.chart = dessinerGraphique(canvas, configGraphique(g, sel('forme').value), etat.chart);
+
+    // Le detail chiffre sous le graphique, et le meme bloc pour les exports.
+    const avecPart = r.total !== null && r.total > 0;
+    const entetes = [colonne.label, nomMesure, ...(avecPart ? ['Part'] : [])];
+    const lignes = r.libelles.map((lib, i) => [
+      lib, fmt(r.valeurs[i]), ...(avecPart ? [`${Math.round((r.valeurs[i] / r.total) * 100)} %`] : [])
+    ]);
+    etat.bloc = { titre: `Graphique ${numero} — ${t.titre} : ${nomMesure} par ${colonne.label.toLowerCase()}`, entetes, lignes };
+    const centre = (x) => `<span style="display:block;text-align:center">${x}</span>`;
+    tableauEl.innerHTML = '';
+    tableauEl.appendChild(dataTable(entetes.map((h, i) => (i === 0 ? esc(h) : centre(esc(h)))),
+      lignes.map((l) => l.map((c, i) => (i === 0 ? `<b>${esc(c)}</b>` : centre(esc(c))))), null, { fiche: false }));
+  };
+
+  sel('tableau').onchange = () => dessiner('tableau');
+  sel('colonne').onchange = () => dessiner('colonne');
+  sel('mesure').onchange = () => dessiner('mesure');
+  sel('forme').onchange = () => dessiner('forme');
+  // Chart.js a besoin du canvas dans la page pour se dimensionner.
+  requestAnimationFrame(() => { if (carte.isConnected) dessiner('debut'); });
+  return carte;
 }
 
 /* ------------------------- Formes de graphique ------------------------- */
@@ -237,6 +490,23 @@ function configGraphique(g, forme = g.type) {
   };
 }
 
+/**
+ * Un bloc de statistiques en jeu de donnees exportable. Un graphique au
+ * choix y joint son image, que le PDF, le Word et le classeur placent avec
+ * le tableau.
+ */
+function blocVersDataset(b) {
+  return {
+    title: b.titre,
+    columns: b.entetes.map((e, i) => ({ key: `c${i}`, label: e || 'Catégorie', width: i === 0 ? 30 : 16 })),
+    rows: b.lignes.map((l) => Object.fromEntries(l.map((c, i) => [`c${i}`, c]))),
+    ...(b.image ? { image: b.image } : {})
+  };
+}
+
+/** Un titre de rubrique dans un nom de fichier : sans accent ni espace. */
+const nomFichier = (t) => t.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_');
+
 /** Les memes tableaux qu'a l'ecran, chiffres cles compris. */
 async function exporter(kind, def, stats, annee) {
   try {
@@ -247,13 +517,9 @@ async function exporter(kind, def, stats, annee) {
         columns: [{ key: 'a', label: 'Indicateur', width: 30 }, { key: 'b', label: 'Valeur', width: 22 }, { key: 'c', label: 'Détail', width: 40 }],
         rows: stats.tuiles.map((t) => ({ a: t.titre, b: t.valeur, c: t.detail }))
       },
-      ...stats.blocs.filter((b) => b.lignes.length).map((b) => ({
-        title: b.titre,
-        columns: b.entetes.map((e, i) => ({ key: `c${i}`, label: e || 'Catégorie', width: i === 0 ? 30 : 16 })),
-        rows: b.lignes.map((l) => Object.fromEntries(l.map((c, i) => [`c${i}`, c])))
-      }))
+      ...stats.blocs.filter((b) => b.lignes.length).map(blocVersDataset)
     ];
-    const nom = `PDU_statistiques_${def.titre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '_')}_${annee || 'toutes'}`;
+    const nom = `PDU_statistiques_${nomFichier(def.titre)}_${annee || 'toutes'}`;
     const res = kind === 'excel'
       ? await exportExcel(datasets, nom)
       : kind === 'word'

@@ -56,6 +56,56 @@ function withDefaults(config) {
   return merged;
 }
 
+/**
+ * Dessine (ou redessine) un graphique sur un canvas deja dans la page.
+ * @param {HTMLCanvasElement} canvas
+ * @param {object} config  configuration Chart.js
+ * @param {Chart|null} [ancien]  le graphique a remplacer
+ * @returns {Chart|null}
+ */
+export function dessinerGraphique(canvas, config, ancien = null) {
+  if (ancien) {
+    try { ancien.destroy(); } catch (e) { /* ignore */ }
+    instances = instances.filter((c) => c !== ancien);
+  }
+  if (!canvas.isConnected) return null;
+  const c = new Chart(canvas, withDefaults(config));
+  instances.push(c);
+  return c;
+}
+
+/**
+ * Image PNG d'un graphique, sur fond blanc (le canvas est transparent),
+ * pour les exports.
+ * @param {Chart|null} chart
+ * @returns {{dataUrl:string, png:Uint8Array, largeur:number, hauteur:number}|null}
+ */
+export function imageDuGraphique(chart) {
+  if (!chart || !chart.canvas || !chart.canvas.width) return null;
+  // L'image se lit sur une page entiere : on redessine le graphique en
+  // haute definition le temps de le copier, puis on revient a l'ecran.
+  const ratioEcran = chart.options.devicePixelRatio;
+  chart.options.devicePixelRatio = 3;
+  chart.resize();
+  chart.draw();
+  const src = chart.canvas;
+  const c = document.createElement('canvas');
+  c.width = src.width;
+  c.height = src.height;
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.drawImage(src, 0, 0);
+  chart.options.devicePixelRatio = ratioEcran;
+  chart.resize();
+  chart.draw();
+  const dataUrl = c.toDataURL('image/png');
+  const bin = atob(dataUrl.split(',')[1]);
+  const png = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) png[i] = bin.charCodeAt(i);
+  return { dataUrl, png, largeur: c.width, hauteur: c.height };
+}
+
 export function colorAt(i) {
   return PALETTE[i % PALETTE.length];
 }

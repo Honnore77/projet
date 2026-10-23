@@ -133,7 +133,56 @@ function createWindow() {
     return { action: 'deny' };
   });
 
+  menuClicDroit(win.webContents);
+
   win.on('closed', () => { win = null; });
+}
+
+/**
+ * Clic droit dans un champ : les corrections proposees pour un mot
+ * souligne, « Ajouter au dictionnaire », puis couper / copier / coller.
+ * Electron n'a pas de menu contextuel par defaut : sans lui, le clic droit
+ * ne faisait rien, et un mot souligne ne pouvait pas etre corrige.
+ */
+function menuClicDroit(contenu) {
+  // Le correcteur en francais, quand le systeme le propose (sous Windows,
+  // c'est le correcteur du systeme qui sert, dans sa langue).
+  try {
+    const ses = contenu.session;
+    const fr = (ses.availableSpellCheckerLanguages || []).filter((l) => /^fr/i.test(l));
+    if (fr.length) ses.setSpellCheckerLanguages([fr.includes('fr-FR') ? 'fr-FR' : fr[0]]);
+  } catch (e) { /* correcteur indisponible : le menu garde couper / copier / coller */ }
+
+  contenu.on('context-menu', (_e, p) => {
+    const choix = [];
+    if (p.misspelledWord) {
+      (p.dictionarySuggestions || []).slice(0, 6).forEach((s) => {
+        choix.push({ label: s, click: () => contenu.replaceMisspelling(s) });
+      });
+      if (!choix.length) choix.push({ label: 'Aucune suggestion', enabled: false });
+      choix.push({
+        label: `Ajouter « ${p.misspelledWord} » au dictionnaire`,
+        click: () => contenu.session.addWordToSpellCheckerDictionary(p.misspelledWord)
+      });
+      choix.push({ type: 'separator' });
+    }
+    const f = p.editFlags || {};
+    if (p.isEditable) {
+      choix.push(
+        { label: 'Annuler', role: 'undo', enabled: !!f.canUndo },
+        { label: 'Rétablir', role: 'redo', enabled: !!f.canRedo },
+        { type: 'separator' },
+        { label: 'Couper', role: 'cut', enabled: !!f.canCut },
+        { label: 'Copier', role: 'copy', enabled: !!f.canCopy },
+        { label: 'Coller', role: 'paste', enabled: !!f.canPaste },
+        { type: 'separator' },
+        { label: 'Tout sélectionner', role: 'selectAll', enabled: !!f.canSelectAll }
+      );
+    } else if (p.selectionText && p.selectionText.trim()) {
+      choix.push({ label: 'Copier', role: 'copy', enabled: !!f.canCopy });
+    }
+    if (choix.length) Menu.buildFromTemplate(choix).popup({ window: BrowserWindow.fromWebContents(contenu) || undefined });
+  });
 }
 
 function buildMenu() {

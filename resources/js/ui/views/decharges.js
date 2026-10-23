@@ -292,7 +292,7 @@ function renderDestinataires(page) {
       d.localisation
         ? `${esc(d.localisation)}<br>${miniBtn(COULEUR(), 'data-carte', '📍 Google Maps', 'Ouvrir dans Google Maps')}`
         : '<span style="color:#8a9ba0">—</span>',
-      `<span style="display:block;text-align:right">${n ? `<button class="miniBtn" style="background:${COULEUR()};padding:5px 8px" data-voir title="Voir ses décharges">${fmt(n)}</button>` : '0'}</span>`,
+      `<span style="display:block;text-align:right">${n ? `<button class="miniBtn" style="background:${COULEUR()};padding:5px 8px" data-voir data-export="${n}" title="Voir ses décharges">${fmt(n)}</button>` : '0'}</span>`,
       canWrite()
         ? `${miniBtn('#008A3B', 'data-edit data-write', '✎')} ${miniBtn('#D32F2F', 'data-del data-write', '✕')}`
         : ''

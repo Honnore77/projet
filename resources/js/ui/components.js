@@ -8,6 +8,7 @@ import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/imag
 import { voitTout, rubriqueCourante } from '../core/acces.js';
 import { isAndroid } from '../core/storage.js';
 import { ouvrirFicheLigne, texteEntete } from './ficheLigne.js';
+import { concerne, majusculesInitiales } from './majuscule.js';
 import { envoiDisponible, exporterPourEnvoi, exporterNormalement, messagesExportTus } from '../export/envoi.js';
 
 export const COLORS = {
@@ -179,6 +180,16 @@ function fieldHtml(f) {
       break;
     case 'static':
       input = `<input id="${id}" data-key="${esc(f.key)}" value="${esc(val)}" readonly>`;
+      break;
+    // Interrupteur oui / non : une case a cocher dessinee en glissiere ;
+    // readFields rend true ou false.
+    case 'switch':
+      input =
+        '<span class="interrupteur">' +
+        `<input id="${id}" data-key="${esc(f.key)}" type="checkbox"${f.value ? ' checked' : ''}>` +
+        `<label for="${id}" class="glissiere" aria-hidden="true"></label>` +
+        `<span class="oui">${esc(f.labelOui || 'Oui')}</span><span class="non">${esc(f.labelNon || 'Non')}</span>` +
+        '</span>';
       break;
     // Les images ne sont pas une valeur de formulaire ordinaire : le champ
     // tient sa propre liste, que `readFields` relit sur l'objet du champ.
@@ -452,6 +463,10 @@ export function readFields(scope, fields) {
     }
     const node = scope.querySelector(`[data-key="${CSS.escape(f.key)}"]`);
     if (!node) return;
+    if (f.type === 'switch') {
+      out[f.key] = node.checked;
+      return;
+    }
     let v = node.value;
     // Une liste selectAdd laissee sur « + Ajouter… » ne designe aucune valeur.
     if (v === '__ajout__') v = '';
@@ -459,6 +474,9 @@ export function readFields(scope, fields) {
     else if (f.type === 'montant' || f.type === 'nombre') v = lireMontant(v);
     else if (f.lignesTiret) v = normaliserLignesTiret(v);
     else if (typeof v === 'string') v = v.trim();
+    // Premiere lettre (et celle de chaque ligne) en majuscule, meme pour un
+    // texte colle ou choisi dans une liste (voir ui/majuscule.js).
+    if (typeof v === 'string' && concerne(node)) v = majusculesInitiales(v);
     out[f.key] = v;
   });
   return out;

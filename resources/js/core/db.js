@@ -137,6 +137,8 @@ export function emptyDB() {
     // vehicule retient celui de son utilisateur : c'est ce qui s'imprime.
     decharges: [],
     destinataires: [],
+    // ENTRETIEN → GARAGES : les garages ou passent les vehicules.
+    garages: [],
     // NOTES : messagerie interne entre les comptes (voir core/notes.js).
     notes: [],
     // Une fiche par compte : notes lues et signe de vie de la session.
@@ -223,8 +225,23 @@ function reprendreEmpreintes() {
   empreintes = empreintesDe(DB);
 }
 
+/**
+ * Travaux a faire juste avant chaque enregistrement, sur la base entiere :
+ * ainsi ÉTAT DES VÉHICULES reprend les observations saisies partout ailleurs
+ * (voir core/etatsVehicules.js), dans le meme enregistrement.
+ */
+const avantEnregistrements = new Set();
+export function avantEnregistrement(fn) {
+  avantEnregistrements.add(fn);
+  return () => avantEnregistrements.delete(fn);
+}
+
 /** Persiste la base (ecriture groupee pour ne pas saturer le disque). */
 export function persist({ silent = false } = {}) {
+  oublierIndexPlaques();
+  avantEnregistrements.forEach((fn) => {
+    try { fn(DB); } catch (e) { console.error(e); }
+  });
   dater();
   DB.meta.updatedAt = new Date().toISOString();
   clearTimeout(saveTimer);
@@ -266,6 +283,7 @@ export async function initDB() {
   }
 
   DB = normalize(loaded);
+  oublierIndexPlaques();
 
   // Les agents du pool sont pre-enregistres sur une base vierge : ils
   // alimentent le champ « Utilisateur » des fiches vehicule et le tour de role
@@ -320,7 +338,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'garages', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -651,6 +669,7 @@ export async function replaceDB(raw) {
     next.synchro.appareils = Object.assign({}, next.synchro.appareils, DB.synchro.appareils);
   }
   DB = next;
+  oublierIndexPlaques();
   // Une restauration n'est pas une modification : rien n'est date, aucune
   // trace de suppression. A la synchronisation suivante, les fiches que
   // l'autre appareil a en plus reviennent donc plutot que de disparaitre.
@@ -818,8 +837,33 @@ function immatComparable(x) {
 export function vehiculeDeLImmat(immat) {
   const cle = immatComparable(immat);
   if (!cle) return null;
-  const tous = allVehicles().concat((DB.vehicles[CAT_REFORME] || []).map((v) => Object.assign({ _cat: CAT_REFORME }, v)));
-  return tous.find((v) => immatComparable(v.immatNouvelle) === cle || immatComparable(v.immatAncienne) === cle) || null;
+  return indexDesPlaques().get(cle) || null;
+}
+
+/**
+ * Index plaque → vehicule. Le kilometrage, les voyants et les tableaux
+ * comparent des immatriculations par dizaines de milliers : refaire la
+ * liste du parc a chaque comparaison prenait plus d'une demi-seconde a
+ * chaque enregistrement. L'index se construit une fois et ne vaut que
+ * pour le calcul en cours : il est oublie a la fin de la tache, et a
+ * chaque enregistrement ou rechargement de la base.
+ */
+let indexPlaques = null;
+function oublierIndexPlaques() { indexPlaques = null; }
+function indexDesPlaques() {
+  if (indexPlaques) return indexPlaques;
+  const index = new Map();
+  // Dans l'ordre du parc, reformes a la fin : a plaque egale, le premier
+  // vehicule l'emporte, comme le faisait la recherche ligne a ligne.
+  allVehicles()
+    .concat((DB.vehicles[CAT_REFORME] || []).map((v) => Object.assign({ _cat: CAT_REFORME }, v)))
+    .forEach((v) => [v.immatNouvelle, v.immatAncienne].forEach((p) => {
+      const c = immatComparable(p);
+      if (c && !index.has(c)) index.set(c, v);
+    }));
+  indexPlaques = index;
+  queueMicrotask(oublierIndexPlaques);
+  return index;
 }
 
 /**
@@ -1764,6 +1808,84 @@ export function lienCarte(localisation) {
 }
 
 /* =================================================================
+   ENTRETIEN → GARAGES : les garages, leurs contacts, leur point focal.
+
+   Comme pour les destinataires, une fiche d'entretien et une intervention
+   ne retiennent que le nom du garage. Un nom tape dans l'une rejoint la
+   liste ; renomme dans la liste, il se met a jour partout.
+   ================================================================= */
+
+/** La fiche du garage qui porte ce nom, casse et accents mis a part. */
+export function garageParNom(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return null;
+  return (db.garages || []).find((g) => norm(g.nom || '') === cle) || null;
+}
+
+/** Noms des garages : ceux de la liste, puis ceux cites dans l'entretien. */
+export function nomsGarages(db = DB) {
+  const noms = new Map();
+  const voir = (n) => { const p = String(n || '').trim(); if (p && !noms.has(norm(p))) noms.set(norm(p), p); };
+  (db.garages || []).forEach((g) => voir(g.nom));
+  (db.maintenance || []).forEach((m) => { voir(m.garage); (m.interventions || []).forEach((iv) => voir(iv.garage)); });
+  return [...noms.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/**
+ * Inscrit dans GARAGES un garage tape dans une fiche ou une intervention.
+ * @returns {object|null} la fiche creee, ou null s'il existait deja
+ */
+export function assurerGarage(nom, db = DB) {
+  const propre = String(nom || '').trim();
+  if (!propre || garageParNom(propre, db)) return null;
+  if (!Array.isArray(db.garages)) db.garages = [];
+  const fiche = {
+    id: uid(), nom: propre, contacts: '', pointFocal: '', contactPointFocal: '', localisation: '',
+    createdAt: new Date().toISOString()
+  };
+  db.garages.push(fiche);
+  if (db === DB) persist();
+  return fiche;
+}
+
+/** Reporte le nouveau nom d'un garage sur les fiches d'entretien et leurs interventions. */
+export function renommerGarage(ancien, nouveau, db = DB) {
+  const cle = norm(ancien || '');
+  const propre = String(nouveau || '').trim();
+  if (!cle || !propre) return 0;
+  let n = 0;
+  (db.maintenance || []).forEach((m) => {
+    if (norm(m.garage || '') === cle && m.garage !== propre) { m.garage = propre; n += 1; }
+    (m.interventions || []).forEach((iv) => {
+      if (norm(iv.garage || '') === cle && iv.garage !== propre) { iv.garage = propre; n += 1; }
+    });
+  });
+  if (n && db === DB) persist();
+  return n;
+}
+
+/**
+ * Passages au garage ou ce garage est intervenu : fiche d'entretien a son
+ * nom, ou intervention a son nom.
+ */
+export function passagesDuGarage(nom, db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return [];
+  return (db.maintenance || []).filter((m) =>
+    norm(m.garage || '') === cle || (m.interventions || []).some((iv) => norm(iv.garage || '') === cle));
+}
+
+/** Les immatriculations des vehicules sur lesquels le garage est intervenu, sans doublon. */
+export function vehiculesDuGarage(nom, db = DB) {
+  const vus = new Map();
+  passagesDuGarage(nom, db).forEach((m) => {
+    const im = String(m.immat || '').trim();
+    if (im && !vus.has(norm(im).replace(/\s+/g, ''))) vus.set(norm(im).replace(/\s+/g, ''), im);
+  });
+  return [...vus.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/* =================================================================
    DESTINATIONS DES MISSIONS — lieux enregistres, localises, et leur
    distance depuis Abidjan.
 
@@ -2511,6 +2633,7 @@ export async function appliquerSynchro(fusion, autre, quand = new Date().toISOSt
     [autre.id]: { nom: autre.nom || 'Autre appareil', derniere: quand }
   });
   DB = next;
+  oublierIndexPlaques();
   reprendreEmpreintes();
   await persistNow();
   emit();

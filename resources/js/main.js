@@ -3,7 +3,8 @@
    =================================================================== */
 
 import './styles/app.css';
-import { initDB, persistNow, imagesCitees } from './core/db.js';
+import { initDB, persist, persistNow, imagesCitees } from './core/db.js';
+import { synchroniserEtats } from './core/etatsVehicules.js';
 import { menageImages } from './core/images.js';
 import { restoreSession, isLogged, arreterActivite } from './core/auth.js';
 import { renderLogin } from './ui/login.js';
@@ -68,6 +69,11 @@ async function boot() {
       'Impossible de charger les données de l’application.<br>Vérifiez que le stockage local est autorisé, puis relancez.</p></div>';
     return;
   }
+
+  // ÉTAT DES VÉHICULES reprend aussitot les observations deja saisies
+  // ailleurs (rapports, dotations, garage...) : les suivantes suivront a
+  // chaque enregistrement.
+  if (synchroniserEtats()) persist();
 
   // Les images abandonnees en cours de saisie s'effacent ici, une fois la
   // base connue. Sans attendre : le menage ne bloque pas l'ouverture, et

@@ -44,8 +44,11 @@ const nomFichier = (t) => String(t || 'fiche').normalize('NFD').replace(/[̀-ͯ]
  * Lit la ligne du tableau et ouvre sa fiche.
  * @param {HTMLTableRowElement} tr
  * @param {string[]} entetes  textes des en-tetes, '' pour la colonne d'actions
+ * @param {{boutons?:{label:string, onClick:Function}[]}} [opts]
+ *   boutons : en tete du pied de la fiche (« Fiche du véhicule → »), pour
+ *   rester relie a une autre rubrique ; onClick recoit `close`.
  */
-export function ouvrirFicheLigne(tr, entetes) {
+export function ouvrirFicheLigne(tr, entetes, opts = {}) {
   const cellules = [...tr.children];
   const infos = [];
   cellules.forEach((td, i) => {
@@ -83,6 +86,7 @@ export function ouvrirFicheLigne(tr, entetes) {
     title: fiche.titreDocument,
     bodyNode: corps,
     buttons: [
+      ...(opts.boutons || []).map((b) => Object.assign({ cls: 'ok' }, b)),
       { label: '⬇ Excel', cls: 'ok', onClick: () => lancer('excel') },
       { label: '⬇ PDF', cls: 'ok', onClick: () => lancer('pdf') },
       { label: '⬇ Word', cls: 'ok', onClick: () => lancer('word') },

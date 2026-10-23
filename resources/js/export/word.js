@@ -129,6 +129,24 @@ function section(enfants, paysage) {
 }
 
 /**
+ * Image PNG centree, a la largeur de la page (en pixels : 1 px = 15 twips),
+ * sans depasser 380 px de haut.
+ */
+function paragrapheImage(image, paysage) {
+  const largeurPage = ((paysage ? A4.hauteur : A4.largeur) - 2 * MARGE) / 15;
+  const k = Math.min((largeurPage - 10) / image.largeur, 380 / image.hauteur);
+  return new Paragraph({
+    alignment: AlignmentType.CENTER,
+    spacing: { after: 120 },
+    children: [new ImageRun({
+      type: 'png',
+      data: image.png,
+      transformation: { width: Math.round(image.largeur * k), height: Math.round(image.hauteur * k) }
+    })]
+  });
+}
+
+/**
  * Construit le document sans l'ecrire.
  * @param {Array} datasets  memes jeux que buildExcel / buildPdf
  * @param {{title?:string, orientation?:'p'|'l', enchaine?:boolean}} [opts]
@@ -148,6 +166,8 @@ export async function buildWord(datasets, opts = {}) {
     } else {
       courant.push(new Paragraph({ spacing: { before: 240, after: 80 }, children: [new TextRun({ text: ds.title, bold: true, color: VERT, size: 22 })] }));
     }
+    // Un graphique joint (STATISTIQUES) passe au-dessus de son tableau.
+    if (ds.image) courant.push(paragrapheImage(ds.image, paysage));
     courant.push(tableauDataset(ds));
     if (ds.note) courant.push(new Paragraph({ spacing: { before: 120 }, children: [new TextRun({ text: ds.note, italics: true, color: GRIS, size: 16 })] }));
   });

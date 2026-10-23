@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -434,7 +434,8 @@ export function dsMaintenance(list = DB.maintenance) {
         conducteurEntree: m.conducteurEntree || '',
         motif: m.motif || '',
         signalePar: m.signalePar || '',
-        garages: [...new Set(iv.map((x) => x.garage).filter(Boolean))].join(', '),
+        // Le garage de la fiche, puis ceux des interventions.
+        garages: [...new Set([m.garage, ...iv.map((x) => x.garage)].filter(Boolean))].join(', '),
         travaux: iv.map((x) => x.travaux).filter(Boolean).join(' ; '),
         cout: sum(iv, (x) => x.cout),
         dateRetour: dateFR(m.dateRetour),
@@ -531,6 +532,29 @@ export function dsAll() {
     dsInterventions(),
     dsCoutParVehicule()
   ];
+}
+
+/** ENTRETIEN → GARAGES : memes colonnes que le tableau de la sous-rubrique. */
+export function dsGarages(list = DB.garages || []) {
+  return {
+    title: 'Garages',
+    columns: [
+      C('nom', 'Nom', 26),
+      C('contacts', 'Contacts', 26),
+      C('pointFocal', 'Point focal et son contact', 28),
+      C('localisation', 'Localisation', 32),
+      C('interventions', 'Interventions (véhicules)', 30),
+      C('passages', 'Passages', 10)
+    ],
+    rows: list.map((g) => ({
+      nom: g.nom || '',
+      contacts: g.contacts || '',
+      pointFocal: [g.pointFocal, g.contactPointFocal].filter(Boolean).join('\n'),
+      localisation: g.localisation || '',
+      interventions: vehiculesDuGarage(g.nom).join(', '),
+      passages: passagesDuGarage(g.nom).length
+    }))
+  };
 }
 
 /** Decharges : memes colonnes que le tableau de la rubrique. */

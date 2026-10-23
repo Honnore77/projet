@@ -31,6 +31,7 @@ import { renderVehicleSheet } from './views/vehicleSheet.js';
 import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
 import { destroyCharts } from './charts.js';
+import { ouvrirExportRecherche, tailleDuResultat } from './exportRecherche.js';
 
 /**
  * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
@@ -107,6 +108,7 @@ let titleEl = null;
 let tabsEl = null;
 let searchInput = null;
 let globalBtn = null;
+let exportBtn = null;
 let alertBarEl = null;
 let stopAlertWatch = null;
 let alertResizeBound = false;
@@ -138,7 +140,10 @@ export function mountShell(appRoot, { onLogout }) {
           <div class="searchWrap">
             <div class="inner">
               <input id="search" type="text" placeholder="Rechercher dans l'application…" autocomplete="off">
-              <button id="globalSearchBtn" class="globalBtn" type="button">🔍 Voir dans toutes les rubriques →</button>
+              <div class="searchActions">
+                <button id="globalSearchBtn" class="globalBtn" type="button">🔍 Voir dans toutes les rubriques →</button>
+                <button id="exportSearchBtn" class="globalBtn exportBtn" type="button" aria-haspopup="true">⬇ Exporter le résultat ▾</button>
+              </div>
             </div>
           </div>
           <div id="content"></div>
@@ -152,6 +157,7 @@ export function mountShell(appRoot, { onLogout }) {
   tabsEl = dash.querySelector('#tabsScroll');
   searchInput = dash.querySelector('#search');
   globalBtn = dash.querySelector('#globalSearchBtn');
+  exportBtn = dash.querySelector('#exportSearchBtn');
   alertBarEl = dash.querySelector('#alertBar');
 
   // Le bandeau vit hors du contenu : il ne se redessine pas avec la rubrique.
@@ -202,6 +208,10 @@ export function mountShell(appRoot, { onLogout }) {
     }, 130)
   );
   globalBtn.onclick = () => navigate('RECHERCHE_GLOBALE');
+  exportBtn.onclick = (ev) => {
+    ev.stopPropagation();
+    ouvrirExportRecherche(exportBtn, contentEl, titleEl.textContent, state.query);
+  };
 
   brancherReseau(dash.querySelector('#voyantReseau'));
 
@@ -339,6 +349,7 @@ export function navigate(moduleKey, params = {}) {
     state.query = '';
     if (searchInput) searchInput.value = '';
     if (globalBtn) globalBtn.style.display = 'none';
+    if (exportBtn) exportBtn.style.display = 'none';
   }
   titleEl.textContent = TITLES[moduleKey] || moduleKey;
   const onglet = moduleKey === 'FICHE_UTILISATEUR' ? 'UTILISATEURS' : moduleKey === 'FICHE_VEHICULE' ? 'VEHICULES' : moduleKey;
@@ -626,6 +637,18 @@ function applyLocalFilter() {
     const match = !q || norm(node.dataset.search).includes(q);
     node.style.display = match ? '' : 'none';
   });
+  majExportRecherche();
+}
+
+/**
+ * Le bouton « Exporter le résultat » ne parait qu'avec une recherche en
+ * cours, et dit combien de lignes il exportera.
+ */
+function majExportRecherche() {
+  if (!exportBtn) return;
+  const n = norm(state.query).trim().length >= 2 ? tailleDuResultat(contentEl) : 0;
+  exportBtn.style.display = n ? 'block' : 'none';
+  exportBtn.textContent = `⬇ Exporter le résultat (${n} ligne${n > 1 ? 's' : ''}) ▾`;
 }
 
 function escapeText(s) {

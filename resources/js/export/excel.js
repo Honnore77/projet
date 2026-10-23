@@ -145,9 +145,71 @@ export async function miseEnPageA4(octets, datasets, opts = {}) {
     if (/<pageMargins\b[^>]*\/>/.test(xml)) {
       xml = xml.replace(/(<pageMargins\b[^>]*\/>)/, `${page}$1${format}`);
     }
+    if (ds.image) xml = await insererImage(zip, xml, i + 1, ds);
     zip.file(chemin, xml);
   }));
+  if (datasets.some((ds) => ds.image)) await declarerImages(zip, datasets);
   return new Uint8Array(await zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }));
+}
+
+const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+/**
+ * Un graphique joint (STATISTIQUES) se pose a droite du tableau de son
+ * onglet, en image : SheetJS n'ecrit pas d'images, on ajoute au classeur
+ * l'image, son dessin et les liens qui les rattachent a la feuille.
+ * @returns {Promise<string>} le XML de la feuille, qui pointe vers le dessin
+ */
+async function insererImage(zip, xml, n, ds) {
+  const { largeur, hauteur } = ds.image;
+  // Environ 620 px de large a l'ecran, proportions gardees (1 px = 9525 EMU).
+  const k = Math.min(620 / largeur, 380 / hauteur);
+  const cx = Math.round(largeur * k * 9525);
+  const cy = Math.round(hauteur * k * 9525);
+  zip.file(`xl/media/graphique${n}.png`, ds.image.png);
+  zip.file(`xl/drawings/_rels/drawing${n}.xml.rels`,
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL}/image" Target="../media/graphique${n}.png"/></Relationships>`);
+  zip.file(`xl/drawings/drawing${n}.xml`,
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" ' +
+      `xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="${REL}">` +
+    '<xdr:oneCellAnchor>' +
+      `<xdr:from><xdr:col>${ds.columns.length + 1}</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>` +
+      `<xdr:ext cx="${cx}" cy="${cy}"/>` +
+      '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="2" name="Graphique"/><xdr:cNvPicPr><a:picLocks noChangeAspect="1"/></xdr:cNvPicPr></xdr:nvPicPr>' +
+      '<xdr:blipFill><a:blip r:embed="rId1"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>' +
+      `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic>` +
+      '<xdr:clientData/>' +
+    '</xdr:oneCellAnchor></xdr:wsDr>');
+
+  // Le lien feuille → dessin, dans les liens de la feuille (crees au besoin).
+  const cheminRels = `xl/worksheets/_rels/sheet${n}.xml.rels`;
+  const rels = zip.file(cheminRels)
+    ? await zip.file(cheminRels).async('string')
+    : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+  zip.file(cheminRels, rels.replace('</Relationships>',
+    `<Relationship Id="rIdGraphique" Type="${REL}/drawing" Target="../drawings/drawing${n}.xml"/></Relationships>`));
+
+  // <drawing> vient apres la mise en page, juste avant la fin de la feuille
+  // (ou avant ses eventuels elements de fin, que SheetJS n'ecrit pas ici).
+  if (!/xmlns:r=/.test(xml)) xml = xml.replace(/<worksheet\b/, `<worksheet xmlns:r="${REL}"`);
+  return xml.replace('</worksheet>', '<drawing r:id="rIdGraphique"/></worksheet>');
+}
+
+/** Les types des images et des dessins, dans [Content_Types].xml. */
+async function declarerImages(zip, datasets) {
+  const chemin = '[Content_Types].xml';
+  let types = await zip.file(chemin).async('string');
+  if (!/Extension="png"/i.test(types)) {
+    types = types.replace(/(<Types\b[^>]*>)/, '$1<Default Extension="png" ContentType="image/png"/>');
+  }
+  datasets.forEach((ds, i) => {
+    if (!ds.image) return;
+    types = types.replace('</Types>',
+      `<Override PartName="/xl/drawings/drawing${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.drawing+xml"/></Types>`);
+  });
+  zip.file(chemin, types);
 }
 
 /**

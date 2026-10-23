@@ -102,10 +102,13 @@ function renderSuivi(page) {
 
   const rows = list.map((m) => {
     const g = missionsDe(m);
+    const payee = `🟢 Payée${m.datePaiement ? `<br><small>${esc(m.datePaiement)}</small>` : ''}`;
     const paiement = m.paye
-      ? `🟢 Payée${m.datePaiement ? `<br><small>${esc(m.datePaiement)}</small>` : ''}`
+      ? canWrite()
+        ? `<a href="#" data-pay data-write title="Modifier le paiement de la prime" style="color:inherit;text-decoration:none">${payee} <span data-export="">✎</span></a>`
+        : payee
       : canWrite()
-        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-pay data-write>🔴 Marquer payée</button>`
+        ? `<button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-pay data-write data-export="Non payée">🔴 Marquer payée</button>`
         : '🔴 Non payée';
     return [
       `<b>${esc(m.ref || '')}</b>`,
@@ -136,7 +139,7 @@ function renderSuivi(page) {
       cablerCarte(tr, m);
 
       const pay = tr.querySelector('[data-pay]');
-      if (pay) pay.onclick = () => openPaymentForm(m);
+      if (pay) pay.onclick = (ev) => { ev.preventDefault(); openPaymentForm(m); };
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openMissionForm(m);
@@ -592,6 +595,9 @@ function openRapportForm(m) {
       majTotaux();
     },
     onSubmit: (v) => {
+      // Avant l'enregistrement : celui-ci accorde aussi ÉTAT DES VÉHICULES,
+      // et ce qu'il y a fait ne se lirait plus dans le message.
+      const lien = relierRapportMission(m, v.observations);
       update('missions', m.id, {
         participants: [v.participant1, v.participant2, v.participant3, v.participant4].filter(Boolean),
         dotationCarburant: francSup(v.dotationCarburant),
@@ -605,8 +611,6 @@ function openRapportForm(m) {
         justificationDivers: v.justificationDivers,
         images: v.images
       });
-      const lien = relierRapportMission(m, v.observations);
-      if (lien) persist();
       toast(
         lien === 'cree' ? `Rapport enregistré. Problème signalé dans ÉTAT DES VÉHICULES (${m.vehicule || 'véhicule'}).`
           : lien === 'modifie' ? 'Rapport enregistré. Signalement mis à jour dans ÉTAT DES VÉHICULES.'
@@ -826,25 +830,28 @@ function refPrevue(dateDepart, mission) {
   return `M-${String(avant + 1).padStart(3, '0')}`;
 }
 
+/**
+ * Paiement de la prime : une date et un interrupteur « Payé ». Le meme
+ * formulaire s'ouvre sur une mission deja payee, pour corriger la date ou
+ * remettre la prime en attente. Le montant et la reference deja saisis
+ * restent enregistres, sans paraitre dans le formulaire.
+ */
 function openPaymentForm(m) {
   openForm({
     title: `Paiement de la prime — mission ${m.ref}`,
     intro: `Conducteur : ${m.conducteur} · ${m.jours || 0} jour(s). Les frais de mission (dotation) ne changent pas.`,
     fields: [
-      { key: 'datePaiement', label: 'Date de paiement', type: 'date', required: true, value: todayISO() },
-      { key: 'montantPrime', label: 'Montant de la prime versée (F)', type: 'montant', value: m.montantPrime },
-      { key: 'referencePaiement', label: 'Référence du paiement', value: m.referencePaiement }
+      { key: 'datePaiement', label: 'Date de paiement', type: 'date', value: m.datePaiementISO || todayISO() },
+      // Ouvert depuis « Marquer payée », l'interrupteur est deja sur Payé.
+      { key: 'paye', label: 'Prime payée', type: 'switch', value: true, labelOui: 'Payée', labelNon: 'Non payée' }
     ],
-    okLabel: 'Confirmer le paiement',
+    okLabel: 'Enregistrer',
     onSubmit: (values) => {
-      update('missions', m.id, {
-        paye: true,
-        datePaiement: dateFR(values.datePaiement),
-        datePaiementISO: values.datePaiement,
-        montantPrime: values.montantPrime === '' ? '' : francSup(values.montantPrime),
-        referencePaiement: values.referencePaiement
-      });
-      toast('Mission marquée comme payée.', 'ok');
+      if (values.paye && !values.datePaiement) return '« Date de paiement » est obligatoire quand la prime est payée.';
+      update('missions', m.id, values.paye
+        ? { paye: true, datePaiement: dateFR(values.datePaiement), datePaiementISO: values.datePaiement }
+        : { paye: false, datePaiement: '', datePaiementISO: '' });
+      toast(values.paye ? 'Mission marquée comme payée.' : 'Prime remise en attente de paiement.', 'ok');
       rerender();
       return null;
     }
