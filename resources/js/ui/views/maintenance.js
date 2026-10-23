@@ -188,7 +188,7 @@ function renderRecapitulatif(page, list) {
   page.appendChild(
     dataTable(
       [...ds.columns.map((c) => esc(c.label)), ''],
-      lignes.map(({ r }) => [
+      lignes.map(({ r, m }) => [
         ...ds.columns.map((c) => {
           const v = r[c.key];
           if (c.key === 'etat') {
@@ -200,7 +200,14 @@ function renderRecapitulatif(page, list) {
           if (c.key === 'immat' && v) return `<a href="#" data-veh title="Ouvrir la fiche du véhicule" style="color:${COLORS.blue}">${esc(v)}</a>`;
           return escLignes(v === undefined || v === null ? '' : v);
         }),
-        `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>`
+        `<span style="white-space:nowrap"><button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
+          // Les modifications se font depuis le tableau, sans passer par VÉHICULES.
+          (canWrite()
+            ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write title="Modifier la fiche d’entretien">✎</button>` +
+              ` <button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-retour data-write title="${m.dateRetour ? 'Modifier le retour du garage' : 'Enregistrer le retour du garage'}">${m.dateRetour ? '✎ Retour' : '↩ Retour'}</button>` +
+              ` <button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write title="Supprimer la fiche">✕</button>`
+            : '') +
+          '</span>'
       ]),
       (tr, i) => {
         const { r, m } = lignes[i];
@@ -218,6 +225,19 @@ function renderRecapitulatif(page, list) {
             : canWrite() && { label: '✎ Modifier la fiche', onClick: (close) => { close(); openFicheForm(m); } }
           ].filter(Boolean)
         });
+        const ed = tr.querySelector('[data-edit]');
+        if (ed) ed.onclick = () => openFicheForm(m);
+        const ret = tr.querySelector('[data-retour]');
+        if (ret) ret.onclick = () => openRetourForm(m);
+        const del = tr.querySelector('[data-del]');
+        if (del) {
+          del.onclick = async () => {
+            if (!(await confirmDialog({ title: 'Supprimer la fiche', message: `Supprimer la fiche d’entretien du ${dateFR(m.dateEntree)} pour ${m.immat} ?`, okLabel: 'Supprimer', danger: true }))) return;
+            remove('maintenance', m.id);
+            toast('Fiche supprimée.', 'ok');
+            rerender();
+          };
+        }
       }
     )
   );
@@ -340,7 +360,14 @@ export function openFicheForm(m, prefillImmat) {
   const base = m || (prefillImmat ? { immat: prefillImmat } : {});
   openForm({
     title: isEdit ? `Modifier la fiche — ${m.immat}` : 'Nouvelle fiche d’entretien — entrée au garage',
-    fields: ficheFields(base),
+    // En modification, le retour du garage se corrige dans le meme
+    // formulaire ; la date de sortie y reste facultative : vide, le
+    // vehicule est encore au garage.
+    fields: isEdit
+      ? ficheFields(base).concat(retourFields(base).map((f) => (f.key === 'dateRetour'
+        ? Object.assign({}, f, { required: false, value: base.dateRetour || '', hint: 'Vide tant que le véhicule est au garage' })
+        : f)))
+      : ficheFields(base),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la fiche',
     onInput: (values, scope) => {
       const mk = scope.querySelector('[data-key="marque"]');
@@ -359,6 +386,12 @@ export function openFicheForm(m, prefillImmat) {
         immat: String(values.immat || '').trim().toUpperCase(),
         garage: connu ? connu.nom : String(values.garage || '').trim()
       });
+      if (isEdit && payload.dateRetour && payload.dateEntree && payload.dateRetour < payload.dateEntree) {
+        return 'La date de sortie est antérieure à la date d’entrée.';
+      }
+      if (isEdit && payload.kmRetour !== '' && payload.kmRetour !== undefined && num(payload.kmRetour) < num(payload.kmEntree)) {
+        return 'Le kilométrage de sortie est inférieur à celui de l’entrée.';
+      }
       assurerGarage(payload.garage);
       if (isEdit) {
         update('maintenance', m.id, payload);
