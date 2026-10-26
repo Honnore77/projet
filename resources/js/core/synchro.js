@@ -25,7 +25,7 @@
 /** Collections synchronisees, telles qu'elles sont rangees dans la base. */
 export const COLLECTIONS_SYNCHRO = [
   'accounts', 'users', 'dotationPool', 'missions', 'maintenance',
-  'decharges', 'destinataires', 'garages', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
+  'decharges', 'destinataires', 'garages', 'vidanges', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
   'demandes', 'notes', 'suiviComptes', 'etatsVehicules'
 ];
 
@@ -45,7 +45,7 @@ const DUREE_TRACES_MS = 400 * 24 * 3600 * 1000;
 /** Libelles des collections, pour le compte rendu. */
 export const LIBELLES_COLLECTIONS = {
   accounts: 'Comptes', users: 'Utilisateurs', dotationPool: 'Dotations pool', missions: 'Missions',
-  maintenance: 'Entretien', decharges: 'Décharges', destinataires: 'Destinataires', garages: 'Garages',
+  maintenance: 'Entretien', decharges: 'Décharges', destinataires: 'Destinataires', garages: 'Garages', vidanges: 'Vidanges',
   destinationsMission: 'Destinations', trajets: 'Trajets', simulations: 'Simulations',
   indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', notes: 'Notes', suiviComptes: 'Suivi des comptes', etatsVehicules: 'État des véhicules', vehicules: 'Véhicules', reglages: 'Réglages'
 };

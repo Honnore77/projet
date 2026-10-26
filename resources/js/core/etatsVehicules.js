@@ -86,11 +86,13 @@ export function relierRapportMission(m, texte, db = DB, aujourdhui = new Date().
 
    Tout ce qu'on note sur un vehicule, ou que ce soit dans l'application,
    devient un signalement relie a sa source (`origine`) :
-     - rapport de mission, champ « État du véhicule » ;
+     - rapport de mission, champ « Observation (état du véhicule) » — la
+       « Observation divers » du rapport n'y vient pas ;
      - dotation pool, champ « Observations » ;
      - entree au garage, « Motif / problème » — resolu des que le vehicule
        sort du garage, a la date de sortie ;
      - retour du garage, « Observation du conducteur » ;
+     - vidange, « Observation après la vidange » ;
      - incident d'un agent sur un vehicule (nature et circonstances) ;
      - fiche du vehicule, champ « Observations ».
    La source fait foi : son texte modifie met le signalement a jour ; vide,
@@ -118,7 +120,7 @@ export function observationsSources(db = DB) {
     ajouter({
       origine: `entretien:${m.id}`, libelle: `Entrée au garage du ${dateFR(m.dateEntree)}`,
       immat: m.immat, texte: m.motif, date: m.dateEntree, par: m.signalePar || m.conducteurEntree,
-      resoluLe: m.dateRetour || ''
+      resoluLe: m.dateRetour || '', resoluPar: `garage:${m.id}`
     });
     if (m.dateRetour) {
       ajouter({
@@ -127,6 +129,10 @@ export function observationsSources(db = DB) {
       });
     }
   });
+  (db.vidanges || []).forEach((x) => ajouter({
+    origine: `vidange:${x.id}`, libelle: `Vidange du ${dateFR(x.date)}`,
+    immat: x.immat, texte: x.observation, date: x.date, par: x.conducteur
+  }));
   (db.users || []).forEach((u) => (u.historique || []).forEach((h) => {
     // Un incident n'avait pas d'identifiant : il en recoit un, pour rester
     // relie a son signalement.
@@ -173,7 +179,8 @@ export function synchroniserEtats(db = DB, aujourdhui = new Date().toISOString()
     if (lie) {
       const patch = { probleme, immat, origine: src.origine, origineLibelle: src.libelle };
       // Sorti du garage : le motif d'entree est regle a la date de sortie.
-      if (src.resoluLe && !estResolu(lie)) Object.assign(patch, { resolu: 'Oui', dateResolution: src.resoluLe });
+      if (src.resoluLe && !estResolu(lie)) Object.assign(patch, { resolu: 'Oui', dateResolution: src.resoluLe, resoluPar: src.resoluPar });
+      else if (src.resoluLe && !lie.resoluPar) patch.resoluPar = src.resoluPar;
       if (Object.keys(patch).some((k) => lie[k] !== patch[k])) { Object.assign(lie, patch); n += 1; }
       return;
     }
@@ -190,10 +197,13 @@ export function synchroniserEtats(db = DB, aujourdhui = new Date().toISOString()
       signalePar: src.par || '',
       signaleA: '',
       resolu: src.resoluLe ? 'Oui' : 'Non',
-      dateResolution: src.resoluLe || ''
+      dateResolution: src.resoluLe || '',
+      ...(src.resoluLe ? { resoluPar: src.resoluPar } : {})
     });
     n += 1;
   });
+
+  n += reglerParLeGarage(db);
 
   // Source disparue (fiche supprimee, vehicule reforme...) : le signalement
   // part s'il n'est pas resolu.
@@ -201,6 +211,46 @@ export function synchroniserEtats(db = DB, aujourdhui = new Date().toISOString()
     const o = origineDe(liste[i]);
     if (o && !vues.has(o) && !estResolu(liste[i])) { liste.splice(i, 1); n += 1; }
   }
+  return n;
+}
+
+/** Les plaques du vehicule (nouvelle et ancienne), ou la seule donnee. */
+function plaquesDu(immat, db) {
+  const c = cle(immat);
+  const v = Object.values(db.vehicles || {}).flat()
+    .find((x) => x && [x.immatNouvelle, x.immatAncienne].some((p) => cle(p) === c));
+  return v ? [v.immatNouvelle, v.immatAncienne].map(cle).filter(Boolean) : [c];
+}
+
+/** Le signalement a-t-il ete regle par un passage au garage ? */
+export const regleAuGarage = (s) => estResolu(s) && String(s.resoluPar || '').startsWith('garage:');
+
+/**
+ * Retour du garage : les pannes signalees sur le vehicule jusqu'a son
+ * entree au garage sont reglees a la date de sortie. Seule l'observation
+ * du retour, s'il y en a une, reste en cours. Une sortie annulee rouvre
+ * ce qu'elle avait regle.
+ * @returns {number} le nombre de signalements changes
+ */
+function reglerParLeGarage(db) {
+  let n = 0;
+  const sorties = new Map((db.maintenance || []).filter((m) => m.dateRetour).map((m) => [`garage:${m.id}`, m]));
+  (db.etatsVehicules || []).forEach((s) => {
+    if (s.resoluPar && s.resoluPar.startsWith('garage:') && !sorties.has(s.resoluPar) && !String(s.origine || '').startsWith('entretien:')) {
+      Object.assign(s, { resolu: 'Non', dateResolution: '' });
+      delete s.resoluPar;
+      n += 1;
+    }
+  });
+  sorties.forEach((m, par) => {
+    const plaques = plaquesDu(m.immat, db);
+    (db.etatsVehicules || []).forEach((s) => {
+      if (estResolu(s) || s.origine === `retour:${m.id}` || !plaques.includes(cle(s.immat))) return;
+      if (String(s.dateSignalement || '') > String(m.dateEntree || m.dateRetour)) return;
+      Object.assign(s, { resolu: 'Oui', dateResolution: m.dateRetour, resoluPar: par });
+      n += 1;
+    });
+  });
   return n;
 }
 

@@ -85,6 +85,7 @@ export function reportData(m) {
       ? num(m.kmArrivee) - num(m.kmDepart)
       : null,
     observations: m.observations || '',
+    observationsDivers: m.observationsDivers || '',
     justificationDivers: m.justificationDivers || '',
     // Carburant + frais OM + peage + divers.
     totaux: totauxRapportMission(m)
@@ -276,25 +277,28 @@ export function buildMissionReport(mission) {
   caseKm(M + demi, 'DISTANCE SUR PLACE :', texteSurPlaceDoc(d));
   y += 9;
 
-  /* ---- etat du vehicule (le champ garde son nom d'origine : observations) ---- */
-  doc.setFillColor(...BLEU_ENTETE);
-  doc.rect(M, y, W, hLigne, 'FD');
-  doc.setFont('helvetica', 'bold');
-  doc.text('ÉTAT DU VÉHICULE', pageW / 2, y + 4.8, { align: 'center' });
-  y += hLigne;
-
-  const hObs = 22;
-  doc.rect(M, y, W, hObs);
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  if (d.observations) {
-    doc.text(doc.splitTextToSize(nettoyer(d.observations), W - 4), M + 2, y + 5.5);
-  }
-  y += hObs + 4;
-
   // Ce qui ne tient plus sur la page passe sur la suivante.
   const basUtile = doc.internal.pageSize.getHeight() - 16;
   const place = (h) => { if (y + h > basUtile) { doc.addPage(); y = 18; } };
+
+  /* ---- observations : etat du vehicule (champ `observations`), puis divers ---- */
+  const cadreObs = (titreObs, texte) => {
+    const hObs = 18;
+    place(hLigne + hObs + 4);
+    doc.setFillColor(...BLEU_ENTETE);
+    doc.rect(M, y, W, hLigne, 'FD');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9.5);
+    doc.text(titreObs, pageW / 2, y + 4.8, { align: 'center' });
+    y += hLigne;
+    doc.rect(M, y, W, hObs);
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    if (texte) doc.text(doc.splitTextToSize(nettoyer(texte), W - 4), M + 2, y + 5.5);
+    y += hObs + 4;
+  };
+  cadreObs('OBSERVATION (ÉTAT DU VÉHICULE)', d.observations);
+  cadreObs('OBSERVATION DIVERS', d.observationsDivers);
 
   /* ---- depenses de la mission : carburant + frais ---- */
   const depenses = lignesDepenses(d);
@@ -455,8 +459,11 @@ export function printMissionReport(mission) {
         <div style="border-top:none">DISTANCE SUR PLACE : <span style="font-weight:normal">${esc(texteSurPlaceDoc(d))}</span></div>
       </div>
 
-      <div class="bandeau" style="margin-top:14px">ÉTAT DU VÉHICULE</div>
+      <div class="bandeau" style="margin-top:14px">OBSERVATION (ÉTAT DU VÉHICULE)</div>
       <div class="obs">${esc(d.observations)}</div>
+
+      <div class="bandeau" style="margin-top:14px">OBSERVATION DIVERS</div>
+      <div class="obs">${esc(d.observationsDivers)}</div>
 
       <div class="bandeau" style="margin-top:14px">DEPENSES DE LA MISSION</div>
       <table style="margin-top:0">

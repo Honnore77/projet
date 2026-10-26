@@ -14,7 +14,7 @@ import { canWrite, currentUser } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import { card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS } from '../components.js';
 import { state, rerender } from '../shell.js';
-import { estResolu, refusSignalement } from '../../core/etatsVehicules.js';
+import { estResolu, regleAuGarage, refusSignalement } from '../../core/etatsVehicules.js';
 import { voitTout, seulementSiennes, agentConnecte } from '../../core/acces.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -53,11 +53,16 @@ export function renderEtatsVehicules(page) {
     'ÉTAT DES VÉHICULES',
     'Les problèmes constatés sur les véhicules : qui les a signalés, à qui, et quand ils ont été résolus. ' +
       'Les observations notées ailleurs s’y ajoutent d’elles-mêmes : rapport de mission, dotation, entrée et retour du garage, incident, fiche du véhicule. ' +
+      'Au retour du garage, les pannes signalées avant l’entrée sont réglées : seule l’observation du retour reste affichée. ' +
       'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État actuel du véhicule » des tableaux POOL, MISSION et SERVICE.',
     COULEUR_ETAT
   ));
 
-  const tous = visibles();
+  // Reglees par un passage au garage, les pannes d'avant l'entree ne
+  // s'affichent plus : seule l'observation du retour reste. Le filtre
+  // « Réglés au garage » les retrouve.
+  const garage = visibles().filter(regleAuGarage);
+  const tous = f.etat === 'garage' ? garage : visibles().filter((s) => !regleAuGarage(s));
   const enCours = tous.filter((s) => !estResolu(s));
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('En cours', fmt(enCours.length), 'problèmes non résolus', COLORS.red));
@@ -69,7 +74,8 @@ export function renderEtatsVehicules(page) {
   page.appendChild(filterBar([
     {
       type: 'select', value: f.etat, onChange: (v) => { f.etat = v; rerender(); },
-      options: [{ value: '', label: 'Tous les problèmes' }, { value: 'encours', label: 'En cours' }, { value: 'resolus', label: 'Résolus' }]
+      options: [{ value: '', label: 'Tous les problèmes' }, { value: 'encours', label: 'En cours' }, { value: 'resolus', label: 'Résolus' },
+        { value: 'garage', label: `Réglés au garage (${fmt(garage.length)})` }]
     },
     {
       type: 'select', value: f.immat, onChange: (v) => { f.immat = v; rerender(); },

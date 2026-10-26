@@ -139,6 +139,8 @@ export function emptyDB() {
     destinataires: [],
     // ENTRETIEN → GARAGES : les garages ou passent les vehicules.
     garages: [],
+    // ENTRETIEN → VIDANGES : chaque vidange faite, hors passages au garage.
+    vidanges: [],
     // NOTES : messagerie interne entre les comptes (voir core/notes.js).
     notes: [],
     // Une fiche par compte : notes lues et signe de vie de la session.
@@ -338,7 +340,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'garages', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(base.settings, raw && raw.settings);
@@ -923,6 +925,9 @@ export function derniereLectureKm(immat) {
     if (!memeImmat(m.immat)) return;
     ajouter(m.dateEntree, m.kmEntree, 'entrée au garage');
     ajouter(m.dateRetour, m.kmRetour, 'retour du garage');
+  });
+  (DB.vidanges || []).forEach((x) => {
+    if (memeImmat(x.immat)) ajouter(x.date, x.kmActuel, 'vidange');
   });
   // Le rapport de mission releve le compteur au depart et au retour. Sans
   // date de retour, le kilometrage d'arrivee compte au jour du depart : il
@@ -1883,6 +1888,58 @@ export function vehiculesDuGarage(nom, db = DB) {
     if (im && !vus.has(norm(im).replace(/\s+/g, ''))) vus.set(norm(im).replace(/\s+/g, ''), im);
   });
   return [...vus.values()].sort((a, b) => a.localeCompare(b));
+}
+
+/* =================================================================
+   ENTRETIEN → VIDANGES : chaque vidange, ce qui a ete fait, et le
+   kilometrage de la suivante, qui devient la « Prochaine vidange » du
+   vehicule dans VEHICULES.
+   ================================================================= */
+
+/** Travaux proposes a chaque vidange ; ceux ajoutes a la main s'y joignent. */
+export const TRAVAUX_VIDANGE = ['Filtre à air', 'Filtre pollen', 'Filtre à gasoil / essence', 'Filtre à huile'];
+
+/** Les travaux deja connus : la liste de base, puis ceux saisis sur des vidanges. */
+export function travauxVidangeConnus(db = DB) {
+  const vus = new Map(TRAVAUX_VIDANGE.map((t) => [norm(t), t]));
+  (db.vidanges || []).forEach((x) => (x.travaux || []).forEach((t) => {
+    const p = String(t || '').trim();
+    if (p && !vus.has(norm(p))) vus.set(norm(p), p);
+  }));
+  return [...vus.values()];
+}
+
+/** Les vidanges d'un vehicule (ancienne ou nouvelle plaque), de la plus recente a la plus ancienne. */
+export function vidangesDu(immat, db = DB) {
+  return (db.vidanges || [])
+    .filter((x) => memeVehicule(x.immat, immat))
+    .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')) || num(b.kmActuel) - num(a.kmActuel));
+}
+
+/**
+ * Reporte la vidange sur le vehicule : si c'est sa plus recente, son
+ * kilometrage futur devient la « Prochaine vidange » de VEHICULES.
+ * @returns {boolean} vrai si le vehicule a ete mis a jour
+ */
+export function reporterVidange(x) {
+  const v = vehiculeDeLImmat(x && x.immat);
+  if (!v || !v._cat || vide(x.kmFutur)) return false;
+  if (vidangesDu(x.immat)[0] !== x) return false;
+  if (String(v.kmVidange) === String(x.kmFutur)) return false;
+  update(`vehicles.${v._cat}`, v.id, { kmVidange: x.kmFutur });
+  return true;
+}
+
+/**
+ * Une vidange supprimee : le vehicule reprend la « Prochaine vidange » de
+ * la precedente, ou celle d'avant cette vidange s'il n'y en a plus.
+ */
+export function oublierVidange(x) {
+  const v = vehiculeDeLImmat(x && x.immat);
+  if (!v || !v._cat || String(v.kmVidange) !== String(x.kmFutur)) return;
+  const precedente = vidangesDu(x.immat).find((y) => y !== x);
+  const km = precedente ? precedente.kmFutur : x.kmAncienFutur;
+  if (!vide(km)) update(`vehicles.${v._cat}`, v.id, { kmVidange: km });
 }
 
 /* =================================================================

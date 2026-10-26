@@ -238,7 +238,7 @@ function renderRapport(page) {
 
     const rows = list.map((m) => {
       const d = reportData(m);
-      const rempli = d.participants.length || d.ravitaillements.length || d.kmDepart !== '' || d.observations;
+      const rempli = d.participants.length || d.ravitaillements.length || d.kmDepart !== '' || d.observations || d.observationsDivers;
       return [
         `<b>${esc(m.conducteur || '—')}</b>${m.ref ? `<br><small>${esc(m.ref)}</small>` : ''}`,
         esc(m.vehicule || ''),
@@ -348,7 +348,8 @@ function openRapportVue(m) {
       ligne('Parcours calculé (aller-retour)', d.distanceParcours) +
       ligne('Distance parcourue sur place', texteSurPlace(d.surPlace)) +
       '</div>' +
-      `<div class="subBlock"><h5>État du véhicule</h5><div class="subEntryRow"><span>${esc(d.observations || "—")}</span></div></div>` +
+      `<div class="subBlock"><h5>Observation (état du véhicule)</h5><div class="subEntryRow"><span style="white-space:pre-line">${esc(d.observations || "—")}</span></div></div>` +
+      `<div class="subBlock"><h5>Observation divers</h5><div class="subEntryRow"><span style="white-space:pre-line">${esc(d.observationsDivers || "—")}</span></div></div>` +
       `<div class="subBlock"><h5>Total des dépenses de la mission</h5>${lignesTotaux(d.totaux)}` +
       (d.justificationDivers ? `<div class="subEntryRow"><span>Justification de la dépense divers : ${esc(d.justificationDivers)}</span></div>` : '') +
       '</div>' +
@@ -501,9 +502,14 @@ function openRapportForm(m) {
         hint: 'Compteur moins parcours calculé : les déplacements à l’intérieur des destinations' },
       // Relie a VÉHICULES → ÉTAT DES VÉHICULES : un probleme decrit ici y
       // est signale (voir relierRapportMission).
-      { key: 'observations', label: 'État du véhicule', type: 'textarea', full: true, value: m.observations,
-        placeholder: 'RAS, ou le problème constaté pendant la mission',
+      { key: 'observations', label: 'Observation (état du véhicule)', type: 'textarea', full: true, value: m.observations,
+        placeholder: 'RAS, ou le problème constaté sur le véhicule pendant la mission',
         hint: problemesVehiculeMission(m) },
+      // Tout le reste (ordres de mission, remarques...) : n'apparait pas
+      // dans ÉTAT DES VÉHICULES.
+      { key: 'observationsDivers', label: 'Observation divers', type: 'textarea', full: true, value: m.observationsDivers,
+        placeholder: 'Ordres de mission, remarques… (rien sur l’état du véhicule)',
+        hint: 'N’apparaît pas dans ÉTAT DES VÉHICULES' },
       { key: 'fraisOm', label: 'Frais OM (F)', type: 'montant', value: m.fraisOm },
       { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: m.fraisPeage },
       { key: 'depenseDivers', label: 'Dépense divers (F)', type: 'montant', value: m.depenseDivers },
@@ -605,6 +611,7 @@ function openRapportForm(m) {
         kmArrivee: v.kmArrivee,
         ravitaillements: rav,
         observations: v.observations,
+        observationsDivers: v.observationsDivers,
         fraisOm: v.fraisOm === '' ? '' : francSup(v.fraisOm),
         fraisPeage: v.fraisPeage === '' ? '' : francSup(v.fraisPeage),
         depenseDivers: v.depenseDivers === '' ? '' : francSup(v.depenseDivers),
@@ -791,7 +798,7 @@ export function openMissionForm(m, options = {}) {
       if (isEdit) update('missions', m.id, payload);
       else {
         creee = insert('missions', Object.assign(
-          { ref: '', paye: false, datePaiement: '', participants: [], ravitaillements: [], kmDepart: '', kmArrivee: '', observations: '' },
+          { ref: '', paye: false, datePaiement: '', participants: [], ravitaillements: [], kmDepart: '', kmArrivee: '', observations: '', observationsDivers: '' },
           payload
         ));
       }

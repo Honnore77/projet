@@ -7,6 +7,7 @@ import {
   openMaintenance, valeursVehicules, MARQUES, MODELES, nomsGarages, garageParNom, assurerGarage
 } from '../../core/db.js';
 import { renderGarages, COULEUR_GARAGES } from './garages.js';
+import { renderVidanges, COULEUR_VIDANGES } from './vidanges.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import {
@@ -73,14 +74,15 @@ function retourFields(m = {}) {
   ];
 }
 
-const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
+const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, { key: 'vidanges', label: 'VIDANGES' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
 
 export function renderMaintenance(page) {
   const sub = state.sub.ENTRETIEN || 'liste';
   page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); },
-    { liste: COLORS.red, garages: COULEUR_GARAGES, stats: COLORS.grey }));
+    { liste: COLORS.red, vidanges: COULEUR_VIDANGES, garages: COULEUR_GARAGES, stats: COLORS.grey }));
   if (sub === 'stats') return renderStatistiques(page, 'ENTRETIEN');
   if (sub === 'garages') return renderGarages(page);
+  if (sub === 'vidanges') return renderVidanges(page);
   const f = state.filters.maintenance;
 
   page.appendChild(
@@ -355,6 +357,47 @@ function poser(node, valeur) {
   node.value = v;
 }
 
+/**
+ * L'intervention que la fiche elle-meme renseigne (« Travaux effectués »,
+ * « Coût ») : celle marquee principale, ou la seule de la fiche. Les
+ * colonnes Travaux et Coût total, les totaux et les statistiques lisent
+ * les interventions : ces deux champs y ecrivent donc.
+ */
+function interventionPrincipale(m) {
+  const iv = (m && m.interventions) || [];
+  return iv.find((x) => x.principale) || (iv.length === 1 ? iv[0] : null);
+}
+
+function travauxFields(m = {}) {
+  const p = interventionPrincipale(m);
+  const autres = ((m.interventions || []).length) - (p ? 1 : 0);
+  return [
+    { key: 'travaux', label: 'Travaux effectués', type: 'textarea', full: true, lignesTiret: true, value: p ? p.travaux : '',
+      hint: autres > 0
+        ? `Une ligne par travail. ${autres} autre(s) intervention(s) se modifient dans la fiche du véhicule.`
+        : 'Une ligne par travail — Entrée ouvre la suivante avec un tiret' },
+    { key: 'cout', label: 'Coût des travaux (F)', type: 'montant', value: p ? p.cout : '' }
+  ];
+}
+
+/** Reporte « Travaux effectués » et « Coût » sur l'intervention principale de la fiche. */
+function poserTravaux(fiche, travaux, cout) {
+  const iv = (fiche.interventions || []).slice();
+  const p = interventionPrincipale(fiche);
+  const rien = !String(travaux || '').trim() && (cout === '' || cout === undefined);
+  if (p) {
+    const i = iv.indexOf(p);
+    if (rien && !p.observation && !p.pieces && !(p.images || []).length) iv.splice(i, 1);
+    // Le garage de la fiche suit sur l'intervention qu'elle a creee.
+    else iv[i] = Object.assign({}, p, { travaux, cout: cout === '' ? '' : francSup(cout), principale: true },
+      p.principale && fiche.garage ? { garage: fiche.garage } : {});
+  } else if (!rien) {
+    iv.unshift({ principale: true, garage: fiche.garage || '', date: fiche.dateEntree || '', observation: '', travaux,
+      pieces: '', cout: cout === '' ? '' : francSup(cout), images: [] });
+  }
+  return iv;
+}
+
 export function openFicheForm(m, prefillImmat) {
   const isEdit = !!m;
   const base = m || (prefillImmat ? { immat: prefillImmat } : {});
@@ -364,10 +407,10 @@ export function openFicheForm(m, prefillImmat) {
     // formulaire ; la date de sortie y reste facultative : vide, le
     // vehicule est encore au garage.
     fields: isEdit
-      ? ficheFields(base).concat(retourFields(base).map((f) => (f.key === 'dateRetour'
+      ? ficheFields(base).concat(travauxFields(base), retourFields(base).map((f) => (f.key === 'dateRetour'
         ? Object.assign({}, f, { required: false, value: base.dateRetour || '', hint: 'Vide tant que le véhicule est au garage' })
         : f)))
-      : ficheFields(base),
+      : ficheFields(base).concat(travauxFields(base)),
     okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la fiche',
     onInput: (values, scope) => {
       const mk = scope.querySelector('[data-key="marque"]');
@@ -382,10 +425,12 @@ export function openFicheForm(m, prefillImmat) {
     },
     onSubmit: (values) => {
       const connu = garageParNom(values.garage);
-      const payload = Object.assign({}, values, {
+      const { travaux, cout, ...reste } = values;
+      const payload = Object.assign({}, reste, {
         immat: String(values.immat || '').trim().toUpperCase(),
         garage: connu ? connu.nom : String(values.garage || '').trim()
       });
+      payload.interventions = poserTravaux(Object.assign({}, base, payload), travaux, cout);
       if (isEdit && payload.dateRetour && payload.dateEntree && payload.dateRetour < payload.dateEntree) {
         return 'La date de sortie est antérieure à la date d’entrée.';
       }
@@ -397,7 +442,7 @@ export function openFicheForm(m, prefillImmat) {
         update('maintenance', m.id, payload);
         toast('Fiche mise à jour.', 'ok');
       } else {
-        insert('maintenance', Object.assign({ interventions: [], kmRetour: '', dateRetour: '', conducteurRetour: '', observationRetour: '' }, payload));
+        insert('maintenance', Object.assign({ kmRetour: '', dateRetour: '', conducteurRetour: '', observationRetour: '' }, payload));
         toast('Fiche enregistrée. Ajoutez les interventions puis le retour du garage.', 'ok');
       }
       rerender();

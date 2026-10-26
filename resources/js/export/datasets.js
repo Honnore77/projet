@@ -557,6 +557,37 @@ export function dsGarages(list = DB.garages || []) {
   };
 }
 
+/** ENTRETIEN → VIDANGES : memes colonnes que le tableau de la sous-rubrique. */
+export function dsVidanges(list = DB.vidanges || []) {
+  return {
+    title: 'Vidanges',
+    columns: [
+      C('date', 'Date', 12),
+      C('immat', 'Immatriculation', 15),
+      C('conducteur', 'Conducteur', 22),
+      C('structure', 'Garage ou station', 22),
+      C('kmAncienFutur', 'Vidange prévue à (km)', 14),
+      C('kmActuel', 'Km actuel', 12),
+      C('kmFutur', 'Prochaine vidange (km)', 14),
+      C('travaux', 'Ce qui a été fait', 30),
+      C('quantiteHuile', 'Huile (L)', 10),
+      C('observation', 'Observation après la vidange', 30)
+    ],
+    rows: list.map((x) => ({
+      date: dateFR(x.date),
+      immat: x.immat || '',
+      conducteur: x.conducteur || '',
+      structure: x.structure || '',
+      kmAncienFutur: nombreOuVide(x.kmAncienFutur),
+      kmActuel: nombreOuVide(x.kmActuel),
+      kmFutur: nombreOuVide(x.kmFutur),
+      travaux: (x.travaux || []).join(', '),
+      quantiteHuile: nombreOuVide(x.quantiteHuile),
+      observation: x.observation || ''
+    }))
+  };
+}
+
 /** Decharges : memes colonnes que le tableau de la rubrique. */
 export function dsDecharges(list = DB.decharges) {
   return {

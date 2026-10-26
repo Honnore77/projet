@@ -71,6 +71,37 @@ test('chaque enregistrement accorde ÉTAT DES VÉHICULES', async () => {
   assert.equal(db.DB.etatsVehicules[0].probleme, 'Essuie-glace');
 });
 
+test('retour du garage : les pannes d’avant l’entrée sont réglées, seule l’observation du retour reste', async () => {
+  const base = await charger({
+    vehicles: { pool: [vehicule({ id: 'v1', immatNouvelle: 'D45 5081', immatAncienne: '1234 AB 01' })], mission: [], service: [] },
+    missions: [{ id: 'm1', ref: 'M-001', vehicule: '1234 AB 01', dateRetour: '2026-09-20', observations: 'Phare cassé' }],
+    maintenance: [{ id: 'e1', immat: 'D45 5081', dateEntree: '2026-10-01', motif: 'Freins', dateRetour: '2026-10-05', observationRetour: '' }],
+    etatsVehicules: [
+      { id: 'main', immat: 'D45 5081', probleme: 'Klaxon', dateSignalement: '2026-09-25', resolu: 'Non' },
+      { id: 'apres', immat: 'D45 5081', probleme: 'Rayure', dateSignalement: '2026-10-03', resolu: 'Non' }
+    ]
+  });
+  synchroniserEtats(base);
+  const s = parOrigine(base);
+  const parId = Object.fromEntries(base.etatsVehicules.map((x) => [x.id, x]));
+  // Sans observation au retour : rien d'avant l'entree ne reste en cours.
+  assert.deepEqual([s['mission:m1'].resolu, s['mission:m1'].dateResolution, s['mission:m1'].resoluPar], ['Oui', '2026-10-05', 'garage:e1']);
+  assert.equal(parId.main.resolu, 'Oui');
+  assert.equal(s['entretien:e1'].resoluPar, 'garage:e1');
+  // Signale pendant le sejour au garage : pas regle par cette sortie.
+  assert.equal(parId.apres.resolu, 'Non');
+  // Avec une observation au retour, elle seule est en cours.
+  base.maintenance[0].observationRetour = 'Bruit persiste';
+  synchroniserEtats(base);
+  assert.equal(parOrigine(base)['retour:e1'].resolu, 'Non');
+  // Sortie annulee : les pannes reglees par elle se rouvrent.
+  base.maintenance[0].dateRetour = '';
+  synchroniserEtats(base);
+  assert.equal(parOrigine(base)['mission:m1'].resolu, 'Non');
+  assert.equal(parId.main.resolu, 'Non');
+  assert.equal(synchroniserEtats(base), 0);
+});
+
 test('GARAGES : un nom saisi rejoint la liste, un renommage suit partout', async () => {
   const base = await charger({
     maintenance: [
