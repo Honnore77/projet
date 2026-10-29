@@ -634,6 +634,26 @@ export function renumeroterMissions(db = DB) {
   return changees;
 }
 
+/**
+ * Cumul progressif des jours de chaque conducteur : pour une mission, les
+ * jours de toutes les missions du meme conducteur jusqu'a celle-ci comprise,
+ * dans l'ordre des references (qui suivent l'ordre des departs).
+ * @returns {Map<string, number>} id de mission → cumul
+ */
+export function cumulsJoursConducteurs(missions = DB.missions) {
+  const cumuls = new Map();
+  const totaux = {};
+  missions
+    .slice()
+    .sort((a, b) => String(a.ref || '').localeCompare(String(b.ref || ''), 'fr', { numeric: true }))
+    .forEach((m) => {
+      const k = norm(m.conducteur || '—');
+      totaux[k] = (totaux[k] || 0) + num(m.jours);
+      cumuls.set(m.id, totaux[k]);
+    });
+  return cumuls;
+}
+
 /** Reprend les donnees des versions precedentes de l'application. */
 function importLegacyInto(target, legacy) {
   const src = legacy || {};

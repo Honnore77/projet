@@ -213,6 +213,9 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--white);
 .tabBadge{display:inline-block;min-width:18px;margin-left:7px;padding:1px 6px;border-radius:9px;
   background:#D32F2F;color:#fff;font-size:10.5px;font-weight:800;line-height:16px;text-align:center;vertical-align:1px;}
 .tabBadge[hidden]{display:none;}
+/* IMPORTER, parmi les rubriques. Le champ des images vise s'allume. */
+.tabImporter{--tabColor:#37474F;}
+.champImporter{outline:3px solid #F47B20;outline-offset:4px;border-radius:8px;transition:outline-color .4s;}
 
 /* ---------------- NOTES ---------------- */
 .noteCarte{background:var(--white);border-radius:var(--radius);padding:12px 16px;margin:8px 2px;
@@ -689,8 +692,8 @@ table.dataTable tbody tr:hover{background:#eefaf3;}
 
    La lumiere vient d'en haut : les surfaces ont un biseau clair sur le
    haut, un rebord sombre en dessous, et des ombres en couches. Les boutons
-   s'enfoncent au clic ; les cartes basculent un peu en perspective au
-   survol. Rien ne change de place dans la page.
+   s'enfoncent au clic ; les cartes se soulevent un peu au survol, sans
+   s'incliner. Rien ne change de place dans la page.
    =================================================================== */
 :root{
   --relief-carte:
@@ -716,7 +719,7 @@ table.dataTable tbody tr:hover{background:#eefaf3;}
 .stat,.chartCard,.alertItem,.entry{transform-style:preserve-3d;will-change:transform;
   transition:transform .22s cubic-bezier(.2,.8,.2,1),box-shadow .22s ease;}
 .stat:hover,.chartCard:hover,.alertItem:hover,.entry:hover{
-  transform:translateY(-4px) rotateX(3deg) rotateY(-1.5deg);box-shadow:var(--relief-carte-haut);}
+  transform:translateY(-4px);box-shadow:var(--relief-carte-haut);}
 /* Le chiffre cle ressort de sa carte. */
 .stat .v{transform:translateZ(18px);text-shadow:0 1px 0 #fff,0 3px 6px rgba(16,60,40,.18);}
 

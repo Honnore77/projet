@@ -451,7 +451,7 @@ export function openFicheForm(m, prefillImmat) {
   });
 }
 
-function openInterventionForm(m, iv) {
+export function openInterventionForm(m, iv) {
   const isEdit = !!iv;
   openForm({
     title: isEdit ? 'Modifier l’intervention' : `Nouvelle intervention — ${m.immat}`,

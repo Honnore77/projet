@@ -392,6 +392,6 @@ export const STATISTIQUES = {
   DOTATION: { titre: 'Dotation en carburant', calcul: statsDotation, datee: true },
   MISSION: { titre: 'Missions', calcul: statsMissions, datee: true },
   ENTRETIEN: { titre: 'Entretien', calcul: statsEntretien, datee: true },
-  DECHARGE: { titre: 'Décharges', calcul: statsDecharges, datee: true },
+  DECHARGE: { titre: 'Courses', calcul: statsDecharges, datee: true },
   SIMULATION: { titre: 'Simulations', calcul: statsSimulations, datee: true }
 };

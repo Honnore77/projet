@@ -313,7 +313,7 @@ export function openUserForm(u) {
   });
 }
 
-function openIncidentForm(u, incident, onDone) {
+export function openIncidentForm(u, incident, onDone) {
   const isEdit = !!incident;
   openForm({
     title: isEdit ? 'Modifier l’incident' : `Nouvel incident — ${u.nom} ${u.prenoms}`,
@@ -504,7 +504,7 @@ function voyantValidation(v) {
   return '<em class="voyantAttente">En cours…</em>';
 }
 
-function openIndisponibiliteForm(i) {
+export function openIndisponibiliteForm(i) {
   const isEdit = !!i;
   openForm({
     title: isEdit ? `Modifier l’indisponibilité — ${i.conducteur}` : 'Ajout d’indisponibilité',
@@ -913,7 +913,7 @@ function demandeFields(type, d) {
   ];
 }
 
-function openDemandeForm(type, d) {
+export function openDemandeForm(type, d) {
   const isEdit = !!d;
   const conge = type === 'conge';
   const nomType = TYPES_DEMANDE[type];

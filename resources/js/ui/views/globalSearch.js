@@ -99,7 +99,7 @@ export function renderGlobalSearch(page) {
   filtrer('DECHARGE', DB.decharges).forEach((d) => {
     if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.immat}`).includes(q)) {
       results.push({
-        type: 'DÉCHARGE',
+        type: 'SORTIES',
         color: '#8D6E63',
         title: `${d.ref || 'Décharge'} — ${d.destinataire || '—'}`,
         sub: `${dateFR(d.date)}${d.numeroCourrier ? ` · courrier ${d.numeroCourrier}` : ''}\n${d.objet || ''}`,

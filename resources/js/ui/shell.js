@@ -32,6 +32,7 @@ import { renderUserSheet } from './views/userSheet.js';
 import { renderGlobalSearch } from './views/globalSearch.js';
 import { destroyCharts } from './charts.js';
 import { ouvrirExportRecherche, tailleDuResultat } from './exportRecherche.js';
+import { boutonImporter } from './importer.js';
 
 /**
  * Chaque rubrique porte sa couleur : teinte legere au repos, aplat plein
@@ -45,7 +46,7 @@ export const MODULES = [
   { key: 'DOTATION', label: 'DOTATION', color: '#F47B20' },
   { key: 'MISSION', label: 'MISSION', color: '#C2185B' },
   { key: 'ENTRETIEN', label: 'ENTRETIEN', color: '#D32F2F' },
-  { key: 'DECHARGE', label: 'DÉCHARGE', color: '#8D6E63' },
+  { key: 'DECHARGE', label: 'SORTIES', color: '#8D6E63' },
   { key: 'SIMULATION', label: 'SIMULATION', color: '#3949AB' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
   // Messagerie interne : chaque compte y ecrit et y lit ses notes.
@@ -69,7 +70,7 @@ const TITLES = {
   DOTATION: 'DOTATION',
   MISSION: 'MISSION',
   ENTRETIEN: 'ENTRETIEN',
-  DECHARGE: 'DÉCHARGE',
+  DECHARGE: 'SORTIES',
   SIMULATION: 'SIMULATION',
   RAPPORTS: 'RAPPORTS ET EXPORTS',
   NOTES: 'NOTES',
@@ -312,6 +313,8 @@ function premiereRubrique() {
 function buildTabs() {
   tabsEl.innerHTML = '';
   MODULES.filter(rubriqueOuverte).forEach((m) => {
+    // Juste au-dessus de RAPPORTS : ajouter une image dans un formulaire.
+    if (m.key === 'RAPPORTS') tabsEl.appendChild(boutonImporter());
     const b = el(`<button type="button" class="tab">${m.label}</button>`);
     b.dataset.mod = m.key;
     b.style.setProperty('--tabColor', m.color);
@@ -319,6 +322,8 @@ function buildTabs() {
     if (m.key === 'NOTES') b.appendChild(el('<span class="tabBadge" hidden></span>'));
     tabsEl.appendChild(b);
   });
+  // Sans acces a RAPPORTS, le bouton vient sous les rubriques.
+  if (!tabsEl.querySelector('.tabImporter')) tabsEl.appendChild(boutonImporter());
   majBadgeNotes();
 }
 

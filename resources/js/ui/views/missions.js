@@ -10,7 +10,7 @@
 
 import {
   DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, indisponibiliteSurMission,
-  ravMontant, joursMission, renumeroterMissions, prixLitreOptions, persist,
+  ravMontant, joursMission, renumeroterMissions, cumulsJoursConducteurs, prixLitreOptions, persist,
   nomsDestinationsMission, destinationMissionParNom, assurerDestinationMission,
   renommerDestinationMission, missionsVersDestination, libelleDistance,
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
@@ -72,6 +72,7 @@ function renderSuivi(page) {
   const list = filtered();
   const parConducteur = groupBy(filtrer('MISSION', DB.missions), (m) => norm(m.conducteur || '—'));
   const missionsDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
+  const cumuls = cumulsJoursConducteurs(filtrer('MISSION', DB.missions));
 
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Missions', fmt(list.length), 'sur la période filtrée', COLORS.purple));
@@ -119,7 +120,7 @@ function renderSuivi(page) {
       esc(dateFR(m.dateDepart) || ''),
       esc(dateFR(m.dateRetour) || ''),
       `<span style="display:block;text-align:center">${esc(m.jours === '' || m.jours === undefined ? '—' : m.jours)}</span>`,
-      `<span style="display:block;text-align:center"><b>${fmt(sum(g, (x) => x.jours))}</b></span>`,
+      `<span style="display:block;text-align:center"><b>${fmt(cumuls.get(m.id) || 0)}</b></span>`,
       `<span style="display:block;text-align:right">${m.montant ? `${fmt(m.montant)} F` : ''}</span>`,
       paiement,
       canWrite()
@@ -278,7 +279,7 @@ function renderRapport(page) {
 }
 
 /** Choix de la mission dont on veut remplir le rapport. */
-function choisirMission(onPick) {
+export function choisirMission(onPick) {
   const missions = filtrer('MISSION', DB.missions);
   if (!missions.length) {
     toast(seulementSiennes('MISSION') ? 'Aucune mission ne vous est affectée.' : 'Créez d’abord une mission dans le tableau de suivi.', 'info');
@@ -469,7 +470,7 @@ function lignesTotaux(t) {
 }
 
 /** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
-function openRapportForm(m) {
+export function openRapportForm(m) {
   const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
   let zoneTotaux = null;
   let champsTotaux = null;

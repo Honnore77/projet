@@ -282,7 +282,7 @@ function renderPool(page) {
   );
 }
 
-function openPoolForm(d) {
+export function openPoolForm(d) {
   const isEdit = !!d;
   // Dernier prix que le formulaire a propose de lui-meme. Il sert a savoir
   // ce qu'on a le droit de remplacer quand l'energie change : une valeur

@@ -649,7 +649,7 @@ function renderBackupSection(page) {
   page.appendChild(sectionLabel('SAUVEGARDE ET RESTAURATION', COLORS.green));
   page.appendChild(
     toolbar([
-      { label: '💾 Exporter une sauvegarde (.json)', cls: 'addBtn', color: COLORS.green, onClick: doBackup },
+      { label: '💾 Exporter une sauvegarde (.zip)', cls: 'addBtn', color: COLORS.green, onClick: doBackup },
       { label: '📂 Restaurer une sauvegarde', color: COLORS.blue, onClick: doRestore },
       { label: '🗑 Vider toutes les données', color: COLORS.red, onClick: doWipe }
     ])

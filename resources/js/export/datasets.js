@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs } from '../core/db.js';
 
 import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -351,6 +351,7 @@ export function dsMissions(list = DB.missions) {
 export function dsSuiviMissions(list = DB.missions) {
   const parConducteur = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
   const totalDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
+  const cumuls = cumulsJoursConducteurs(DB.missions);
 
   return {
     title: 'Suivi des missions',
@@ -370,7 +371,7 @@ export function dsSuiviMissions(list = DB.missions) {
       periode: `${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
       destination: m.destination || '',
       jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
-      cumulJours: sum(totalDe(m), (x) => x.jours)
+      cumulJours: cumuls.get(m.id) || 0
     }))
   };
 }

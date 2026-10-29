@@ -90,3 +90,21 @@ test('« conducteur du pool » note en booleen dans une vieille base est repris'
   assert.equal(base.users[0].poolConducteur, 'Oui');
   assert.equal(base.users[1].poolConducteur, 'Non');
 });
+
+test('le cumul des jours progresse mission apres mission, conducteur par conducteur', async () => {
+  const base = await charger({
+    missions: [
+      mission({ id: 'k3', conducteur: 'KOUASSI', dateDepart: '2026-09-01', jours: 4 }),
+      mission({ id: 'k1', conducteur: 'Kouassi', dateDepart: '2026-03-01', jours: 3 }),
+      mission({ id: 'y1', conducteur: 'YAO', dateDepart: '2026-04-01', jours: 5 }),
+      mission({ id: 'k2', conducteur: 'KOUASSI', dateDepart: '2026-06-01', jours: 2 }),
+      mission({ id: 'k0', conducteur: 'KOUASSI', jours: '' })
+    ]
+  });
+  const c = db.cumulsJoursConducteurs(base.missions);
+  assert.equal(c.get('k1'), 3);
+  assert.equal(c.get('k2'), 5);
+  assert.equal(c.get('k3'), 9);
+  assert.equal(c.get('y1'), 5);
+  assert.equal(c.get('k0'), 9);
+});

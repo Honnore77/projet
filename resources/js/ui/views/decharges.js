@@ -1,7 +1,7 @@
 /* ===================================================================
-   DÉCHARGE — deux sous-rubriques :
+   SORTIES (cle DECHARGE) — deux sous-rubriques :
 
-     DECHARGES      courriers deposes contre decharge, en tableau
+     COURSES        courriers deposes contre decharge, en tableau
      DESTINATAIRES  structures qui les recoivent : contacts, localisation
 
    Une structure tapee dans une decharge rejoint d'elle-meme la liste des
@@ -28,7 +28,7 @@ import { dsDecharges, dsDestinataires } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
 
 const SUBS = [
-  { key: 'decharges', label: 'LES DÉCHARGES' },
+  { key: 'decharges', label: 'COURSES' },
   { key: 'destinataires', label: 'LES DESTINATAIRES' },
   SOUS_RUBRIQUE_STATS
 ];
@@ -61,14 +61,14 @@ function miniBtn(couleur, attr, libelle, titre = '') {
     `${titre ? ` title="${esc(titre)}"` : ''}>${libelle}</button>`;
 }
 
-/* =========================== LES DÉCHARGES ========================= */
+/* ============================== COURSES ============================ */
 
 function renderListeDecharges(page) {
   const f = state.filters.decharges;
 
   page.appendChild(
     card(
-      'LES DÉCHARGES',
+      'COURSES',
       'Réf. · N° courrier · Objet · Destinataire · Date · Décharge récupérée par · Conducteur · Véhicule.',
       COULEUR()
     )
@@ -206,7 +206,7 @@ function nomsRecuperePar() {
   return [...vus.values()].sort((x, y) => x.localeCompare(y, 'fr'));
 }
 
-function openDechargeForm(d) {
+export function openDechargeForm(d) {
   const isEdit = !!d;
   openForm({
     title: isEdit ? `Modifier la décharge — ${d.ref || ''}` : 'Nouvelle décharge',
