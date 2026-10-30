@@ -592,7 +592,7 @@ export function dsVidanges(list = DB.vidanges || []) {
 /** Decharges : memes colonnes que le tableau de la rubrique. */
 export function dsDecharges(list = DB.decharges) {
   return {
-    title: 'Décharges',
+    title: 'Courses',
     columns: [
       C('ref', 'Réf.', 10),
       C('numeroCourrier', 'N° courrier', 16),
@@ -626,7 +626,7 @@ export function dsDestinataires(list = DB.destinataires) {
       C('nom', 'Nom de la structure', 32),
       C('contacts', 'Contacts', 32),
       C('localisation', 'Localisation', 40),
-      C('decharges', 'Décharges', 11)
+      C('decharges', 'Courses', 11)
     ],
     rows: list.map((d) => ({
       nom: d.nom || '',

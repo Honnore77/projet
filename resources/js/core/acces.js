@@ -56,7 +56,7 @@ export const RUBRIQUES_ACCES = [
   { key: 'DOTATION', label: 'Dotation', niveaux: TOUS, siennes: 'les dotations de son véhicule, en consultation' },
   { key: 'MISSION', label: 'Mission', niveaux: TOUS, siennes: 'ses missions ; il remplit leur rapport' },
   { key: 'ENTRETIEN', label: 'Entretien', niveaux: SANS_SIENNES },
-  { key: 'DECHARGE', label: 'Sorties', niveaux: TOUS, siennes: 'les décharges qu’il a déposées, en consultation' },
+  { key: 'DECHARGE', label: 'Sorties', niveaux: TOUS, siennes: 'les courses qu’il a déposées, en consultation' },
   { key: 'SIMULATION', label: 'Simulation', niveaux: SANS_SIENNES },
   { key: 'RAPPORTS', label: 'Rapports', niveaux: ['masque', 'lecture'] }
 ];

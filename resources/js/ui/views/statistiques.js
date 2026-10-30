@@ -152,7 +152,7 @@ const TABLEAUX = {
     { titre: 'Interventions garage', ds: () => dsInterventions(), date: 'dateEntree' }
   ],
   DECHARGE: [
-    { titre: 'Décharges', ds: () => dsDecharges(), date: 'date' },
+    { titre: 'Courses', ds: () => dsDecharges(), date: 'date' },
     { titre: 'Destinataires', ds: () => dsDestinataires() }
   ],
   SIMULATION: [{ titre: 'Simulations', ds: () => dsSimulations(), date: 'periode' }]

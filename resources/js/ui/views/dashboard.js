@@ -4,7 +4,7 @@
 
 import {
   DB, allVehicles, openMaintenance, unpaidMissions, immatOf,
-  maintenanceCost, fuelCost, computeAlerts, STATUTS_VEHICULE, STATUT_NON_ATTRIBUE, STATUT_REFORME
+  maintenanceCost, fuelCost, ravMontant, computeAlerts, STATUTS_VEHICULE, STATUT_NON_ATTRIBUE, STATUT_REFORME
 } from '../../core/db.js';
 import { fmt, fmtF, num, sum, groupBy, monthKey, monthLabel, esc, el } from '../../core/utils.js';
 import { statTile, card, COLORS } from '../components.js';
@@ -90,12 +90,14 @@ export function renderDashboard(page) {
     parMois[k].litres += num(d.quantite);
     parMois[k].montant += num(d.montant);
   });
-  DB.missions.forEach((d) => {
-    const k = monthKey(d.dateDepart);
-    if (!k) return;
-    parMois[k] = parMois[k] || { litres: 0, montant: 0 };
-    parMois[k].litres += num(d.totalLitres);
-    parMois[k].montant += num(d.totalMontant);
+  DB.missions.forEach((m) => {
+    (m.ravitaillements || []).forEach((r) => {
+      const k = monthKey(r.date || m.dateDepart);
+      if (!k) return;
+      parMois[k] = parMois[k] || { litres: 0, montant: 0 };
+      parMois[k].litres += num(r.quantite);
+      parMois[k].montant += ravMontant(r);
+    });
   });
   const moisKeys = Object.keys(parMois).sort().slice(-12);
   if (moisKeys.length) {

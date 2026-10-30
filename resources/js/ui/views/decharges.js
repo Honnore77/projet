@@ -97,7 +97,7 @@ function renderListeDecharges(page) {
     String(b.ref || '').localeCompare(String(a.ref || ''), 'fr', { numeric: true }));
 
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Décharges', fmt(list.length), 'sur la période filtrée', COULEUR()));
+  grid.appendChild(statTile('Courses', fmt(list.length), 'sur la période filtrée', COULEUR()));
   grid.appendChild(statTile('Destinataires', fmt(new Set(list.map((d) => norm(d.destinataire || '')).filter(Boolean)).size),
     'structures concernées', COULEUR_DEST));
   grid.appendChild(statTile('Sans décharge signée', fmt(list.filter((d) => !(d.images || []).length).length),
@@ -106,7 +106,7 @@ function renderListeDecharges(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouvelle décharge', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDechargeForm(null) },
+      canWrite() && { label: '+ Nouvelle course', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDechargeForm(null) },
       { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'decharges', list) },
       { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'decharges', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'decharges', list) }
@@ -114,7 +114,7 @@ function renderListeDecharges(page) {
   );
 
   if (!list.length) {
-    page.appendChild(emptyState(DB.decharges.length ? 'Aucune décharge ne correspond aux filtres.' : 'Aucune décharge enregistrée.'));
+    page.appendChild(emptyState(DB.decharges.length ? 'Aucune course ne correspond aux filtres.' : 'Aucune course enregistrée.'));
     return;
   }
 
@@ -159,12 +159,12 @@ function renderListeDecharges(page) {
       if (del) {
         del.onclick = async () => {
           if (!(await confirmDialog({
-            title: 'Supprimer la décharge',
-            message: `Supprimer la décharge ${d.ref || ''} adressée à ${d.destinataire || '—'} ?`,
+            title: 'Supprimer la course',
+            message: `Supprimer la course ${d.ref || ''} adressée à ${d.destinataire || '—'} ?`,
             okLabel: 'Supprimer', danger: true
           }))) return;
           remove('decharges', d.id);
-          toast('Décharge supprimée.', 'ok');
+          toast('Course supprimée.', 'ok');
           rerender();
         };
       }
@@ -209,13 +209,13 @@ function nomsRecuperePar() {
 export function openDechargeForm(d) {
   const isEdit = !!d;
   openForm({
-    title: isEdit ? `Modifier la décharge — ${d.ref || ''}` : 'Nouvelle décharge',
+    title: isEdit ? `Modifier la course — ${d.ref || ''}` : 'Nouvelle course',
     fields: dechargeFields(d || {}),
-    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la décharge',
+    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la course',
     onSubmit: (values) => {
       const ref = String(values.ref || '').trim().toUpperCase();
       if (refDechargeEnDouble(ref, d && d.id)) {
-        return `La référence ${ref} est déjà attribuée à une autre décharge.`;
+        return `La référence ${ref} est déjà attribuée à une autre course.`;
       }
 
       // Une structure deja connue garde l'ecriture de sa fiche : « mairie de
@@ -239,7 +239,7 @@ export function openDechargeForm(d) {
       else insert('decharges', Object.assign({ createdAt: new Date().toISOString() }, payload));
 
       toast(
-        (isEdit ? 'Décharge mise à jour.' : 'Décharge enregistrée.') +
+        (isEdit ? 'Course mise à jour.' : 'Course enregistrée.') +
           (cree ? ` « ${cree.nom} » ajouté aux destinataires.` : ''),
         'ok'
       );
@@ -282,7 +282,7 @@ function renderDestinataires(page) {
     return;
   }
 
-  const headers = ['Nom de la structure', 'Contacts', 'Localisation', 'Décharges', ''];
+  const headers = ['Nom de la structure', 'Contacts', 'Localisation', 'Courses', ''];
 
   const rows = list.map((d) => {
     const n = dechargesDuDestinataire(d.nom).length;
@@ -292,7 +292,7 @@ function renderDestinataires(page) {
       d.localisation
         ? `${esc(d.localisation)}<br>${miniBtn(COULEUR(), 'data-carte', '📍 Google Maps', 'Ouvrir dans Google Maps')}`
         : '<span style="color:#8a9ba0">—</span>',
-      `<span style="display:block;text-align:right">${n ? `<button class="miniBtn" style="background:${COULEUR()};padding:5px 8px" data-voir data-export="${n}" title="Voir ses décharges">${fmt(n)}</button>` : '0'}</span>`,
+      `<span style="display:block;text-align:right">${n ? `<button class="miniBtn" style="background:${COULEUR()};padding:5px 8px" data-voir data-export="${n}" title="Voir ses courses">${fmt(n)}</button>` : '0'}</span>`,
       canWrite()
         ? `${miniBtn('#008A3B', 'data-edit data-write', '✎')} ${miniBtn('#D32F2F', 'data-del data-write', '✕')}`
         : ''
@@ -326,7 +326,7 @@ function renderDestinataires(page) {
           if (!(await confirmDialog({
             title: 'Supprimer le destinataire',
             message: n
-              ? `« ${d.nom} » figure sur ${n} décharge(s). Elles garderont ce nom, mais la structure ne sera plus proposée. Supprimer ?`
+              ? `« ${d.nom} » figure sur ${n} course(s). Elles garderont ce nom, mais la structure ne sera plus proposée. Supprimer ?`
               : `Supprimer « ${d.nom} » ?`,
             okLabel: 'Supprimer', danger: true
           }))) return;
@@ -386,7 +386,7 @@ function openDestinataireForm(d) {
       if (isEdit) {
         const reportees = renommerDestinataire(d.nom, nom);
         update('destinataires', d.id, payload);
-        toast(`Destinataire mis à jour.${reportees ? ` ${reportees} décharge(s) suivent le nouveau nom.` : ''}`, 'ok');
+        toast(`Destinataire mis à jour.${reportees ? ` ${reportees} course(s) suivent le nouveau nom.` : ''}`, 'ok');
       } else {
         insert('destinataires', Object.assign({ createdAt: new Date().toISOString() }, payload));
         toast('Destinataire enregistré.', 'ok');
@@ -402,8 +402,8 @@ function openDestinataireForm(d) {
 async function doExport(kind, sub, list) {
   try {
     const datasets = sub === 'decharges' ? [dsDecharges(list)] : [dsDestinataires(list)];
-    const name = sub === 'decharges' ? 'PDU_decharges' : 'PDU_destinataires';
-    const titre = sub === 'decharges' ? 'Décharges' : 'Destinataires des décharges';
+    const name = sub === 'decharges' ? 'PDU_courses' : 'PDU_destinataires';
+    const titre = sub === 'decharges' ? 'Courses' : 'Destinataires des courses';
     const res = kind === 'excel'
       ? await exportExcel(datasets, name)
       : kind === 'word'

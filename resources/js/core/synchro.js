@@ -45,7 +45,7 @@ const DUREE_TRACES_MS = 400 * 24 * 3600 * 1000;
 /** Libelles des collections, pour le compte rendu. */
 export const LIBELLES_COLLECTIONS = {
   accounts: 'Comptes', users: 'Utilisateurs', dotationPool: 'Dotations pool', missions: 'Missions',
-  maintenance: 'Entretien', decharges: 'Décharges', destinataires: 'Destinataires', garages: 'Garages', vidanges: 'Vidanges',
+  maintenance: 'Entretien', decharges: 'Courses', destinataires: 'Destinataires', garages: 'Garages', vidanges: 'Vidanges',
   destinationsMission: 'Destinations', trajets: 'Trajets', simulations: 'Simulations',
   indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', notes: 'Notes', suiviComptes: 'Suivi des comptes', etatsVehicules: 'État des véhicules', vehicules: 'Véhicules', reglages: 'Réglages'
 };

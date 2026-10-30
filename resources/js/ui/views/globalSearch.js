@@ -101,7 +101,7 @@ export function renderGlobalSearch(page) {
       results.push({
         type: 'SORTIES',
         color: '#8D6E63',
-        title: `${d.ref || 'Décharge'} — ${d.destinataire || '—'}`,
+        title: `${d.ref || 'Course'} — ${d.destinataire || '—'}`,
         sub: `${dateFR(d.date)}${d.numeroCourrier ? ` · courrier ${d.numeroCourrier}` : ''}\n${d.objet || ''}`,
         action: () => { state.sub.DECHARGE = 'decharges'; navigate('DECHARGE'); }
       });
