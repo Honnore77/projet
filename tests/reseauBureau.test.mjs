@@ -28,6 +28,7 @@ function lancerServeur() {
   return {
     pret: prochaine(),
     etat: () => { p.stdin.write('etat\n'); return prochaine(); },
+    commande: (c) => { p.stdin.write(`${c}\n`); return prochaine(); },
     arreter: () => p.kill()
   };
 }
@@ -75,6 +76,60 @@ test('deux postes, un serveur : une seule base', async (t) => {
 
   // Rien de neuf de part et d'autre : pas de nouvel echange complet.
   assert.equal(await synchroniserPoste(), false);
+});
+
+test('une suppression puis un réglage faits sur le serveur arrivent au poste', async (t) => {
+  const serveur = lancerServeur();
+  t.after(() => { arreterPoste(); serveur.arreter(); });
+  const { port } = await serveur.pret;
+
+  await charger({ accounts: [{ id: 'c-poste', login: 'agent', nom: 'Agent', role: 'saisie', actif: true }] });
+  await demarrerPoste({ serveur: '127.0.0.1', port, code: 'TEST-CODE' });
+  assert.deepEqual(db.DB.notes.map((n) => n.id), ['n-serveur']);
+
+  // Rien d'autre n'a change : la suppression seule doit suffire au poste.
+  assert.deepEqual((await serveur.commande('supprimer')).notes, []);
+  assert.equal(await synchroniserPoste(), true);
+  assert.deepEqual(db.DB.notes, []);
+
+  await serveur.commande('reglage');
+  assert.equal(await synchroniserPoste(), true);
+  assert.equal(db.DB.settings.seuilVoyantJaune, 1234);
+
+  // Tout est accorde : la fiche ne revient pas, plus rien a installer.
+  assert.equal(await synchroniserPoste({ force: true }), false);
+  assert.deepEqual((await serveur.etat()).notes, []);
+});
+
+test('une saisie faite pendant l’échange n’est pas écrasée par la réponse', async (t) => {
+  const serveur = lancerServeur();
+  t.after(() => { arreterPoste(); serveur.arreter(); });
+  const { port } = await serveur.pret;
+
+  await charger({ accounts: [{ id: 'c-poste', login: 'agent', nom: 'Agent', role: 'saisie', actif: true }] });
+  await demarrerPoste({ serveur: '127.0.0.1', port, code: 'TEST-CODE' });
+  await serveur.commande('supprimer');
+
+  // La saisie tombe entre l'envoi de la base et l'arrivee de la reponse : le
+  // serveur a deja repondu, sans elle, quand elle s'enregistre sur le poste.
+  const vraiFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = vraiFetch; });
+  globalThis.fetch = async (url, options) => {
+    const reponse = await vraiFetch(url, options);
+    if (String(url).endsWith('/pdu/synchro')) {
+      globalThis.fetch = vraiFetch;
+      db.DB.dotationPool.push({ id: 'd-pendant', immat: 'D45 1', montant: 1000, date: '2026-11-02' });
+      db.persist();
+    }
+    return reponse;
+  };
+  await synchroniserPoste({ force: true });
+  assert.ok(db.DB.dotationPool.some((d) => d.id === 'd-pendant'), 'la saisie reste sur le poste');
+
+  // Le tour suivant l'envoie, et la suppression du serveur arrive quand meme.
+  await synchroniserPoste({ force: true });
+  assert.ok(db.DB.dotationPool.some((d) => d.id === 'd-pendant'));
+  assert.deepEqual(db.DB.notes, []);
 });
 
 test('serveur éteint : le poste continue sur sa copie', async () => {

@@ -38,8 +38,10 @@ const info = await serveur.demarrerPermanent({ port: 0, code: 'TEST-CODE' });
 process.stdout.write(`${JSON.stringify({ port: info.port })}\n`);
 
 // Le test interroge l'etat du serveur par son entree standard.
+// Il y commande aussi ce que l'utilisateur ferait sur le PC serveur.
 process.stdin.on('data', (b) => {
-  if (String(b).trim() === 'etat') {
-    process.stdout.write(`${JSON.stringify({ notes: db.DB.notes.map((n) => n.id).sort(), comptes: db.DB.accounts.map((a) => a.id).sort() })}\n`);
-  }
+  const commande = String(b).trim();
+  if (commande === 'supprimer') { db.remove('notes', 'n-serveur'); version = Date.now(); }
+  if (commande === 'reglage') { db.saveSettings({ seuilVoyantJaune: 1234 }); version = Date.now(); }
+  process.stdout.write(`${JSON.stringify({ notes: db.DB.notes.map((n) => n.id).sort(), comptes: db.DB.accounts.map((a) => a.id).sort() })}\n`);
 });
