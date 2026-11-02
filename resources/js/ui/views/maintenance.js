@@ -311,8 +311,10 @@ export function renderMaintenanceEntries(container, group) {
         b.onclick = async () => {
           const target = iv[Number(b.dataset.ivdel)];
           if (!(await confirmDialog({ title: 'Supprimer l’intervention', message: `Supprimer l’intervention de ${target.garage || 'ce garage'} ?`, okLabel: 'Supprimer', danger: true }))) return;
-          m.interventions = m.interventions.filter((x) => x !== target);
-          touch('maintenance', m);
+          const rang = iv.indexOf(target);
+          const vivante = DB.maintenance.find((x) => x.id === m.id) || m;
+          vivante.interventions = (vivante.interventions || []).filter((x, n) => n !== rang);
+          touch('maintenance', vivante);
           toast('Intervention supprimée.', 'ok');
           rerender();
         };
@@ -461,12 +463,13 @@ export function openInterventionForm(m, iv) {
       const connu = garageParNom(values.garage);
       const payload = Object.assign({}, values, { cout: francSup(values.cout), garage: connu ? connu.nom : values.garage });
       assurerGarage(payload.garage);
-      if (isEdit) Object.assign(iv, payload);
-      else {
-        m.interventions = m.interventions || [];
-        m.interventions.push(payload);
-      }
-      touch('maintenance', m);
+      // Une synchronisation a pu remplacer la base pendant la saisie : on ecrit
+      // sur la fiche vivante, pas sur celle lue a l'ouverture du formulaire.
+      const vivante = DB.maintenance.find((x) => x.id === m.id) || m;
+      vivante.interventions = vivante.interventions || [];
+      if (isEdit) Object.assign(vivante.interventions[(m.interventions || []).indexOf(iv)] || iv, payload);
+      else vivante.interventions.push(payload);
+      touch('maintenance', vivante);
       toast(isEdit ? 'Intervention mise à jour.' : 'Intervention ajoutée.', 'ok');
       rerender();
       return null;

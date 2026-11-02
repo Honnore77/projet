@@ -181,6 +181,12 @@ export function synchroniserEtats(db = DB, aujourdhui = new Date().toISOString()
       // Sorti du garage : le motif d'entree est regle a la date de sortie.
       if (src.resoluLe && !estResolu(lie)) Object.assign(patch, { resolu: 'Oui', dateResolution: src.resoluLe, resoluPar: src.resoluPar });
       else if (src.resoluLe && !lie.resoluPar) patch.resoluPar = src.resoluPar;
+      // Date de sortie corrigee : la resolution la suit. Sortie annulee : le
+      // vehicule est de nouveau au garage, le motif redevient en cours.
+      else if (src.resoluLe && lie.resoluPar === src.resoluPar) patch.dateResolution = src.resoluLe;
+      else if (!src.resoluLe && src.resoluPar && estResolu(lie) && lie.resoluPar === src.resoluPar) {
+        Object.assign(patch, { resolu: 'Non', dateResolution: '', resoluPar: '' });
+      }
       if (Object.keys(patch).some((k) => lie[k] !== patch[k])) { Object.assign(lie, patch); n += 1; }
       return;
     }

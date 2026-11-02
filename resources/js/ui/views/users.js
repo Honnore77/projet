@@ -260,8 +260,11 @@ function openHistorique(u) {
       b.onclick = async () => {
         const h = hist[Number(b.dataset.hdel)];
         if (!(await confirmDialog({ title: 'Supprimer l’incident', message: `Supprimer « ${h.nature || 'incident'} » du ${dateFR(h.date)} ?`, okLabel: 'Supprimer', danger: true }))) return;
-        u.historique = u.historique.filter((x) => x !== h);
-        touch('users', u);
+        const i = u.historique.indexOf(h);
+        const vivant = DB.users.find((x) => x.id === u.id) || u;
+        vivant.historique = (vivant.historique || []).filter((x, n) => (h.id ? x.id !== h.id : n !== i));
+        u.historique = vivant.historique;
+        touch('users', vivant);
         toast('Incident supprimé.', 'ok');
         dessiner();
         rerender();
@@ -320,12 +323,19 @@ export function openIncidentForm(u, incident, onDone) {
     fields: incidentFields(incident || {}),
     okLabel: isEdit ? 'Enregistrer' : 'Ajouter l’incident',
     onSubmit: (values) => {
-      if (isEdit) Object.assign(incident, values);
-      else {
-        u.historique = u.historique || [];
-        u.historique.push(values);
+      // Une synchronisation a pu remplacer la base pendant la saisie : on ecrit
+      // sur la fiche vivante, pas sur celle lue a l'ouverture du formulaire.
+      const vivant = DB.users.find((x) => x.id === u.id) || u;
+      vivant.historique = vivant.historique || [];
+      if (isEdit) {
+        const cible = vivant.historique.find((h) => incident.id && h.id === incident.id) ||
+          vivant.historique[(u.historique || []).indexOf(incident)] || incident;
+        Object.assign(cible, values);
+      } else {
+        vivant.historique.push(values);
       }
-      touch('users', u);
+      u.historique = vivant.historique;
+      touch('users', vivant);
       toast(isEdit ? 'Incident mis à jour.' : 'Incident ajouté.', 'ok');
       if (onDone) onDone();
       rerender();

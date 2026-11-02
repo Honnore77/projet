@@ -36,9 +36,13 @@ export function num(v) {
  *
  * Ne s'applique qu'aux montants : un volume (litres) ou un kilometrage garde
  * ses decimales.
+ *
+ * Le calcul machine laisse des miettes (21,42 x 700 = 14994,000000000002) :
+ * elles sont ecartees avant d'arrondir, sinon un montant juste prendrait un
+ * franc de trop.
  */
 export function francSup(v) {
-  return Math.ceil(num(v));
+  return Math.ceil(Number(num(v).toFixed(6)));
 }
 
 /**

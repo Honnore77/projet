@@ -241,10 +241,11 @@ export function fusionner(ici, laBrute, opts) {
     ici.synchro && ici.synchro.suppressions, la.synchro && la.synchro.suppressions, maintenant
   );
   const supprimee = new Map(suppressions.map((t) => [`${t.c}|${t.id}`, t.date || '']));
-  const rapport = { recues: 0, envoyees: 0, supprimees: 0, conflits: [], parCollection: {} };
+  // supprimees : retirees ici ; supprimeesLa : encore chez l'autre, a retirer de son cote.
+  const rapport = { recues: 0, envoyees: 0, supprimees: 0, supprimeesLa: 0, conflits: [], parCollection: {} };
   const compter = (c, cle) => {
     rapport[cle] += 1;
-    rapport.parCollection[c] = rapport.parCollection[c] || { recues: 0, envoyees: 0, supprimees: 0 };
+    rapport.parCollection[c] = rapport.parCollection[c] || { recues: 0, envoyees: 0, supprimees: 0, supprimeesLa: 0 };
     rapport.parCollection[c][cle] += 1;
   };
 
@@ -266,7 +267,8 @@ export function fusionner(ici, laBrute, opts) {
       if (trace !== undefined) {
         const plusRecente = [a, b].filter(Boolean).map((e) => e.fiche.maj || '').sort().pop() || '';
         if (plusRecente <= trace) {
-          if (a && !b) compter(c, 'supprimees');
+          if (a) compter(c, 'supprimees');
+          if (b) compter(c, 'supprimeesLa');
           return;
         }
       }
@@ -303,13 +305,15 @@ export function fusionner(ici, laBrute, opts) {
   // Reglages : la version la plus recente, sauf ce qui est propre a cet appareil.
   const ri = ici.settings || {};
   const rl = la.settings || {};
-  if (empreinte(sansReglagesLocaux(ri)) !== empreinte(sansReglagesLocaux(rl)) && (rl.maj || '') > (ri.maj || '')) {
+  const reglagesDifferents = empreinte(sansReglagesLocaux(ri)) !== empreinte(sansReglagesLocaux(rl));
+  if (reglagesDifferents && (rl.maj || '') > (ri.maj || '')) {
     const locaux = {};
     REGLAGES_LOCAUX.forEach((k) => { if (k in ri) locaux[k] = ri[k]; });
     db.settings = Object.assign({}, rl, locaux);
     compter('reglages', 'recues');
   } else {
     db.settings = Object.assign({}, ri);
+    if (reglagesDifferents) compter('reglages', 'envoyees');
   }
 
   db.synchro = Object.assign({}, ici.synchro || {}, { suppressions });
@@ -323,12 +327,13 @@ export function fusionner(ici, laBrute, opts) {
 export function rapportInverse(r) {
   const parCollection = {};
   Object.entries(r.parCollection || {}).forEach(([c, v]) => {
-    parCollection[c] = { recues: v.envoyees, envoyees: v.recues, supprimees: v.supprimees };
+    parCollection[c] = { recues: v.envoyees, envoyees: v.recues, supprimees: v.supprimeesLa || 0, supprimeesLa: v.supprimees || 0 };
   });
   return {
     recues: r.envoyees,
     envoyees: r.recues,
-    supprimees: r.supprimees,
+    supprimees: r.supprimeesLa || 0,
+    supprimeesLa: r.supprimees || 0,
     parCollection,
     conflits: (r.conflits || []).map((x) => Object.assign({}, x, { gardee: x.gardee === 'ici' ? 'autre' : 'ici', dateIci: x.dateLa, dateLa: x.dateIci }))
   };

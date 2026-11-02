@@ -17,7 +17,7 @@
 import {
   DB, allVehicles, immatOf, immatActuelle, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
   destinationsDe, parcoursMission, dureeIndisponibilite, indisponibilitesEnCours, nomComplet,
-  vehiculesDeLAgent
+  vehiculesDeLAgent, vehiculesImmobilises, cleVehicule
 } from './db.js';
 import { fmt, num, norm, sum, daysBetween, todayISO } from './utils.js';
 
@@ -139,11 +139,17 @@ export function statsVehicules(annee = '') {
   const LIB = { ok: 'à jour', proche: 'à prévoir', depassee: 'dépassée', inconnu: 'non suivie' };
   const avecConso = tous.filter((v) => num(v.consommation) > 0);
   const kms = tous.map(kmCourant).filter((k) => k > 0);
+  // Une fiche de garage ouverte ou le statut de la fiche vehicule : les deux
+  // disent la meme chose, chaque vehicule ne compte qu'une fois.
+  const immobilises = new Set([
+    ...vehiculesImmobilises().map((x) => cleVehicule(x.immat)),
+    ...tous.filter((v) => v.statut === 'En entretien').map((v) => cleVehicule(immatOf(v)))
+  ]);
   return {
     tuiles: [
       { titre: 'Véhicules', valeur: fmt(tous.length), detail: 'dans le parc' },
       { titre: 'Disponibles', valeur: fmt(tous.filter((v) => v.statut === 'Disponible').length), detail: pct(tous.filter((v) => v.statut === 'Disponible').length, tous.length) },
-      { titre: 'Au garage ou immobilisés', valeur: fmt(tous.filter((v) => v.statut && ['En entretien', 'Immobilisé'].includes(v.statut)).length), detail: 'en entretien ou immobilisés' },
+      { titre: 'Au garage ou immobilisés', valeur: fmt(immobilises.size), detail: 'fiche de garage ouverte ou statut' },
       { titre: 'Vidanges à surveiller', valeur: fmt(vid.filter((s) => s === 'proche' || s === 'depassee').length), detail: `${fmt(vid.filter((s) => s === 'depassee').length)} dépassée(s)` },
       { titre: 'Kilométrage moyen', valeur: `${fmt(kms.length ? Math.round(sum(kms, (k) => k) / kms.length) : 0)} km`, detail: `${kms.length} véhicule(s) relevé(s)` },
       { titre: 'Consommation moyenne', valeur: avecConso.length ? `${(sum(avecConso, (v) => v.consommation) / avecConso.length).toFixed(1).replace('.', ',')} L/100` : '—', detail: `${avecConso.length} véhicule(s) renseigné(s)` },
@@ -287,8 +293,8 @@ export function statsMissions(annee) {
       blocRepartition('Destinations les plus fréquentes',
         repartition(ms.flatMap((m) => destinationsDe(m)), (d) => d, { limite: 10 }), { type: 'bar', entete: 'Visites' }),
       blocClassement('Missions par véhicule', ['Véhicule', 'Missions', 'Jours', 'Km au compteur'],
-        repartition(ms, (m) => m.vehicule).lignes.map((l) => {
-          const lot = ms.filter((m) => String(m.vehicule || '').trim() === l.libelle || (!m.vehicule && l.libelle === 'non renseigné'));
+        repartition(ms, (m) => immatActuelle(m.vehicule)).lignes.map((l) => {
+          const lot = ms.filter((m) => immatActuelle(m.vehicule) === l.libelle || (!m.vehicule && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(l.nombre), fmt(sum(lot, (m) => m.jours)), `${fmt(sum(lot, compteur))} km`];
         }), 15),
       blocRepartition('Paiement des missions', repartition(ms, (m) => (m.paye ? 'payée' : 'non payée'))),
@@ -318,8 +324,8 @@ export function statsEntretien(annee) {
     blocs: [
       blocMensuel('Passages et coût par mois', parMois(ms, (m) => m.dateEntree, annee, { Passages: () => 1, 'Coût (F)': cout }), { 'Coût (F)': F }),
       blocClassement('Entretien par véhicule', ['Véhicule', 'Passages', 'Jours immobilisé', 'Coût'],
-        repartition(ms, (m) => m.immat).lignes.map((l) => {
-          const lot = ms.filter((m) => String(m.immat || '').trim() === l.libelle);
+        repartition(ms, (m) => immatActuelle(m.immat)).lignes.map((l) => {
+          const lot = ms.filter((m) => immatActuelle(m.immat) === l.libelle || (!m.immat && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(l.nombre), fmt(sum(lot, duree)), F(sum(lot, cout))];
         }), 15),
       blocRepartition('Interventions par garage', repartition(ivs, (i) => i.garage, { limite: 8 }), { type: 'bar', entete: 'Interventions' }),

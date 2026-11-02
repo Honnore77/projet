@@ -3,9 +3,9 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, vehicleByImmat, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs } from '../core/db.js';
 
-import { dateFR, daysBetween, num, norm, sum, groupBy } from '../core/utils.js';
+import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
 
 /**
@@ -22,6 +22,9 @@ const C = (key, label, width, opts) => Object.assign({ key, label, width }, opts
  * encore au garage afficherait « Km sortie : 0 » au lieu de ne rien afficher.
  */
 const nombreOuVide = (v) => (v === '' || v === undefined || v === null ? '' : num(v));
+
+/** Litres au centilitre : une somme de decimales laisse des miettes de calcul. */
+const litres = (v) => Math.round(num(v) * 100) / 100;
 
 /** Libelles du suivi de vidange, tels qu'ils paraissent dans les exports. */
 const LIBELLE_VIDANGE = {
@@ -204,8 +207,8 @@ export function dsDotationPool(list = DB.dotationPool) {
         marqueModele: d.marqueModele || '',
         carte: d.carte || '',
         energie: d.energie || '',
-        km: num(d.km),
-        quantite: num(d.quantite),
+        km: nombreOuVide(d.km),
+        quantite: litres(d.quantite),
         prixL: num(d.prixL),
         montant: num(d.montant),
         rechargement: num(d.rechargement) ? num(d.rechargement) : '',
@@ -217,7 +220,7 @@ export function dsDotationPool(list = DB.dotationPool) {
         conducteur: d.conducteur || ''
       };
     }),
-    note: `Total : ${sum(list, (d) => d.quantite)} L — ${sum(list, (d) => d.montant)} F`
+    note: `Total : ${fmt(sum(list, (d) => d.quantite))} L — ${fmt(sum(list, (d) => d.montant))} F`
   };
 }
 
@@ -246,20 +249,20 @@ export function dsCarburantMissions(list = missionsAvecCarburant()) {
         destination: m.destination || '',
         dateDepart: dateFR(m.dateDepart),
         dateRetour: dateFR(m.dateRetour),
-        kmDepart: num(m.kmDepart),
-        kmRetour: num(m.kmArrivee),
-        diff: num(m.kmArrivee) - num(m.kmDepart),
+        kmDepart: nombreOuVide(m.kmDepart),
+        kmRetour: nombreOuVide(m.kmArrivee),
+        diff: distanceCompteur(m) ?? '',
         parcours: kmAbidjan(m),
         surPlace: (distanceSurPlace(m) || { surPlace: '' }).surPlace,
         nbRav: rav.length,
         stations: rav.map((r) => r.station).filter(Boolean).join(', '),
-        totalLitres: sum(rav, (r) => r.quantite),
+        totalLitres: litres(sum(rav, (r) => r.quantite)),
         totalMontant: sum(rav, ravMontant)
       };
     }),
     note:
-      `Total : ${sum(list, (m) => sum(m.ravitaillements || [], (r) => r.quantite))} L — ` +
-      `${sum(list, (m) => sum(m.ravitaillements || [], ravMontant))} F`
+      `Total : ${fmt(sum(list, (m) => sum(m.ravitaillements || [], (r) => r.quantite)))} L — ` +
+      `${fmt(sum(list, (m) => sum(m.ravitaillements || [], ravMontant)))} F`
   };
 }
 
@@ -274,7 +277,7 @@ export function dsRavitaillementsMissions(list = DB.missions) {
         destination: m.destination || '',
         date: dateFR(r.date) || dateFR(m.dateDepart),
         station: r.station || '',
-        quantite: num(r.quantite),
+        quantite: litres(r.quantite),
         prix: num(r.prixL),
         montant: ravMontant(r)
       });
@@ -293,14 +296,16 @@ export function dsRavitaillementsMissions(list = DB.missions) {
       C('montant', 'Montant', 13)
     ],
     rows,
-    note: `Total : ${sum(rows, (r) => r.quantite)} L — ${sum(rows, (r) => r.montant)} F`
+    note: `Total : ${fmt(sum(rows, (r) => r.quantite))} L — ${fmt(sum(rows, (r) => r.montant))} F`
   };
 }
 
 /* ------------------------------ MISSIONS --------------------------- */
 
 export function dsMissions(list = DB.missions) {
-  const byDriver = groupBy(list, (m) => m.conducteur || '—');
+  // Comme dans le suivi : les cumuls du conducteur portent sur toutes ses
+  // missions, pas sur celles retenues par les filtres.
+  const byDriver = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
   return {
     title: 'Missions',
     columns: [
@@ -319,7 +324,7 @@ export function dsMissions(list = DB.missions) {
       C('datePaiement', 'Date paiement', 14)
     ],
     rows: list.map((m) => {
-      const g = byDriver[m.conducteur || '—'] || [];
+      const g = byDriver[norm(m.conducteur || '—')] || [];
       return {
         ref: m.ref || '',
         conducteur: m.conducteur || '',
@@ -476,7 +481,7 @@ export function dsInterventions(list = DB.maintenance) {
       C('cout', 'Coût', 12)
     ],
     rows,
-    note: `Coût total des interventions : ${sum(rows, (r) => r.cout)} F`
+    note: `Coût total des interventions : ${fmt(sum(rows, (r) => r.cout))} F`
   };
 }
 
@@ -497,11 +502,15 @@ export function dsCoutParVehicule() {
       carburant: carb,
       entretien: ent,
       total: carb + ent,
-      passagesGarage: DB.maintenance.filter((m) => m.immat === im).length
+      passagesGarage: DB.maintenance.filter((m) => memeVehicule(m.immat, im)).length
     };
   });
   rows.sort((a, b) => b.total - a.total);
+  // Le carburant pris pour autre chose qu'un vehicule du parc (groupe
+  // electrogene) n'a pas de ligne ici : le total general se recoupe par cette note.
+  const horsParc = sum(DB.dotationPool.filter((d) => !vehiculeDeLImmat(d.immat)), (d) => d.montant);
   return {
+    note: horsParc ? `Carburant pris hors des véhicules du parc, non compté ci-dessus : ${fmt(horsParc)} F.` : '',
     title: 'Coûts par véhicule',
     columns: [
       C('immat', 'Immatriculation', 16),
@@ -527,10 +536,18 @@ export function dsAll() {
     dsDotationPool(),
     dsCarburantMissions(),
     dsRavitaillementsMissions(),
+    dsSuiviMissions(),
     dsMissions(),
     dsMissionsParConducteur(),
+    dsDestinationsMission(),
     dsMaintenance(),
     dsInterventions(),
+    dsVidanges(),
+    dsGarages(),
+    dsDecharges(),
+    dsDestinataires(),
+    dsSimulations(),
+    dsIndisponibilites(),
     dsCoutParVehicule()
   ];
 }

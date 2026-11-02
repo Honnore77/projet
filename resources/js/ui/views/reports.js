@@ -13,15 +13,17 @@ import {
   dsRavitaillementsMissions, dsMissions, dsMissionsParConducteur, dsSuiviMissions, dsMaintenance,
   dsInterventions, dsCoutParVehicule
 } from '../../export/datasets.js';
+import { dsEtatsVehicules } from './etatsVehicules.js';
+import { dsVehiculesReformes } from './vehiculesReformes.js';
 
 const RAPPORTS = [
-  { key: 'parc', label: 'État du parc', desc: 'Tous les véhicules avec coûts carburant et entretien', build: () => [dsVehicles()], file: 'PDU_etat_du_parc' },
+  { key: 'parc', label: 'État du parc', desc: 'Tous les véhicules : kilométrage, vidange et état actuel', build: () => [dsVehicles()], file: 'PDU_etat_du_parc' },
   { key: 'couts', label: 'Coûts par véhicule', desc: 'Classement des véhicules par coût total de possession', build: () => [dsCoutParVehicule()], file: 'PDU_couts_par_vehicule' },
   { key: 'carburant', label: 'Carburant', desc: 'Dotations du pool, carburant des missions et points de ravitaillement', build: () => [dsDotationPool(), dsCarburantMissions(), dsRavitaillementsMissions()], file: 'PDU_carburant' },
   { key: 'missions', label: 'Missions', desc: 'Missions détaillées et récapitulatif par conducteur', build: () => [dsSuiviMissions(), dsMissions(), dsMissionsParConducteur()], file: 'PDU_missions' },
   { key: 'entretien', label: 'Entretien', desc: 'Passages au garage et interventions détaillées', build: () => [dsMaintenance(), dsInterventions()], file: 'PDU_entretien' },
   { key: 'personnel', label: 'Personnel', desc: 'Utilisateurs et historique des incidents', build: () => [dsUsers(), dsIncidents()], file: 'PDU_personnel' },
-  { key: 'complet', label: 'Rapport complet', desc: 'Toutes les rubriques dans un seul document', build: () => dsAll(), file: 'PDU_rapport_complet' }
+  { key: 'complet', label: 'Rapport complet', desc: 'Toutes les rubriques dans un seul document', build: () => [...dsAll(), dsEtatsVehicules(DB.etatsVehicules), dsVehiculesReformes(DB.vehicles.reforme)], file: 'PDU_rapport_complet' }
 ];
 
 export function renderReports(page) {
@@ -83,6 +85,7 @@ export function renderReports(page) {
         (tr, i) => { tr.dataset.search = String(ds.rows[i].immat).toLowerCase(); }
       )
     );
+    if (ds.note) page.appendChild(el(`<div class="empty" style="text-align:right">${esc(ds.note)}</div>`));
   }
 
   page.appendChild(sectionLabel('POINTS D’ATTENTION', COLORS.orange));

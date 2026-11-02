@@ -12,10 +12,10 @@
 import {
   DB, ETATS_VIDANGE, insert, update, remove, knownImmats,
   carburantMissions, missionsAvecCarburant, ravMontant, prixLitreOptions,
-  suiviDotationPool, soldePrecedentCarte, knownDrivers, cleVehicule, vehiculeDeLImmat
+  suiviDotationPool, soldePrecedentCarte, knownDrivers, cleVehicule, vehiculeDeLImmat, distanceCompteur
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup, grouperMilliers, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
@@ -292,6 +292,8 @@ export function openPoolForm(d) {
   // existante, c'est le sien : son energie enregistree reste telle quelle
   // tant qu'on ne change pas de vehicule.
   let vehiculeRepris = isEdit ? cleVehicule(d.immat) : '';
+  // Dernier solde avant propose : une valeur tapee a la main n'est jamais remplacee.
+  let soldePropose = null;
 
   openForm({
     title: isEdit ? `Modifier la dotation — ${d.immat}` : 'Nouvelle dotation — POOL',
@@ -349,12 +351,14 @@ export function openPoolForm(d) {
       // solde apres de la prise qui precede sur cette carte, plus le
       // rechargement : on complete un champ vide, on n'ecrase jamais une
       // saisie.
+      // Notre proposition suit ensuite le rechargement, la carte et la date.
       const avant = scope.querySelector('[data-key="soldeAvant"]');
-      if (avant && !avant.value) {
+      if (avant && (!avant.value || lireMontant(avant.value) === soldePropose)) {
         const precedent = soldePrecedentCarte(carte ? carte.value : values.carte, values.date, d && d.id);
         if (precedent !== null && precedent !== '') {
-          avant.value = num(precedent) + num(values.rechargement);
-          values.soldeAvant = avant.value;
+          soldePropose = num(precedent) + num(values.rechargement);
+          avant.value = grouperMilliers(soldePropose);
+          values.soldeAvant = soldePropose;
         }
       }
 
@@ -469,9 +473,9 @@ function renderMission(page) {
       esc(m.vehicule || ''),
       esc(m.destination || ''),
       `${esc(dateFR(m.dateDepart) || '…')}<br>→ ${esc(dateFR(m.dateRetour) || '…')}`,
-      `<span style="display:block;text-align:right">${fmt(m.kmDepart)}</span>`,
-      `<span style="display:block;text-align:right">${fmt(m.kmArrivee)}</span>`,
-      `<span style="display:block;text-align:right">${fmt(num(m.kmArrivee) - num(m.kmDepart))}</span>`,
+      `<span style="display:block;text-align:right">${m.kmDepart === '' || m.kmDepart === undefined ? '—' : fmt(m.kmDepart)}</span>`,
+      `<span style="display:block;text-align:right">${m.kmArrivee === '' || m.kmArrivee === undefined ? '—' : fmt(m.kmArrivee)}</span>`,
+      `<span style="display:block;text-align:right">${distanceCompteur(m) === null ? '—' : fmt(distanceCompteur(m))}</span>`,
       rav.map((r) => `${esc(r.station || '—')} (${fmt(r.quantite)} L × ${fmt(r.prixL)} F)`).join('<br>'),
       `<span style="display:block;text-align:right">${fmt(sum(rav, (r) => r.quantite))}</span>`,
       `<span style="display:block;text-align:right"><b>${fmt(sum(rav, ravMontant))} F</b></span>`,

@@ -16,7 +16,7 @@ import {
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
   destinationsDe, texteDestinations, parcoursDe, parcoursMission, libelleParcours,
   distanceEntre, enregistrerTrajet, cleTrajet, lienParcours, lienEtape, ORIGINE_MISSIONS,
-  totaliser, distanceSurPlace, vehicleByImmat, totauxRapportMission, quantiteRavitaillement
+  totaliser, distanceSurPlace, distanceCompteur, vehicleByImmat, totauxRapportMission, quantiteRavitaillement
 } from '../../core/db.js';
 import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicules.js';
 import { canWrite } from '../../core/auth.js';
@@ -522,7 +522,10 @@ export function openRapportForm(m) {
     onInput: (values, scope) => {
       majTotaux();
       const node = scope.querySelector('[data-key="distance"]');
-      if (node) node.value = `${fmt(num(values.kmArrivee) - num(values.kmDepart))} km`;
+      if (node) {
+        const dist = distanceCompteur(values);
+        node.value = dist === null ? '—' : `${fmt(dist)} km`;
+      }
       const sp = scope.querySelector('[data-key="surPlace"]');
       if (sp) {
         const r = distanceSurPlace(Object.assign({}, m, { kmDepart: values.kmDepart, kmArrivee: values.kmArrivee }));

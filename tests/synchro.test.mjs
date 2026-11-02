@@ -144,3 +144,25 @@ test('deux vehicules sans immatriculation ne sont pas confondus', () => {
   const tel = base({ vehicles: { pool: [{ id: 'b', immatNouvelle: 'D45 50 ' }], mission: [], service: [] } });
   assert.equal(sy.fusionner(pc, tel, { maintenant: T3, iciGagneEgalite: true }).db.vehicles.pool.length, 2);
 });
+
+test('une suppression faite ici est annoncee a l’autre, qui doit l’appliquer', () => {
+  const ici = base({
+    missions: [{ id: 'm1', maj: T0 }],
+    synchro: { suppressions: [{ c: 'missions', id: 'm2', date: T2 }] }
+  });
+  const la = base({ missions: [{ id: 'm1', maj: T0 }, { id: 'm2', maj: T0 }] });
+  const { db, rapport } = sy.fusionner(ici, la, { maintenant: T3, derniereSynchro: T1, iciGagneEgalite: true });
+  assert.deepEqual(db.missions.map((m) => m.id), ['m1']);
+  assert.equal(rapport.supprimees, 0);
+  assert.equal(rapport.supprimeesLa, 1);
+  assert.equal(sy.rapportInverse(rapport).supprimees, 1);
+  assert.equal(sy.rapportInverse(rapport).supprimeesLa, 0);
+});
+
+test('un reglage plus recent ici est annonce comme recu par l’autre', () => {
+  const ici = base({ settings: { seuilVoyantJaune: 1200, maj: T2 } });
+  const la = base({ settings: { seuilVoyantJaune: 1000, maj: T0 } });
+  const { db, rapport } = sy.fusionner(ici, la, { maintenant: T3, derniereSynchro: T1, iciGagneEgalite: true });
+  assert.equal(db.settings.seuilVoyantJaune, 1200);
+  assert.equal(sy.rapportInverse(rapport).recues, 1);
+});

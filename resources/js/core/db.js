@@ -334,6 +334,10 @@ export async function initDB() {
 /** Complete les champs absents pour tolerer d'anciennes sauvegardes. */
 export function normalize(raw) {
   const base = emptyDB();
+  // Mis de cote avant la copie, qui remplacerait ces objets par ceux de `raw` :
+  // les reglages absents d'une ancienne base prennent ainsi leur valeur par defaut.
+  const reglagesParDefaut = base.settings;
+  const metaParDefaut = base.meta;
   const db = Object.assign(base, raw || {});
   db.version = SCHEMA_VERSION;
   db.vehicles = Object.assign({ pool: [], mission: [], service: [], reforme: [] }, raw && raw.vehicles);
@@ -343,8 +347,8 @@ export function normalize(raw) {
   ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
-  db.settings = Object.assign(base.settings, raw && raw.settings);
-  db.meta = Object.assign(base.meta, raw && raw.meta);
+  db.settings = Object.assign(reglagesParDefaut, raw && raw.settings);
+  db.meta = Object.assign(metaParDefaut, raw && raw.meta);
 
   // Roles d'avant les niveaux d'acces : le gestionnaire devient chef du
   // parc, le visiteur direction / consultation (voir core/acces.js).
@@ -1417,7 +1421,7 @@ export function unpaidMissions() {
 
 export function maintenanceCost(immat) {
   return DB.maintenance
-    .filter((m) => m.immat === immat)
+    .filter((m) => memeVehicule(m.immat, immat))
     .reduce((s, m) => s + (m.interventions || []).reduce((t, iv) => t + num(iv.cout), 0), 0);
 }
 
@@ -1520,7 +1524,7 @@ export function vehiculesImmobilises() {
   openMaintenance().forEach((m) => {
     const immat = String(m.immat || '').trim();
     if (!immat) return;
-    parImmat.set(norm(immat), {
+    parImmat.set(cleVehicule(immat), {
       immat,
       depuis: m.dateEntree || '',
       jours: daysBetween(m.dateEntree, today),
@@ -1531,8 +1535,8 @@ export function vehiculesImmobilises() {
 
   allVehicles().forEach((v) => {
     const immat = immatOf(v);
-    if (!immat || v.statut !== 'Immobilisé' || parImmat.has(norm(immat))) return;
-    parImmat.set(norm(immat), { immat, depuis: '', jours: null, motif: '', origine: 'statut' });
+    if (!immat || v.statut !== 'Immobilisé' || parImmat.has(cleVehicule(immat))) return;
+    parImmat.set(cleVehicule(immat), { immat, depuis: '', jours: null, motif: '', origine: 'statut' });
   });
 
   return [...parImmat.values()].sort((a, b) => (b.jours || 0) - (a.jours || 0));
@@ -1605,12 +1609,13 @@ export function carburantMissions(list = DB.missions) {
  * rapports de mission ou ce vehicule a servi.
  */
 export function fuelCost(immat) {
+  // Ancienne et nouvelle immatriculation : un seul vehicule, un seul cout.
   const pool = DB.dotationPool
-    .filter((d) => d.immat === immat)
+    .filter((d) => memeVehicule(d.immat, immat))
     .reduce((s, d) => s + num(d.montant), 0);
 
   const mission = DB.missions
-    .filter((m) => norm(m.vehicule) === norm(immat) && norm(immat))
+    .filter((m) => memeVehicule(m.vehicule, immat))
     .reduce((s, m) => s + (m.ravitaillements || []).reduce((t, r) => t + ravMontant(r), 0), 0);
 
   return pool + mission;
@@ -2290,6 +2295,16 @@ export function distanceSurPlace(m, db = DB) {
   if (!p.etapes.length || !p.complet) return null;
   const compteur = num(m.kmArrivee) - num(m.kmDepart);
   return { compteur, parcours: p.total, surPlace: compteur - p.total, estimee: p.estimee };
+}
+
+/**
+ * Distance relevee au compteur pendant une mission : km d'arrivee moins km de
+ * depart. null tant que l'un des deux manque : un compteur a moitie saisi ne
+ * donne pas une distance negative.
+ */
+export function distanceCompteur(m) {
+  if (!m || vide(m.kmDepart) || vide(m.kmArrivee)) return null;
+  return num(m.kmArrivee) - num(m.kmDepart);
 }
 
 /** Le parcours d'une mission. */

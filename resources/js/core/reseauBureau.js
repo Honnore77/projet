@@ -92,16 +92,21 @@ export async function synchroniserPoste({ force = false } = {}) {
         corps: { appareil: appareilSynchro(), db: DB },
         delai: 60000
       });
-      recu = !!(r.rapport && (r.rapport.recues || r.rapport.supprimees));
-      if (recu) await appliquerSynchro(r.db, r.pc, r.pc.quand);
-      else noterSynchroAvec(r.pc, r.pc.quand);
-      // Les photos et pieces jointes, apres les fiches qui les citent.
-      const images = await echangerImages(etat.base, jeton);
-      if (images.recues) recu = true;
-      etat.versionServeur = r.v;
-      etat.envoiLocal = (DB.meta && DB.meta.updatedAt) || '';
-      etat.derniereSynchro = Date.now();
-      etat.derniere = new Date().toISOString();
+      // Une saisie enregistree pendant l'echange n'est pas dans la reponse :
+      // l'installer l'effacerait. On ne touche a rien, le prochain tour
+      // renvoie la base avec cette saisie.
+      if (((DB.meta && DB.meta.updatedAt) || '') === local) {
+        recu = !!(r.rapport && (r.rapport.recues || r.rapport.supprimees));
+        if (recu) await appliquerSynchro(r.db, r.pc, r.pc.quand);
+        else noterSynchroAvec(r.pc, r.pc.quand);
+        // Les photos et pieces jointes, apres les fiches qui les citent.
+        const images = await echangerImages(etat.base, jeton);
+        if (images.recues) recu = true;
+        etat.versionServeur = r.v;
+        etat.envoiLocal = (DB.meta && DB.meta.updatedAt) || '';
+        etat.derniereSynchro = Date.now();
+        etat.derniere = new Date().toISOString();
+      }
     }
     etat.connecte = true;
     etat.erreur = '';
