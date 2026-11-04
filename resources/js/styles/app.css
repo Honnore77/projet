@@ -1186,6 +1186,21 @@ html[data-theme="brillant"] .tab.active{background:linear-gradient(135deg,color-
   html[data-theme="brillant"] :is(.toolbar button,.miniBtn,.subtab.active,.tab.active,.modal .foot .ok,.cxBouton,.stat)::after{display:none;}
 }
 
+/* Barre de defilement horizontal flottante (ui/barreFlottante.js) : en bas
+   de l'ecran tant que celle du tableau est cachee plus bas. */
+.barreFlottante{position:fixed;z-index:900;display:none;height:16px;overflow-x:auto;overflow-y:hidden;
+  background:color-mix(in srgb,var(--white) 85%,transparent);border-radius:8px 8px 0 0;box-shadow:0 -2px 8px rgba(23,49,59,.12);}
+.barreFlottante>div{height:1px;}
+@media print{.barreFlottante{display:none !important;}}
+
+/* Propositions de mots pendant la saisie (ui/suggestions.js). */
+.suggestions{position:fixed;z-index:5000;max-width:min(340px,calc(100vw - 16px));background:var(--white);color:var(--text);
+  border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(23,49,59,.25);padding:4px;display:flex;flex-direction:column;}
+.suggestions button{border:0;background:transparent;color:inherit;text-align:left;padding:6px 10px;border-radius:7px;font:inherit;font-size:14px;cursor:pointer;}
+.suggestions button:hover,.suggestions button.actif{background:var(--green-soft);color:var(--green-dark);font-weight:600;}
+html[data-theme="sombre"] .suggestions button:hover,html[data-theme="sombre"] .suggestions button.actif{background:#21414a;color:#e3ecef;}
+.suggestions small{color:var(--muted);font-size:11px;padding:4px 10px 2px;border-top:1px solid var(--line);margin-top:2px;}
+
 /* Liste deroulante d'un bouton (Excel simple / complet...). */
 .menuChoix{position:fixed;z-index:4000;min-width:220px;max-width:min(340px,calc(100vw - 16px));background:var(--white);color:var(--text);
   border-radius:12px;box-shadow:0 14px 40px rgba(23,49,59,.28);padding:6px;}

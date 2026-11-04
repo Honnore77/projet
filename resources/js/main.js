@@ -16,6 +16,8 @@ import { demarrerPoste } from './core/reseauBureau.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
 import { installerMajuscule } from './ui/majuscule.js';
+import { installerSuggestions } from './ui/suggestions.js';
+import { installerBarreFlottante } from './ui/barreFlottante.js';
 import { isAndroid, isDesktop } from './core/storage.js';
 
 // Le style choisi sur cet appareil, avant tout affichage (ecran de
@@ -26,6 +28,8 @@ appliquerZoom();
 // Premiere lettre en majuscule dans les champs de saisie (sauf identifiant,
 // mot de passe, email, liens).
 installerMajuscule();
+installerSuggestions();
+installerBarreFlottante();
 
 // Sur le telephone, pas d'export PDF : les boutons ecrits a la main dans
 // les pages (rapports, imprime d'une demande) se cachent par la feuille de style.
