@@ -25,7 +25,7 @@
 /** Collections synchronisees, telles qu'elles sont rangees dans la base. */
 export const COLLECTIONS_SYNCHRO = [
   'accounts', 'users', 'dotationPool', 'missions', 'maintenance',
-  'decharges', 'destinataires', 'garages', 'vidanges', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
+  'decharges', 'destinataires', 'sortiesAbidjan', 'garages', 'vidanges', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
   'demandes', 'notes', 'suiviComptes', 'etatsVehicules'
 ];
 
@@ -45,7 +45,7 @@ const DUREE_TRACES_MS = 400 * 24 * 3600 * 1000;
 /** Libelles des collections, pour le compte rendu. */
 export const LIBELLES_COLLECTIONS = {
   accounts: 'Comptes', users: 'Utilisateurs', dotationPool: 'Dotations pool', missions: 'Missions',
-  maintenance: 'Entretien', decharges: 'Courses', destinataires: 'Destinataires', garages: 'Garages', vidanges: 'Vidanges',
+  maintenance: 'Entretien', decharges: 'Courses', destinataires: 'Destinataires', sortiesAbidjan: 'Sorties d’Abidjan', garages: 'Garages', vidanges: 'Vidanges',
   destinationsMission: 'Destinations', trajets: 'Trajets', simulations: 'Simulations',
   indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', notes: 'Notes', suiviComptes: 'Suivi des comptes', etatsVehicules: 'État des véhicules', vehicules: 'Véhicules', reglages: 'Réglages'
 };
@@ -163,6 +163,7 @@ export function libelleFiche(c, f) {
   if (c === 'dotationPool') return [f.date, f.immat].filter(Boolean).join(' — ');
   if (c === 'maintenance') return [f.dateEntree, f.immat].filter(Boolean).join(' — ');
   if (c === 'decharges') return [f.ref, f.destinataire].filter(Boolean).join(' — ');
+  if (c === 'sortiesAbidjan') return [f.ref, f.conducteur, f.destination].filter(Boolean).join(' — ');
   if (c === 'indisponibilites') return [f.conducteur, f.motif, f.dateDepart].filter(Boolean).join(' — ');
   if (c === 'demandes') return [f.agent || f.nomPrenoms, f.type === 'conge' ? 'congé' : 'absence', f.dateDebut].filter(Boolean).join(' — ');
   if (c === 'suiviComptes') return f.id;

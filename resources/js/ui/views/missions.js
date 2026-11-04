@@ -10,7 +10,7 @@
 
 import {
   DB, insert, update, remove, knownImmats, knownDrivers, rotationConducteurs, indisponibiliteSurMission,
-  ravMontant, joursMission, renumeroterMissions, cumulsJoursConducteurs, prixLitreOptions, persist,
+  ravMontant, joursMission, renumeroterMissions, cumulsJoursConducteurs, rangsMissionsConducteurs, prixLitreOptions, persist,
   nomsDestinationsMission, destinationMissionParNom, assurerDestinationMission,
   renommerDestinationMission, missionsVersDestination, libelleDistance,
   lienCarteDestination, lienItineraire, coordonneesDe, distanceEstimee,
@@ -71,7 +71,7 @@ function renderSuivi(page) {
 
   const list = filtered();
   const parConducteur = groupBy(filtrer('MISSION', DB.missions), (m) => norm(m.conducteur || '—'));
-  const missionsDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
+  const rangs = rangsMissionsConducteurs(filtrer('MISSION', DB.missions));
   const cumuls = cumulsJoursConducteurs(filtrer('MISSION', DB.missions));
 
   const grid = el('<div class="statGrid"></div>');
@@ -102,8 +102,7 @@ function renderSuivi(page) {
   ];
 
   const rows = list.map((m) => {
-    const g = missionsDe(m);
-    const payee = `🟢 Payée${m.datePaiement ? `<br><small>${esc(m.datePaiement)}</small>` : ''}`;
+    const payee =`🟢 Payée${m.datePaiement ? `<br><small>${esc(m.datePaiement)}</small>` : ''}`;
     const paiement = m.paye
       ? canWrite()
         ? `<a href="#" data-pay data-write title="Modifier le paiement de la prime" style="color:inherit;text-decoration:none">${payee} <span data-export="">✎</span></a>`
@@ -114,7 +113,7 @@ function renderSuivi(page) {
     return [
       `<b>${esc(m.ref || '')}</b>`,
       esc(m.conducteur || ''),
-      `<span style="display:block;text-align:center">${g.length}</span>`,
+      `<span style="display:block;text-align:center">${rangs.get(m.id) || 0}</span>`,
       m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>` : '',
       celluleDestinations(m),
       esc(dateFR(m.dateDepart) || ''),
@@ -469,18 +468,99 @@ function lignesTotaux(t) {
     ligne('Frais de péage', t.fraisPeage) + ligne('Dépense divers', t.depenseDivers) + ligne('TOTAL', t.total, true);
 }
 
-/** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
-export function openRapportForm(m) {
-  const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
-  let zoneTotaux = null;
-  let champsTotaux = null;
+/**
+ * Bloc « Dotation en carburant — points de ravitaillement » et recapitulatif
+ * « Total des dépenses de la mission », montes sous les champs d'un
+ * formulaire. Sert au rapport de mission et a la sortie d'Abidjan.
+ *
+ * `rav` est modifiee sur place : le formulaire l'enregistre telle quelle.
+ * Les frais (fraisOm, fraisPeage, depenseDivers) sont lus dans les champs
+ * du formulaire ; un champ absent compte pour zero.
+ *
+ * @returns {() => void} recalcul des totaux, a appeler a chaque frappe
+ */
+export function monterRavitaillements(scope, rav) {
+  const bloc = el(
+    '<div class="subBlock" style="margin-top:14px"><h5>Dotation en carburant — points de ravitaillement</h5>' +
+    '<div data-ravlist></div>' +
+    '<div class="fGrid" style="margin-top:8px">' +
+    '<div class="fRow"><label>Date</label><input type="date" data-rdate></div>' +
+    '<div class="fRow"><label>Point de ravitaillement</label><input data-rstation></div>' +
+    '<div class="fRow"><label>Prix du litre</label>' + champPrixHtml() + '</div>' +
+    '<div class="fRow"><label>Montant (F)</label><input type="text" inputmode="numeric" autocomplete="off" data-montant data-rmontant></div>' +
+    '<div class="fRow"><label>Quantité (L)</label><input type="text" readonly tabindex="-1" data-rqte placeholder="montant ÷ prix du litre"></div>' +
+    '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
+    '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>TOTAL</b></span><b data-rtotal>0 L — 0 F</b></div></div>'
+  );
+  // Carburant + frais saisis : recalcule a chaque frappe et a chaque
+  // ravitaillement ajoute ou retire.
+  const recap = el('<div class="subBlock" style="margin-top:14px"><h5>Total des dépenses de la mission</h5><div data-recap></div></div>');
+  const zoneTotaux = recap.querySelector('[data-recap]');
   const majTotaux = () => {
-    if (!zoneTotaux) return;
-    const lire = (k) => lireMontant((champsTotaux.querySelector(`[data-key="${k}"]`) || {}).value || '');
+    const lire = (k) => lireMontant((scope.querySelector(`[data-key="${k}"]`) || {}).value || '');
     zoneTotaux.innerHTML = lignesTotaux(totauxRapportMission({
       ravitaillements: rav, fraisOm: lire('fraisOm'), fraisPeage: lire('fraisPeage'), depenseDivers: lire('depenseDivers')
     }));
   };
+
+  const liste = bloc.querySelector('[data-ravlist]');
+  const total = bloc.querySelector('[data-rtotal]');
+  cablerPrix(bloc);
+  cablerMontant(bloc.querySelector('[data-rmontant]'));
+  // La quantite se deduit du montant et du prix du litre, a chaque frappe.
+  const prixSaisi = () => bloc.querySelector('[data-rprix]').value;
+  const montantSaisi = () => lireMontant(bloc.querySelector('[data-rmontant]').value);
+  const majQuantite = () => {
+    const q = quantiteRavitaillement(montantSaisi(), prixSaisi());
+    bloc.querySelector('[data-rqte]').value = q ? `${fmt(q)} L` : '';
+  };
+  bloc.addEventListener('input', majQuantite);
+  bloc.addEventListener('change', majQuantite);
+
+  const dessiner = () => {
+    liste.innerHTML = rav.length
+      ? rav
+          .map(
+            (r, i) =>
+              `<div class="subEntryRow"><span>${esc(dateFR(r.date) || '—')} · ${esc(r.station || '—')} — ` +
+              `${fmt(r.quantite)} L × ${fmt(r.prixL)} F = ${fmt(ravMontant(r))} F</span>` +
+              `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 8px" data-rdel="${i}">✕</button></div>`
+          )
+          .join('')
+      : subEmpty('Aucun ravitaillement ajouté');
+    total.textContent = `${fmt(sum(rav, (r) => r.quantite))} L — ${fmt(sum(rav, ravMontant))} F`;
+    majTotaux();
+    liste.querySelectorAll('[data-rdel]').forEach((b) => {
+      b.onclick = () => { rav.splice(Number(b.dataset.rdel), 1); dessiner(); };
+    });
+  };
+  dessiner();
+
+  bloc.querySelector('[data-radd]').onclick = () => {
+    const station = bloc.querySelector('[data-rstation]').value.trim();
+    const prixL = francSup(prixSaisi());
+    const montant = francSup(montantSaisi());
+    if (!station || !prixL || montant <= 0) {
+      toast('Renseignez le point de ravitaillement, le prix du litre et un montant valide.', 'err');
+      return;
+    }
+    rav.push({ date: bloc.querySelector('[data-rdate]').value, station, prixL, montant, quantite: quantiteRavitaillement(montant, prixL) });
+    bloc.querySelector('[data-rstation]').value = '';
+    bloc.querySelector('[data-rmontant]').value = '';
+    bloc.querySelector('[data-rqte]').value = '';
+    dessiner();
+  };
+
+  scope.insertBefore(bloc, scope.querySelector('.err'));
+  scope.insertBefore(recap, scope.querySelector('.err'));
+  majTotaux();
+  return majTotaux;
+}
+
+/** Formulaire de saisie du rapport, avec la liste des ravitaillements. */
+export function openRapportForm(m) {
+  const rav = (m.ravitaillements || []).map((r) => Object.assign({}, r));
+  let majTotaux = () => {};
 
   openForm({
     title: `Rapport de mission — ${m.ref || m.conducteur}`,
@@ -533,77 +613,7 @@ export function openRapportForm(m) {
         sp.style.color = r && r.surPlace < 0 ? COLORS.red : '';
       }
     },
-    extra: (scope) => {
-      const bloc = el(
-        '<div class="subBlock" style="margin-top:14px"><h5>Dotation en carburant — points de ravitaillement</h5>' +
-        '<div data-ravlist></div>' +
-        '<div class="fGrid" style="margin-top:8px">' +
-        '<div class="fRow"><label>Date</label><input type="date" data-rdate></div>' +
-        '<div class="fRow"><label>Point de ravitaillement</label><input data-rstation></div>' +
-        '<div class="fRow"><label>Prix du litre</label>' + champPrixHtml() + '</div>' +
-        '<div class="fRow"><label>Montant (F)</label><input type="text" inputmode="numeric" autocomplete="off" data-montant data-rmontant></div>' +
-        '<div class="fRow"><label>Quantité (L)</label><input type="text" readonly tabindex="-1" data-rqte placeholder="montant ÷ prix du litre"></div>' +
-        '</div><button type="button" class="smallBtn" data-radd>+ Ajouter ce ravitaillement</button>' +
-        '<div class="subEntryRow" style="margin-top:8px;border:none"><span><b>TOTAL</b></span><b data-rtotal>0 L — 0 F</b></div></div>'
-      );
-      // Carburant + frais saisis : recalcule a chaque frappe et a chaque
-      // ravitaillement ajoute ou retire.
-      const recap = el('<div class="subBlock" style="margin-top:14px"><h5>Total des dépenses de la mission</h5><div data-recap></div></div>');
-      zoneTotaux = recap.querySelector('[data-recap]');
-      champsTotaux = scope;
-
-      const liste = bloc.querySelector('[data-ravlist]');
-      const total = bloc.querySelector('[data-rtotal]');
-      cablerPrix(bloc);
-      cablerMontant(bloc.querySelector('[data-rmontant]'));
-      // La quantite se deduit du montant et du prix du litre, a chaque frappe.
-      const prixSaisi = () => bloc.querySelector('[data-rprix]').value;
-      const montantSaisi = () => lireMontant(bloc.querySelector('[data-rmontant]').value);
-      const majQuantite = () => {
-        const q = quantiteRavitaillement(montantSaisi(), prixSaisi());
-        bloc.querySelector('[data-rqte]').value = q ? `${fmt(q)} L` : '';
-      };
-      bloc.addEventListener('input', majQuantite);
-      bloc.addEventListener('change', majQuantite);
-
-      const dessiner = () => {
-        liste.innerHTML = rav.length
-          ? rav
-              .map(
-                (r, i) =>
-                  `<div class="subEntryRow"><span>${esc(dateFR(r.date) || '—')} · ${esc(r.station || '—')} — ` +
-                  `${fmt(r.quantite)} L × ${fmt(r.prixL)} F = ${fmt(ravMontant(r))} F</span>` +
-                  `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 8px" data-rdel="${i}">✕</button></div>`
-              )
-              .join('')
-          : subEmpty('Aucun ravitaillement ajouté');
-        total.textContent = `${fmt(sum(rav, (r) => r.quantite))} L — ${fmt(sum(rav, ravMontant))} F`;
-        majTotaux();
-        liste.querySelectorAll('[data-rdel]').forEach((b) => {
-          b.onclick = () => { rav.splice(Number(b.dataset.rdel), 1); dessiner(); };
-        });
-      };
-      dessiner();
-
-      bloc.querySelector('[data-radd]').onclick = () => {
-        const station = bloc.querySelector('[data-rstation]').value.trim();
-        const prixL = francSup(prixSaisi());
-        const montant = francSup(montantSaisi());
-        if (!station || !prixL || montant <= 0) {
-          toast('Renseignez le point de ravitaillement, le prix du litre et un montant valide.', 'err');
-          return;
-        }
-        rav.push({ date: bloc.querySelector('[data-rdate]').value, station, prixL, montant, quantite: quantiteRavitaillement(montant, prixL) });
-        bloc.querySelector('[data-rstation]').value = '';
-        bloc.querySelector('[data-rmontant]').value = '';
-        bloc.querySelector('[data-rqte]').value = '';
-        dessiner();
-      };
-
-      scope.insertBefore(bloc, scope.querySelector('.err'));
-      scope.insertBefore(recap, scope.querySelector('.err'));
-      majTotaux();
-    },
+    extra: (scope) => { majTotaux = monterRavitaillements(scope, rav); },
     onSubmit: (v) => {
       // Avant l'enregistrement : celui-ci accorde aussi ÉTAT DES VÉHICULES,
       // et ce qu'il y a fait ne se lirait plus dans le message.
@@ -1443,7 +1453,7 @@ function openDestinationForm(d) {
       if (isEdit) {
         const suivies = renommerDestinationMission(d.nom, nom);
         update('destinationsMission', d.id, payload);
-        toast(`Destination mise à jour.${suivies ? ` ${suivies} mission(s) suivent le nouveau nom.` : ''}`, 'ok');
+        toast(`Destination mise à jour.${suivies ? ` ${suivies} mission(s) ou sortie(s) suivent le nouveau nom.` : ''}`, 'ok');
       } else {
         insert('destinationsMission', payload);
         toast('Destination enregistrée.', 'ok');

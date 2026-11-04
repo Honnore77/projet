@@ -90,9 +90,9 @@ export function renderDashboard(page) {
     parMois[k].litres += num(d.quantite);
     parMois[k].montant += num(d.montant);
   });
-  DB.missions.forEach((m) => {
+  DB.missions.concat(DB.sortiesAbidjan || []).forEach((m) => {
     (m.ravitaillements || []).forEach((r) => {
-      const k = monthKey(r.date || m.dateDepart);
+      const k = monthKey(r.date || m.dateDepart || m.date);
       if (!k) return;
       parMois[k] = parMois[k] || { litres: 0, montant: 0 };
       parMois[k].litres += num(r.quantite);

@@ -26,6 +26,7 @@ export function renderVehicleSheet(page) {
   // Le carburant des missions est porte par la mission elle-meme (rapport).
   const missionsCarburant = DB.missions.filter((m) => same(m.vehicule, immat) && (m.ravitaillements || []).length);
   const missions = DB.missions.filter((m) => same(m.vehicule, immat));
+  const sorties = (DB.sortiesAbidjan || []).filter((x) => same(x.vehicule, immat));
   const maint = DB.maintenance.filter((m) => same(m.immat, immat));
 
   page.appendChild(
@@ -101,6 +102,26 @@ export function renderVehicleSheet(page) {
       });
   }
 
+  /* ------------------------ Sorties d'Abidjan ------------------------ */
+  if (sorties.length) {
+    page.appendChild(sectionLabel(`SORTIES D’ABIDJAN (${sorties.length})`, '#8D6E63'));
+    sorties
+      .slice()
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+      .forEach((x) => {
+        const rav = x.ravitaillements || [];
+        page.appendChild(
+          card(
+            `${x.ref || 'Sortie'} — ${x.conducteur || '—'}`,
+            `${x.destination || '—'} · ${dateFR(x.date)}` +
+              (rav.length ? `
+Carburant : ${fmt(sum(rav, (r) => num(r.quantite)))} L — ${fmt(sum(rav, ravMontant))} F` : ''),
+            '#8D6E63'
+          )
+        );
+      });
+  }
+
   /* ------------------------ Photos et documents ---------------------- */
   // Toutes les images qui parlent de ce vehicule, d'ou qu'elles viennent :
   // la fiche vehicule, ses passages au garage, ses prises de carburant. On
@@ -128,7 +149,7 @@ export function renderVehicleSheet(page) {
     renderMaintenanceEntries(page, maint);
   }
 
-  if (!vehicle && !dots.length && !missionsCarburant.length && !missions.length && !maint.length) {
+  if (!vehicle && !dots.length && !missionsCarburant.length && !missions.length && !sorties.length && !maint.length) {
     page.appendChild(emptyState('Aucune donnée trouvée pour cette immatriculation.'));
   }
 }

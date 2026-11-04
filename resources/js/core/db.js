@@ -137,6 +137,10 @@ export function emptyDB() {
     // vehicule retient celui de son utilisateur : c'est ce qui s'imprime.
     decharges: [],
     destinataires: [],
+    // SORTIES → SORTIES D'ABIDJAN : deplacements hors d'Abidjan qui ne sont
+    // pas des missions. A part des missions : ils ne comptent ni dans le tour
+    // de role, ni dans les jours, ni dans le nombre de missions.
+    sortiesAbidjan: [],
     // ENTRETIEN → GARAGES : les garages ou passent les vehicules.
     garages: [],
     // ENTRETIEN → VIDANGES : chaque vidange faite, hors passages au garage.
@@ -344,7 +348,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(reglagesParDefaut, raw && raw.settings);
@@ -647,15 +651,34 @@ export function renumeroterMissions(db = DB) {
 export function cumulsJoursConducteurs(missions = DB.missions) {
   const cumuls = new Map();
   const totaux = {};
-  missions
-    .slice()
-    .sort((a, b) => String(a.ref || '').localeCompare(String(b.ref || ''), 'fr', { numeric: true }))
-    .forEach((m) => {
-      const k = norm(m.conducteur || '—');
-      totaux[k] = (totaux[k] || 0) + num(m.jours);
-      cumuls.set(m.id, totaux[k]);
-    });
+  missionsParReference(missions).forEach((m) => {
+    const k = norm(m.conducteur || '—');
+    totaux[k] = (totaux[k] || 0) + num(m.jours);
+    cumuls.set(m.id, totaux[k]);
+  });
   return cumuls;
+}
+
+/**
+ * Nombre progressif de missions de chaque conducteur : 1 pour sa premiere
+ * mission, 2 pour la suivante, dans le meme ordre que le cumul des jours.
+ * @returns {Map<string, number>} id de mission → rang
+ */
+export function rangsMissionsConducteurs(missions = DB.missions) {
+  const rangs = new Map();
+  const totaux = {};
+  missionsParReference(missions).forEach((m) => {
+    const k = norm(m.conducteur || '—');
+    totaux[k] = (totaux[k] || 0) + 1;
+    rangs.set(m.id, totaux[k]);
+  });
+  return rangs;
+}
+
+function missionsParReference(missions) {
+  return missions
+    .slice()
+    .sort((a, b) => String(a.ref || '').localeCompare(String(b.ref || ''), 'fr', { numeric: true }));
 }
 
 /** Reprend les donnees des versions precedentes de l'application. */
@@ -961,6 +984,11 @@ export function derniereLectureKm(immat) {
     ajouter(m.dateDepart, m.kmDepart, 'départ en mission');
     ajouter(m.dateRetour || m.dateDepart, m.kmArrivee, 'retour de mission');
   });
+  (DB.sortiesAbidjan || []).forEach((x) => {
+    if (!memeImmat(x.vehicule)) return;
+    ajouter(x.date, x.kmDepart, 'départ en sortie d’Abidjan');
+    ajouter(x.date, x.kmArrivee, 'retour de sortie d’Abidjan');
+  });
 
   // A date egale, la lecture la plus elevee : un compteur ne revient pas en
   // arriere, et une sortie de garage se saisit le jour de l'entree.
@@ -1000,6 +1028,7 @@ export function knownImmats() {
   allVehicles().forEach((v) => { const i = immatOf(v); if (i) set.add(i); });
   DB.dotationPool.forEach((d) => d.immat && set.add(d.immat));
   DB.missions.forEach((m) => m.vehicule && set.add(m.vehicule));
+  (DB.sortiesAbidjan || []).forEach((x) => x.vehicule && set.add(x.vehicule));
   DB.maintenance.forEach((m) => m.immat && set.add(m.immat));
   return [...set].sort();
 }
@@ -1135,7 +1164,7 @@ export function prixLitreOptions(energie) {
   [regle.essence, regle.diesel].forEach((p) => { if (p) ordre.push(p); });
 
   DB.dotationPool.forEach((d) => { if (num(d.prixL)) ordre.push(num(d.prixL)); });
-  DB.missions.forEach((m) => {
+  DB.missions.concat(DB.sortiesAbidjan || []).forEach((m) => {
     (m.ravitaillements || []).forEach((r) => { if (num(r.prixL)) ordre.push(num(r.prixL)); });
   });
 
@@ -1253,6 +1282,7 @@ export function knownDrivers() {
   const set = new Set();
   DB.users.forEach((u) => set.add(`${u.nom} ${u.prenoms}`.trim()));
   DB.missions.forEach((m) => m.conducteur && set.add(m.conducteur));
+  (DB.sortiesAbidjan || []).forEach((x) => x.conducteur && set.add(x.conducteur));
   return [...set].filter(Boolean).sort();
 }
 
@@ -1614,7 +1644,8 @@ export function fuelCost(immat) {
     .filter((d) => memeVehicule(d.immat, immat))
     .reduce((s, d) => s + num(d.montant), 0);
 
-  const mission = DB.missions
+  // Les sorties d'Abidjan portent leurs ravitaillements comme une mission.
+  const mission = DB.missions.concat(DB.sortiesAbidjan || [])
     .filter((m) => memeVehicule(m.vehicule, immat))
     .reduce((s, m) => s + (m.ravitaillements || []).reduce((t, r) => t + ravMontant(r), 0), 0);
 
@@ -1761,6 +1792,31 @@ export function refDechargeEnDouble(ref, exclureId, db = DB) {
   const cle = norm(ref || '');
   if (!cle) return false;
   return (db.decharges || []).some((d) => d.id !== exclureId && norm(d.ref || '') === cle);
+}
+
+/* =================================================================
+   SORTIES D'ABIDJAN — deplacements vers une destination hors d'Abidjan,
+   tenus a part des missions (ni tour de role, ni jours, ni rang).
+
+   Une sortie porte une seule destination, rangee aussi dans
+   `destinations` : le parcours aller-retour se calcule alors comme celui
+   d'une mission (parcoursMission), sur les memes distances.
+   ================================================================= */
+
+/** Reference proposee pour la prochaine sortie : SA-001, SA-002… */
+export function prochaineRefSortieAbidjan(db = DB) {
+  const max = (db.sortiesAbidjan || []).reduce((m, x) => {
+    const r = /^SA-(\d+)$/i.exec(String(x.ref || '').trim());
+    return r ? Math.max(m, Number(r[1])) : m;
+  }, 0);
+  return `SA-${String(max + 1).padStart(3, '0')}`;
+}
+
+/** Une reference deja portee par une autre sortie que celle qu'on modifie. */
+export function refSortieAbidjanEnDouble(ref, exclureId, db = DB) {
+  const cle = norm(ref || '');
+  if (!cle) return false;
+  return (db.sortiesAbidjan || []).some((x) => x.id !== exclureId && norm(x.ref || '') === cle);
 }
 
 /** Noms des structures destinataires, dans l'ordre alphabetique. */
@@ -2370,6 +2426,12 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
     liste[i] = propre;
     m.destinations = liste;
     m.destination = texteDestinations(liste);
+    n += 1;
+  });
+  (db.sortiesAbidjan || []).forEach((x) => {
+    if (norm(x.destination || '') !== cle || x.destination === propre) return;
+    x.destination = propre;
+    x.destinations = [propre];
     n += 1;
   });
   (db.trajets || []).forEach((t) => {

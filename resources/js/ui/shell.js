@@ -97,6 +97,7 @@ export const state = {
     dotationPool: { dateFrom: '', dateTo: '', immat: '' },
     dotationMission: { dateFrom: '', dateTo: '', conducteur: '' },
     decharges: { dateFrom: '', dateTo: '', destinataire: '' },
+    sortiesAbidjan: { dateFrom: '', dateTo: '', conducteur: '' },
     indisponibilites: { etat: '', motif: '', conducteur: '' },
     // annee affichee par les sous-rubriques STATISTIQUES (l'annee en cours d'abord)
     statistiques: {}

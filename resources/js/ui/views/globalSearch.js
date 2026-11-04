@@ -108,6 +108,18 @@ export function renderGlobalSearch(page) {
     }
   });
 
+  filtrer('DECHARGE', DB.sortiesAbidjan || []).forEach((x) => {
+    if (norm(`${x.ref} ${x.conducteur} ${x.vehicule} ${x.destination} ${(x.participants || []).join(' ')}`).includes(q)) {
+      results.push({
+        type: 'SORTIE D’ABIDJAN',
+        color: '#8D6E63',
+        title: `${x.ref || 'Sortie'} — ${x.conducteur || '—'}`,
+        sub: `${x.destination || '—'} · ${dateFR(x.date)}${x.vehicule ? ` · ${x.vehicule}` : ''}`,
+        action: () => { state.sub.DECHARGE = 'abidjan'; navigate('DECHARGE'); }
+      });
+    }
+  });
+
   (voitTout('DECHARGE') ? DB.destinataires : []).forEach((d) => {
     if (norm(`${d.nom} ${d.contacts} ${d.localisation}`).includes(q)) {
       results.push({

@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission } from '../core/db.js';
 
 import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -306,6 +306,7 @@ export function dsMissions(list = DB.missions) {
   // Comme dans le suivi : les cumuls du conducteur portent sur toutes ses
   // missions, pas sur celles retenues par les filtres.
   const byDriver = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
+  const rangs = rangsMissionsConducteurs(DB.missions);
   return {
     title: 'Missions',
     columns: [
@@ -328,7 +329,7 @@ export function dsMissions(list = DB.missions) {
       return {
         ref: m.ref || '',
         conducteur: m.conducteur || '',
-        nbMissions: g.length,
+        nbMissions: rangs.get(m.id) || 0,
         vehicule: m.vehicule || '',
         destination: m.destination || '',
         distance: kmAbidjan(m),
@@ -354,8 +355,7 @@ export function dsMissions(list = DB.missions) {
  * sur celles retenues par les filtres, sinon le cumul ne voudrait rien dire.
  */
 export function dsSuiviMissions(list = DB.missions) {
-  const parConducteur = groupBy(DB.missions, (m) => norm(m.conducteur || '—'));
-  const totalDe = (m) => parConducteur[norm(m.conducteur || '—')] || [];
+  const rangs = rangsMissionsConducteurs(DB.missions);
   const cumuls = cumulsJoursConducteurs(DB.missions);
 
   return {
@@ -371,7 +371,7 @@ export function dsSuiviMissions(list = DB.missions) {
     ],
     rows: list.map((m) => ({
       conducteur: m.conducteur || '',
-      nbMissions: totalDe(m).length,
+      nbMissions: rangs.get(m.id) || 0,
       vehicule: m.vehicule || '',
       periode: `${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
       destination: m.destination || '',
@@ -607,6 +607,60 @@ export function dsVidanges(list = DB.vidanges || []) {
 }
 
 /** Decharges : memes colonnes que le tableau de la rubrique. */
+/** SORTIES → SORTIES D'ABIDJAN : une ligne par sortie, frais et carburant compris. */
+export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
+  const rows = list.map((x) => {
+    const t = totauxRapportMission(x);
+    const p = parcoursMission(x);
+    const dist = distanceCompteur(x);
+    return {
+      ref: x.ref || '',
+      date: dateFR(x.date),
+      conducteur: x.conducteur || '',
+      vehicule: x.vehicule || '',
+      destination: x.destination || '',
+      kmDepart: nombreOuVide(x.kmDepart),
+      kmArrivee: nombreOuVide(x.kmArrivee),
+      distance: dist === null ? '' : dist,
+      parcours: p.etapes.length && p.complet ? p.total : '',
+      participants: (x.participants || []).filter(Boolean).join(', '),
+      dotation: nombreOuVide(x.dotationCarburant),
+      litres: litres(sum(x.ravitaillements || [], (r) => r.quantite)),
+      carburant: t.carburant,
+      fraisOm: t.fraisOm,
+      fraisPeage: t.fraisPeage,
+      depenseDivers: t.depenseDivers,
+      justification: x.justificationDivers || '',
+      total: t.total
+    };
+  });
+  return {
+    title: 'Sorties d’Abidjan',
+    columns: [
+      C('ref', 'Réf.', 10),
+      C('date', 'Date', 12),
+      C('conducteur', 'Conducteur', 22),
+      C('vehicule', 'Véhicule', 14),
+      C('destination', 'Destination', 20),
+      C('kmDepart', 'Km départ', 11),
+      C('kmArrivee', 'Km arrivée', 11),
+      C('distance', 'Distance (compteur)', 12),
+      C('parcours', 'Parcours A-R (km)', 12),
+      C('participants', 'Participants', 30),
+      C('dotation', 'Dotation', 12),
+      C('litres', 'Carburant (L)', 11),
+      C('carburant', 'Carburant (F)', 12),
+      C('fraisOm', 'Frais OM', 11),
+      C('fraisPeage', 'Péage', 11),
+      C('depenseDivers', 'Dépense divers', 12),
+      C('justification', 'Justification', 22),
+      C('total', 'Total', 13)
+    ],
+    rows,
+    note: `${fmt(rows.length)} sortie(s) — total des dépenses : ${fmt(sum(rows, (r) => r.total))} F`
+  };
+}
+
 export function dsDecharges(list = DB.decharges) {
   return {
     title: 'Courses',

@@ -17,7 +17,7 @@
 import {
   DB, allVehicles, immatOf, immatActuelle, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
   destinationsDe, parcoursMission, dureeIndisponibilite, indisponibilitesEnCours, nomComplet,
-  vehiculesDeLAgent, vehiculesImmobilises, cleVehicule
+  vehiculesDeLAgent, vehiculesImmobilises, cleVehicule, totauxRapportMission
 } from './db.js';
 import { fmt, num, norm, sum, daysBetween, todayISO } from './utils.js';
 
@@ -343,19 +343,24 @@ export function statsEntretien(annee) {
 export function statsDecharges(annee) {
   const ds = deLAnnee(DB.decharges || [], (d) => d.date, annee);
   const signees = ds.filter((d) => (d.images || []).length);
+  const sa = deLAnnee(DB.sortiesAbidjan || [], (x) => x.date, annee);
   return {
     tuiles: [
       { titre: 'Courses', valeur: fmt(ds.length), detail: annee ? `en ${annee}` : 'toutes années' },
       { titre: 'Destinataires', valeur: fmt(new Set(ds.map((d) => norm(d.destinataire || '')).filter(Boolean)).size), detail: `${fmt((DB.destinataires || []).length)} dans la liste` },
       { titre: 'Décharges signées jointes', valeur: fmt(signees.length), detail: pct(signees.length, ds.length) },
-      { titre: 'Photo à joindre', valeur: fmt(ds.length - signees.length), detail: 'décharge signée manquante' }
+      { titre: 'Photo à joindre', valeur: fmt(ds.length - signees.length), detail: 'décharge signée manquante' },
+      { titre: 'Sorties d’Abidjan', valeur: fmt(sa.length), detail: annee ? `en ${annee}` : 'toutes années' },
+      { titre: 'Dépenses des sorties', valeur: F(sum(sa, (x) => totauxRapportMission(x).total)), detail: 'carburant et frais' }
     ],
     blocs: [
       blocMensuel('Courses par mois', parMois(ds, (d) => d.date, annee, { Courses: () => 1 })),
       blocRepartition('Courses par destinataire', repartition(ds, (d) => d.destinataire, { limite: 10 }), { type: 'bar' }),
       blocRepartition('Décharge signée', repartition(ds, (d) => ((d.images || []).length ? 'jointe' : 'à joindre'))),
       blocRepartition('Courses par conducteur', repartition(ds, (d) => d.conducteur, { limite: 10 }), { type: 'bar' }),
-      blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' })
+      blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' }),
+      blocMensuel('Sorties d’Abidjan par mois', parMois(sa, (x) => x.date, annee, { Sorties: () => 1 })),
+      blocRepartition('Sorties d’Abidjan par destination', repartition(sa, (x) => x.destination, { limite: 10 }), { type: 'bar' })
     ]
   };
 }

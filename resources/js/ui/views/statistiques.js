@@ -14,7 +14,7 @@ import { chartCardTypes, destroyCharts, colorsFor, dessinerGraphique, imageDuGra
 import { allVehicles } from '../../core/db.js';
 import {
   dsVehicles, dsUsers, dsIncidents, dsIndisponibilites, dsDotationPool, dsRavitaillementsMissions,
-  dsMissions, dsCarburantMissions, dsMaintenance, dsInterventions, dsDecharges, dsDestinataires, dsSimulations
+  dsMissions, dsCarburantMissions, dsMaintenance, dsInterventions, dsDecharges, dsDestinataires, dsSortiesAbidjan, dsSimulations
 } from '../../export/datasets.js';
 import { analyserColonnes, mesuresPossibles, libelleMesure, regrouper, lignesDeLAnnee } from '../../core/graphiqueLibre.js';
 import { exportExcel } from '../../export/excel.js';
@@ -153,7 +153,8 @@ const TABLEAUX = {
   ],
   DECHARGE: [
     { titre: 'Courses', ds: () => dsDecharges(), date: 'date' },
-    { titre: 'Destinataires', ds: () => dsDestinataires() }
+    { titre: 'Destinataires', ds: () => dsDestinataires() },
+    { titre: 'Sorties d’Abidjan', ds: () => dsSortiesAbidjan(), date: 'date' }
   ],
   SIMULATION: [{ titre: 'Simulations', ds: () => dsSimulations(), date: 'periode' }]
 };

@@ -35,7 +35,7 @@ function structuresConnues() {
   nomsGarages().forEach(voir);
   (DB.vidanges || []).forEach((x) => voir(x.structure));
   (DB.dotationPool || []).forEach((d) => voir(d.station));
-  (DB.missions || []).forEach((m) => (m.ravitaillements || []).forEach((r) => voir(r.station)));
+  (DB.missions || []).concat(DB.sortiesAbidjan || []).forEach((m) => (m.ravitaillements || []).forEach((r) => voir(r.station)));
   return [...vus.values()].sort((a, b) => a.localeCompare(b, 'fr'));
 }
 

@@ -107,4 +107,11 @@ test('le cumul des jours progresse mission apres mission, conducteur par conduct
   assert.equal(c.get('k3'), 9);
   assert.equal(c.get('y1'), 5);
   assert.equal(c.get('k0'), 9);
+
+  const r = db.rangsMissionsConducteurs(base.missions);
+  assert.equal(r.get('k1'), 1);
+  assert.equal(r.get('k2'), 2);
+  assert.equal(r.get('k3'), 3);
+  assert.equal(r.get('k0'), 4);
+  assert.equal(r.get('y1'), 1);
 });
