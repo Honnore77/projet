@@ -11,7 +11,7 @@ import { el, esc, fmt } from '../../core/utils.js';
 import { card, toolbar, filterBar, statTile, dataTable, sectionLabel, emptyState, toast, COLORS } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
 import { chartCardTypes, destroyCharts, colorsFor, dessinerGraphique, imageDuGraphique } from '../charts.js';
-import { allVehicles } from '../../core/db.js';
+import { allVehicles, libelleVehicule } from '../../core/db.js';
 import {
   dsVehicles, dsUsers, dsIncidents, dsIndisponibilites, dsDotationPool, dsRavitaillementsMissions,
   dsMissions, dsCarburantMissions, dsMaintenance, dsInterventions, dsDecharges, dsDestinataires, dsSortiesAbidjan, dsSimulations
@@ -322,7 +322,7 @@ function carteGraphiqueLibre(cle, annee, etat, { numero, surChoix, retirer }) {
     }
     const colonne = colonnes.find((c) => c.key === sel('colonne').value);
     const mesure = sel('mesure').value || 'nombre';
-    const r = colonne && rows.length ? regrouper(rows, colonne, mesure, { annee }) : { libelles: [], valeurs: [], total: 0 };
+    const r = colonne && rows.length ? regrouper(rows, colonne, mesure, { annee, immat: libelleVehicule }) : { libelles: [], valeurs: [], total: 0 };
     const nomMesure = libelleMesure(mesure, colonnes);
     const g = {
       // Des categories : une couleur par barre ; des mois : une seule couleur.

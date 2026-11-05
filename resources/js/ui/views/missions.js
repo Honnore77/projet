@@ -22,7 +22,7 @@ import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicule
 import { canWrite } from '../../core/auth.js';
 import { filtrer, seulementSiennes, peutModifier } from '../../core/acces.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
-import {
+import { autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
   statTile, dataTable, groupHeader, subEmpty, cablerMontant, COLORS
 } from '../components.js';
@@ -114,7 +114,7 @@ function renderSuivi(page) {
       `<b>${esc(m.ref || '')}</b>`,
       esc(m.conducteur || ''),
       `<span style="display:block;text-align:center">${rangs.get(m.id) || 0}</span>`,
-      m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>` : '',
+      m.vehicule ? `<a href="#" data-veh style="color:${COLORS.blue}">${esc(m.vehicule)}</a>${autreImmat(m.vehicule)}` : '',
       celluleDestinations(m),
       esc(dateFR(m.dateDepart) || ''),
       esc(dateFR(m.dateRetour) || ''),
@@ -241,7 +241,7 @@ function renderRapport(page) {
       const rempli = d.participants.length || d.ravitaillements.length || d.kmDepart !== '' || d.observations || d.observationsDivers;
       return [
         `<b>${esc(m.conducteur || '—')}</b>${m.ref ? `<br><small>${esc(m.ref)}</small>` : ''}`,
-        esc(m.vehicule || ''),
+        esc(m.vehicule || '') + autreImmat(m.vehicule),
         `${esc(dateFR(m.dateDepart) || '…')} → ${esc(dateFR(m.dateRetour) || '…')}` +
           (m.jours !== '' && m.jours !== undefined ? `<br><small>${m.jours} jour(s)</small>` : ''),
         celluleDestinations(m),

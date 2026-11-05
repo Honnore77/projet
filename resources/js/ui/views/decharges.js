@@ -20,7 +20,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
-import {
+import { autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
 } from '../components.js';
@@ -140,7 +140,7 @@ function renderListeDecharges(page) {
     esc(dateFR(d.date)),
     esc(d.recuperePar || ''),
     esc(d.conducteur || ''),
-    esc(d.immat || ''),
+    esc(d.immat || '') + autreImmat(d.immat),
     // La decharge signee est la preuve de remise : son absence se voit.
     (d.images || []).length
       ? miniBtn(COULEUR(), 'data-photo', `📎 ${(d.images || []).length}`, 'Voir la décharge signée')
@@ -480,7 +480,7 @@ function renderSortiesAbidjan(page) {
       `<b style="white-space:nowrap">${esc(x.ref || '')}</b>`,
       esc(dateFR(x.date)),
       esc(x.conducteur || ''),
-      esc(x.vehicule || ''),
+      esc(x.vehicule || '') + autreImmat(x.vehicule),
       esc(x.destination || ''),
       droite(vide(x.kmDepart) ? '' : esc(fmt(x.kmDepart))),
       droite(vide(x.kmArrivee) ? '' : esc(fmt(x.kmArrivee))),

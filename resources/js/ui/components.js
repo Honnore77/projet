@@ -4,12 +4,28 @@
    =================================================================== */
 
 import { esc, el, grouperMilliers, lireMontant } from '../core/utils.js';
+import { vehiculeDeLImmat } from '../core/db.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 import { voitTout, rubriqueCourante } from '../core/acces.js';
 import { isAndroid } from '../core/storage.js';
 import { ouvrirFicheLigne, texteEntete } from './ficheLigne.js';
 import { concerne, majusculesInitiales } from './majuscule.js';
 import { envoiDisponible, exporterPourEnvoi, exporterNormalement, messagesExportTus } from '../export/envoi.js';
+
+/**
+ * Sous une plaque, l'autre immatriculation du vehicule, en petit : « nouvelle :
+ * D45 5082 » sous D45 846, « ancienne : D45 846 » sous D45 5082. Rien si
+ * le vehicule n'en a qu'une. La plaque saisie reste celle qu'on lit.
+ */
+export function autreImmat(immat) {
+  const v = vehiculeDeLImmat(immat);
+  if (!v || !v.immatAncienne || !v.immatNouvelle) return '';
+  const cle = (x) => String(x || '').replace(/\s+/g, '').toUpperCase();
+  if (cle(v.immatAncienne) === cle(v.immatNouvelle)) return '';
+  const ancienne = cle(immat) === cle(v.immatAncienne);
+  const autre = ancienne ? v.immatNouvelle : v.immatAncienne;
+  return `<small style="display:block;color:#5b7178;white-space:nowrap;font-weight:normal">${ancienne ? 'nouvelle' : 'ancienne'} : ${esc(autre)}</small>`;
+}
 
 export const COLORS = {
   green: '#008A3B',

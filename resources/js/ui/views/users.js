@@ -11,7 +11,7 @@
    vehicule de pool et de service.
    =================================================================== */
 
-import {
+import { immatAvecAutre,
   DB, STATUTS_USER, SECTIONS, insert, update, remove, touch, knownImmats,
   nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules,
   lignesTelephone, MOTIFS_INDISPONIBILITE, dureeIndisponibilite, etatIndisponibilite,
@@ -240,7 +240,7 @@ function openHistorique(u) {
             .map(
               (h, i) =>
                 `<div class="subEntryRow"><span><b>${esc(h.nature || 'Incident')}</b> — ${esc(dateFR(h.date))}` +
-                `${h.vehicule ? ` · ${esc(h.vehicule)}` : ''}` +
+                `${h.vehicule ? ` · ${esc(immatAvecAutre(h.vehicule))}` : ''}` +
                 `${h.circonstances ? `<br><small>${esc(h.circonstances)}</small>` : ''}` +
                 `${h.responsabilite ? `<br><small>Responsabilité : ${esc(h.responsabilite)}</small>` : ''}` +
                 `${h.suite ? `<br><small>Suite : ${esc(h.suite)}</small>` : ''}</span>` +

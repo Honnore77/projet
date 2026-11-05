@@ -15,7 +15,7 @@
    =================================================================== */
 
 import {
-  DB, allVehicles, immatOf, immatActuelle, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
+  DB, allVehicles, immatOf, libelleVehicule, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
   destinationsDe, parcoursMission, dureeIndisponibilite, indisponibilitesEnCours, nomComplet,
   vehiculesDeLAgent, vehiculesImmobilises, cleVehicule, totauxRapportMission
 } from './db.js';
@@ -159,7 +159,7 @@ export function statsVehicules(annee = '') {
       blocFrequence('Fréquence de sortie des conducteurs du pool (courses)', repartition(sorties, (d) => d.conducteur, { limite: 15 })),
       blocFrequence('Fréquence de sortie des véhicules du pool (courses)',
         // Ancienne et nouvelle immatriculation : un seul vehicule.
-        repartition(sorties, (d) => immatActuelle(d.immat), { limite: 15 })),
+        repartition(sorties, (d) => libelleVehicule(d.immat), { limite: 15 })),
       blocMensuel('Sorties du pool par mois', parMois(sorties, (d) => d.date, annee, { Sorties: () => 1 })),
       blocRepartition('Véhicules par catégorie', repartition(tous, (v) => String(v._cat || '').toUpperCase())),
       blocRepartition('Véhicules par statut', repartition(tous, (v) => v.statut)),
@@ -249,8 +249,8 @@ export function statsDotation(annee) {
       blocClassement('Carburant pool par véhicule', ['Véhicule', 'Prises', 'Litres', 'Montant'],
         // Un vehicule, une ligne : les prises sous l'ancienne immatriculation
         // se comptent avec celles sous la nouvelle.
-        repartition(pool, (d) => immatActuelle(d.immat), { valeur: (d) => d.quantite }).lignes.map((l) => {
-          const lot = pool.filter((d) => immatActuelle(d.immat) === l.libelle || (!d.immat && l.libelle === 'non renseigné'));
+        repartition(pool, (d) => libelleVehicule(d.immat), { valeur: (d) => d.quantite }).lignes.map((l) => {
+          const lot = pool.filter((d) => libelleVehicule(d.immat) === l.libelle || (!d.immat && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(lot.length), `${fmt(l.nombre)} L`, F(sum(lot, (d) => d.montant))];
         }), 15),
       blocRepartition('Litres pool par station-service', repartition(pool, (d) => d.station, { valeur: (d) => d.quantite, limite: 8 }), { type: 'bar', entete: 'Litres' }),
@@ -283,7 +283,7 @@ export function statsMissions(annee) {
     ],
     blocs: [
       blocFrequence('Fréquence de sortie des conducteurs en mission', repartition(ms, (m) => m.conducteur, { limite: 15 }), 'Missions'),
-      blocFrequence('Fréquence de sortie des véhicules en mission', repartition(ms, (m) => immatActuelle(m.vehicule), { limite: 15 }), 'Missions'),
+      blocFrequence('Fréquence de sortie des véhicules en mission', repartition(ms, (m) => libelleVehicule(m.vehicule), { limite: 15 }), 'Missions'),
       blocMensuel('Missions et jours par mois', parMois(ms, (m) => m.dateDepart, annee, { Missions: () => 1, Jours: (m) => m.jours })),
       blocClassement('Missions par conducteur', ['Conducteur', 'Missions', 'Jours', 'Km au compteur'],
         repartition(ms, (m) => m.conducteur).lignes.map((l) => {
@@ -293,8 +293,8 @@ export function statsMissions(annee) {
       blocRepartition('Destinations les plus fréquentes',
         repartition(ms.flatMap((m) => destinationsDe(m)), (d) => d, { limite: 10 }), { type: 'bar', entete: 'Visites' }),
       blocClassement('Missions par véhicule', ['Véhicule', 'Missions', 'Jours', 'Km au compteur'],
-        repartition(ms, (m) => immatActuelle(m.vehicule)).lignes.map((l) => {
-          const lot = ms.filter((m) => immatActuelle(m.vehicule) === l.libelle || (!m.vehicule && l.libelle === 'non renseigné'));
+        repartition(ms, (m) => libelleVehicule(m.vehicule)).lignes.map((l) => {
+          const lot = ms.filter((m) => libelleVehicule(m.vehicule) === l.libelle || (!m.vehicule && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(l.nombre), fmt(sum(lot, (m) => m.jours)), `${fmt(sum(lot, compteur))} km`];
         }), 15),
       blocRepartition('Paiement des missions', repartition(ms, (m) => (m.paye ? 'payée' : 'non payée'))),
@@ -324,8 +324,8 @@ export function statsEntretien(annee) {
     blocs: [
       blocMensuel('Passages et coût par mois', parMois(ms, (m) => m.dateEntree, annee, { Passages: () => 1, 'Coût (F)': cout }), { 'Coût (F)': F }),
       blocClassement('Entretien par véhicule', ['Véhicule', 'Passages', 'Jours immobilisé', 'Coût'],
-        repartition(ms, (m) => immatActuelle(m.immat)).lignes.map((l) => {
-          const lot = ms.filter((m) => immatActuelle(m.immat) === l.libelle || (!m.immat && l.libelle === 'non renseigné'));
+        repartition(ms, (m) => libelleVehicule(m.immat)).lignes.map((l) => {
+          const lot = ms.filter((m) => libelleVehicule(m.immat) === l.libelle || (!m.immat && l.libelle === 'non renseigné'));
           return [l.libelle, fmt(l.nombre), fmt(sum(lot, duree)), F(sum(lot, cout))];
         }), 15),
       blocRepartition('Interventions par garage', repartition(ivs, (i) => i.garage, { limite: 8 }), { type: 'bar', entete: 'Interventions' }),
@@ -358,9 +358,12 @@ export function statsDecharges(annee) {
       blocRepartition('Courses par destinataire', repartition(ds, (d) => d.destinataire, { limite: 10 }), { type: 'bar' }),
       blocRepartition('Décharge signée', repartition(ds, (d) => ((d.images || []).length ? 'jointe' : 'à joindre'))),
       blocRepartition('Courses par conducteur', repartition(ds, (d) => d.conducteur, { limite: 10 }), { type: 'bar' }),
+      // Ancienne et nouvelle immatriculation : un seul vehicule.
+      blocRepartition('Courses par véhicule', repartition(ds, (d) => libelleVehicule(d.immat), { limite: 10 }), { type: 'bar' }),
       blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' }),
       blocMensuel('Sorties d’Abidjan par mois', parMois(sa, (x) => x.date, annee, { Sorties: () => 1 })),
-      blocRepartition('Sorties d’Abidjan par destination', repartition(sa, (x) => x.destination, { limite: 10 }), { type: 'bar' })
+      blocRepartition('Sorties d’Abidjan par destination', repartition(sa, (x) => x.destination, { limite: 10 }), { type: 'bar' }),
+      blocRepartition('Sorties d’Abidjan par véhicule', repartition(sa, (x) => libelleVehicule(x.vehicule), { limite: 10 }), { type: 'bar' })
     ]
   };
 }

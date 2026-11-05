@@ -16,7 +16,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup, grouperMilliers, lireMontant } from '../../core/utils.js';
-import {
+import { autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
 } from '../components.js';
@@ -140,20 +140,6 @@ function ecartCell(ecart) {
 function immatsLigne(immat) {
   const v = vehiculeDeLImmat(immat);
   return [immat, v && v.immatAncienne, v && v.immatNouvelle].filter(Boolean);
-}
-
-/**
- * Sous l'immatriculation d'une prise, l'autre plaque du meme vehicule :
- * « nouvelle : D45 5082 » sous une prise faite avec l'ancienne, « ancienne :
- * D45 846 » sous une prise faite avec la nouvelle.
- */
-function autreImmat(immat) {
-  const v = vehiculeDeLImmat(immat);
-  if (!v || !v.immatAncienne || !v.immatNouvelle) return '';
-  const cle = (x) => String(x || '').replace(/\s+/g, '').toUpperCase();
-  const ancienne = cle(immat) === cle(v.immatAncienne);
-  const autre = ancienne ? v.immatNouvelle : v.immatAncienne;
-  return `<small style="display:block;color:${COLORS.grey};white-space:nowrap">${ancienne ? 'nouvelle' : 'ancienne'} : ${esc(autre)}</small>`;
 }
 
 /**
@@ -470,7 +456,7 @@ function renderMission(page) {
     return [
       `<b>${esc(m.ref || '')}</b>`,
       esc(m.conducteur || ''),
-      esc(m.vehicule || ''),
+      esc(m.vehicule || '') + autreImmat(m.vehicule),
       esc(m.destination || ''),
       `${esc(dateFR(m.dateDepart) || '…')}<br>→ ${esc(dateFR(m.dateRetour) || '…')}`,
       `<span style="display:block;text-align:right">${m.kmDepart === '' || m.kmDepart === undefined ? '—' : fmt(m.kmDepart)}</span>`,

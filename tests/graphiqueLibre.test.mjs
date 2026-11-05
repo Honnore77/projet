@@ -66,3 +66,16 @@ test('au-dela de la limite, les plus petites categories passent sous « autres �
   assert.equal(r.libelles.at(-1), 'autres');
   assert.equal(r.valeurs.at(-1), 20 - (gl.LIMITE_CATEGORIES - 1));
 });
+
+test('une colonne d’immatriculation se regroupe par vehicule, sous sa plaque actuelle', () => {
+  const lignes = [{ immat: 'D45 846' }, { immat: 'D45 5082' }, { immat: 'D45 5082' }, { immat: 'D45 717' }, { immat: '' }];
+  const [col] = gl.analyserColonnes({ columns: [{ key: 'immat', label: 'Véhicule' }], rows: lignes });
+  assert.equal(col.vehicule, true);
+  const actuelle = (p) => (p === 'D45 846' ? 'D45 5082' : p);
+  const r = gl.regrouper(lignes, col, 'nombre', { immat: actuelle });
+  assert.deepEqual(r.libelles, ['D45 5082', 'D45 717', 'non renseigné']);
+  assert.deepEqual(r.valeurs, [3, 1, 1]);
+  // Une autre colonne ne passe pas par la plaque actuelle.
+  const [autre] = gl.analyserColonnes({ columns: [{ key: 'station', label: 'Station' }], rows: [{ station: 'D45 846' }] });
+  assert.equal(autre.vehicule, false);
+});

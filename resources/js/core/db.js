@@ -942,6 +942,44 @@ export function immatActuelle(immat) {
 }
 
 /**
+ * Le vehicule nomme par ses deux immatriculations quand il en a deux :
+ * « D45 5082 (ex D45 846) ». Sert la ou l'on compte par vehicule
+ * (statistiques, graphique au choix) : les deux plaques y forment une seule
+ * ligne, et l'on reconnait le vehicule sous l'une comme sous l'autre.
+ */
+export function libelleVehicule(immat) {
+  // Une plaque deja accompagnee de l'autre (exports) : seule la premiere compte.
+  const saisie = String(immat || '').replace(/\s*\((ex|nouvelle) [^)]*\)\s*$/, '').trim();
+  const v = vehiculeDeLImmat(saisie);
+  if (!v) return saisie;
+  const nouvelle = String(v.immatNouvelle || '').trim();
+  const ancienne = String(v.immatAncienne || '').trim();
+  if (nouvelle && ancienne && immatComparable(nouvelle) !== immatComparable(ancienne)) {
+    return `${nouvelle} (ex ${ancienne})`;
+  }
+  return immatOf(v);
+}
+
+/**
+ * La plaque saisie, suivie de l'autre immatriculation du vehicule :
+ * « D45 846 (nouvelle D45 5082) », « D45 5082 (ex D45 846) ». Sert aux
+ * tableaux exportes : on lit la plaque du jour, et l'on reconnait le
+ * vehicule sous l'une comme sous l'autre. Sans seconde plaque, rien
+ * n'est ajoute.
+ */
+export function immatAvecAutre(immat) {
+  const saisie = String(immat || '').trim();
+  const v = saisie ? vehiculeDeLImmat(saisie) : null;
+  if (!v) return saisie;
+  const nouvelle = String(v.immatNouvelle || '').trim();
+  const ancienne = String(v.immatAncienne || '').trim();
+  if (!nouvelle || !ancienne || immatComparable(nouvelle) === immatComparable(ancienne)) return saisie;
+  return immatComparable(saisie) === immatComparable(ancienne)
+    ? `${saisie} (nouvelle ${nouvelle})`
+    : `${saisie} (ex ${ancienne})`;
+}
+
+/**
  * Derniere lecture du compteur d'un vehicule, toutes rubriques confondues.
  *
  * Le kilometrage d'une fiche vehicule vieillit des qu'on la ferme : ce sont

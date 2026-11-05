@@ -8,7 +8,7 @@
 
 import { jsPDF } from 'jspdf';
 import { previewAndSave } from './preview.js';
-import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours, distanceSurPlace, totauxRapportMission } from '../core/db.js';
+import { DB, ravMontant, destinationsDe, texteDestinations, parcoursMission, libelleParcours, distanceSurPlace, totauxRapportMission, immatAvecAutre } from '../core/db.js';
 import { dateFR, fmt, num, sum, esc, mentionLieuDate } from '../core/utils.js';
 import { toWinAnsi as nettoyer } from './winansi.js';
 
@@ -72,7 +72,7 @@ export function reportData(m) {
     // deplacements a l'interieur des destinations.
     surPlace: distanceSurPlace(m),
     chauffeur: m.conducteur || '',
-    vehicule: m.vehicule || '',
+    vehicule: immatAvecAutre(m.vehicule),
     reference: m.ref || '',
     participants: (m.participants || []).filter(Boolean),
     dotation: m.dotationCarburant ? `${fmt(m.dotationCarburant)} F` : '',

@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, immatAvecAutre } from '../core/db.js';
 
 import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -143,7 +143,7 @@ export function dsIncidents(list = DB.users) {
         section: u.section || '',
         date: dateFR(h.date),
         nature: h.nature || '',
-        vehicule: h.vehicule || '',
+        vehicule: immatAvecAutre(h.vehicule),
         circonstances: h.circonstances || '',
         responsabilite: h.responsabilite || '',
         observations: h.observations || ''
@@ -203,7 +203,7 @@ export function dsDotationPool(list = DB.dotationPool) {
       return {
         date: dateFR(d.date),
         jours: s.jours === null || s.jours === undefined ? '' : s.jours,
-        immat: d.immat || '',
+        immat: immatAvecAutre(d.immat),
         marqueModele: d.marqueModele || '',
         carte: d.carte || '',
         energie: d.energie || '',
@@ -330,7 +330,7 @@ export function dsMissions(list = DB.missions) {
         ref: m.ref || '',
         conducteur: m.conducteur || '',
         nbMissions: rangs.get(m.id) || 0,
-        vehicule: m.vehicule || '',
+        vehicule: immatAvecAutre(m.vehicule),
         destination: m.destination || '',
         distance: kmAbidjan(m),
         dateDepart: dateFR(m.dateDepart),
@@ -372,7 +372,7 @@ export function dsSuiviMissions(list = DB.missions) {
     rows: list.map((m) => ({
       conducteur: m.conducteur || '',
       nbMissions: rangs.get(m.id) || 0,
-      vehicule: m.vehicule || '',
+      vehicule: immatAvecAutre(m.vehicule),
       periode: `${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
       destination: m.destination || '',
       jours: m.jours === '' || m.jours === undefined ? '' : num(m.jours),
@@ -432,7 +432,7 @@ export function dsMaintenance(list = DB.maintenance) {
     rows: list.map((m) => {
       const iv = m.interventions || [];
       return {
-        immat: m.immat || '',
+        immat: immatAvecAutre(m.immat),
         marque: m.marque || '',
         modele: m.modele || '',
         dateEntree: dateFR(m.dateEntree),
@@ -459,7 +459,7 @@ export function dsInterventions(list = DB.maintenance) {
   list.forEach((m) => {
     (m.interventions || []).forEach((iv) => {
       rows.push({
-        immat: m.immat || '',
+        immat: immatAvecAutre(m.immat),
         dateEntree: dateFR(m.dateEntree),
         garage: iv.garage || '',
         observation: iv.observation || '',
@@ -494,7 +494,7 @@ export function dsCoutParVehicule() {
     const ent = maintenanceCost(im);
     const carb = fuelCost(im);
     return {
-      immat: im,
+      immat: immatAvecAutre(im),
       marque: v.marque || '',
       modele: v.modele || '',
       categorie: (v._cat || '').toUpperCase(),
@@ -593,7 +593,7 @@ export function dsVidanges(list = DB.vidanges || []) {
     ],
     rows: list.map((x) => ({
       date: dateFR(x.date),
-      immat: x.immat || '',
+      immat: immatAvecAutre(x.immat),
       conducteur: x.conducteur || '',
       structure: x.structure || '',
       kmAncienFutur: nombreOuVide(x.kmAncienFutur),
@@ -617,7 +617,7 @@ export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
       ref: x.ref || '',
       date: dateFR(x.date),
       conducteur: x.conducteur || '',
-      vehicule: x.vehicule || '',
+      vehicule: immatAvecAutre(x.vehicule),
       destination: x.destination || '',
       kmDepart: nombreOuVide(x.kmDepart),
       kmArrivee: nombreOuVide(x.kmArrivee),
@@ -683,7 +683,7 @@ export function dsDecharges(list = DB.decharges) {
       date: dateFR(d.date),
       recuperePar: d.recuperePar || '',
       conducteur: d.conducteur || '',
-      immat: d.immat || '',
+      immat: immatAvecAutre(d.immat),
       signee: (d.images || []).length ? 'jointe' : 'à joindre'
     }))
   };
@@ -778,7 +778,7 @@ export function dsSimulations(list = DB.simulations) {
       parcoursKm: num(s.parcoursKm),
       interneKm: num(s.interneKm),
       distanceTotale: num(s.distanceTotale),
-      vehicule: s.vehicule || '',
+      vehicule: immatAvecAutre(s.vehicule),
       marqueModele: vehiculeDeSimulation(s).marqueModele,
       energie: vehiculeDeSimulation(s).energie,
       consommation: num(s.consommation),

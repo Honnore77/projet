@@ -12,7 +12,7 @@
 import { DB, insert, update, remove, allVehicles, immatOf, nomsUtilisateurs, vehiculesDeLAgent } from '../../core/db.js';
 import { canWrite, currentUser } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
-import { card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS } from '../components.js';
+import { autreImmat, card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS } from '../components.js';
 import { state, rerender } from '../shell.js';
 import { estResolu, regleAuGarage, refusSignalement } from '../../core/etatsVehicules.js';
 import { voitTout, seulementSiennes, agentConnecte } from '../../core/acces.js';
@@ -110,7 +110,7 @@ export function renderEtatsVehicules(page) {
   const rows = list.map((s) => {
     const v = vehiculeDe(s.immat);
     return [
-      `<b style="white-space:nowrap">${esc(s.immat || '')}</b>` +
+      `<b style="white-space:nowrap">${esc(s.immat || '')}</b>${autreImmat(s.immat)}` +
         (v ? `<br><small style="color:#5b7178">${esc(`${v.marque || ''} ${v.modele || ''}`.trim())}</small>` : ''),
       escLignes(s.probleme || '') +
         (origine(s) ? `<br><small style="color:${COULEUR_ETAT}">via ${esc(origine(s))}</small>` : ''),

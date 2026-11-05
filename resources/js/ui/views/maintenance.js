@@ -2,7 +2,7 @@
    ENTRETIEN — passages au garage, interventions et retours.
    =================================================================== */
 
-import {
+import { immatAvecAutre,
   DB, insert, update, remove, touch, knownImmats, knownDrivers, vehicleByImmat,
   openMaintenance, valeursVehicules, MARQUES, MODELES, nomsGarages, garageParNom, assurerGarage
 } from '../../core/db.js';
@@ -280,7 +280,7 @@ export function renderMaintenanceEntries(container, group) {
         : subEmpty('Aucune intervention enregistrée');
 
       e.innerHTML =
-        `<div class="row1"><h4>${esc(m.marque || '')} ${esc(m.modele || '')} — ${esc(m.immat)}</h4>` +
+        `<div class="row1"><h4>${esc(m.marque || '')} ${esc(m.modele || '')} — ${esc(immatAvecAutre(m.immat))}</h4>` +
         `<span class="badge" style="background:${enCours ? COLORS.orange : COLORS.green}">${enCours ? 'Au garage' : 'Sorti'}</span></div>` +
         `<div class="meta">Entrée : ${esc(dateFR(m.dateEntree) || '—')} · Km : ${fmt(m.kmEntree)}${m.conducteurEntree ? ` · ${esc(m.conducteurEntree)}` : ''}</div>` +
         `<div class="fields"><b>Motif :</b><br>${escLignes(m.motif || '—')}${m.signalePar ? `<br><b>Signalé par :</b> ${esc(m.signalePar)}` : ''}` +

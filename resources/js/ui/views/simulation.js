@@ -19,7 +19,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, lireMontant } from '../../core/utils.js';
-import {
+import { autreImmat,
   card, toolbar, subtabs, emptyState, openForm, openModal, confirmDialog, toast, statTile, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, moduleColor, navigate } from '../shell.js';
@@ -89,7 +89,7 @@ function renderListe(page) {
       (s.jours ? `<br><small>${s.jours} jour(s)</small>` : ''),
     esc(texteDestinations(s.destinations) || '—'),
     droite(`${fmt(s.parcoursKm)} km<br><small>+ ${fmt(s.interneKm)} km en interne</small><br><b>${fmt(s.distanceTotale)} km</b>`),
-    `${esc(s.vehicule || '—')}${vehiculeActuel(s).marqueModele ? `<br>${esc(vehiculeActuel(s).marqueModele)}` : ''}` +
+    `${esc(s.vehicule || '—')}${autreImmat(s.vehicule)}${vehiculeActuel(s).marqueModele ? `<br>${esc(vehiculeActuel(s).marqueModele)}` : ''}` +
       `${s.vehicule && !vehicleByImmat(s.vehicule) ? ' <small style="color:#b26a00">(hors parc)</small>' : ''}` +
       `<br><small>${esc(vehiculeActuel(s).energie || '')}${s.consommation ? ` · ${fmt(s.consommation)} L/100 km` : ''}</small>`,
     droite(`${fmt(s.litres)} L<br><small>× ${fmt(s.prixL)} F</small><br><b>${fmt(s.montantCarburant)} F</b>`),

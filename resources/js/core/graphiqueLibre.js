@@ -15,6 +15,13 @@ const DATE = /^(\d{2})\/(\d{2})\/(\d{4})/;
 
 const vide = (v) => v === '' || v === undefined || v === null;
 
+/**
+ * Colonnes qui portent une immatriculation : regroupees par vehicule, pas
+ * par plaque. Ancienne et nouvelle immatriculation d'un meme vehicule
+ * comptent ensemble, sous ses deux plaques : « D45 5082 (ex D45 846) ».
+ */
+const COLONNES_VEHICULE = new Set(['immat', 'vehicule']);
+
 /** Au-dela, les plus petites categories se rangent sous « autres ». */
 export const LIMITE_CATEGORIES = 15;
 
@@ -49,7 +56,7 @@ export function analyserColonnes(ds, rows = ds.rows) {
     // Une valeur par ligne (Référence, N° de châssis) : chaque groupe ne
     // compterait qu'une ligne. On la propose, mais pas d'office.
     const unique = valeurs.length > 1 && distinctes === valeurs.length;
-    return { key: c.key, label: c.label, date, chiffree, regroupe, unique };
+    return { key: c.key, label: c.label, date, chiffree, regroupe, unique, vehicule: COLONNES_VEHICULE.has(c.key) };
   });
 }
 
@@ -79,10 +86,12 @@ export function libelleMesure(mesure, colonnes) {
  * @param {object[]} rows
  * @param {{key:string,date:boolean}} colonne  la colonne qui regroupe
  * @param {string} mesure  'nombre' | 'somme:<cle>' | 'moyenne:<cle>'
- * @param {{annee?:string}} [opts]  une annee choisie : les mois sans l'annee
+ * @param {{annee?:string, immat?:Function}} [opts]  une annee choisie : les
+ *   mois sans l'annee ; `immat` donne la plaque sous laquelle ranger une
+ *   immatriculation (le vehicule et ses deux plaques, voir libelleVehicule)
  * @returns {{libelles:string[], valeurs:number[], total:number}}
  */
-export function regrouper(rows, colonne, mesure, { annee = '' } = {}) {
+export function regrouper(rows, colonne, mesure, { annee = '', immat = (x) => x } = {}) {
   const [genre, cle] = mesure.split(':');
   const groupes = new Map();
   rows.forEach((r) => {
@@ -91,6 +100,8 @@ export function regrouper(rows, colonne, mesure, { annee = '' } = {}) {
     if (colonne.date) {
       const m = DATE.exec(String(brut || ''));
       k = m ? `${m[3]}-${m[2]}` : 'non renseigné';
+    } else if (colonne.vehicule && !vide(brut)) {
+      k = String(immat(String(brut).trim()) || '').trim() || 'non renseigné';
     } else {
       k = vide(brut) ? 'non renseigné' : String(brut).trim() || 'non renseigné';
     }

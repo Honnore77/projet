@@ -95,10 +95,53 @@ test('frequence de sortie : decharges pour le pool, missions pour MISSION', asyn
   const v = st.statsVehicules('2026');
   assert.deepEqual(bloc(v, 'Fréquence de sortie des conducteurs du pool').lignes.map((l) => [l[0], l[1]]), [['DELON CALIXE', '2'], ['AGBO', '1']]);
   // L'ancienne immatriculation compte pour le meme vehicule.
-  assert.deepEqual(bloc(v, 'Fréquence de sortie des véhicules du pool').lignes.map((l) => [l[0], l[1]]), [['D45 5082', '3']]);
+  assert.deepEqual(bloc(v, 'Fréquence de sortie des véhicules du pool').lignes.map((l) => [l[0], l[1]]), [['D45 5082 (ex 1234 AB 01)', '3']]);
   assert.equal(bloc(v, 'Fréquence de sortie des véhicules du pool').graphique.type, 'bar');
   assert.equal(st.statsVehicules('').tuiles.find((t) => t.titre === 'Sorties du pool').valeur, '4');
   const m = st.statsMissions('2026');
   assert.deepEqual(bloc(m, 'Fréquence de sortie des conducteurs en mission').lignes.map((l) => [l[0], l[1]]), [['AGBO', '2']]);
   assert.deepEqual(bloc(m, 'Fréquence de sortie des véhicules en mission').lignes.map((l) => [l[0], l[1]]), [['D45 5070', '2']]);
+});
+
+test('SORTIES : ancienne et nouvelle immatriculation comptent pour un seul vehicule', async () => {
+  await charger({
+    vehicles: { pool: [vehicule({ immatAncienne: 'D45 846', immatNouvelle: 'D45 5082' })], mission: [], service: [] },
+    decharges: [{ id: 'a', date: '2026-03-02', immat: 'D45 846' }, { id: 'b', date: '2026-09-01', immat: 'D45 5082' }],
+    sortiesAbidjan: [{ id: 's', date: '2026-10-01', vehicule: 'd45 846' }]
+  });
+  const s = st.statsDecharges('');
+  const courses = s.blocs.find((b) => b.titre === 'Courses par véhicule');
+  assert.deepEqual(courses.lignes.map((l) => [l[0], l[1]]), [['D45 5082 (ex D45 846)', '2']]);
+  const sorties = s.blocs.find((b) => b.titre === 'Sorties d’Abidjan par véhicule');
+  assert.deepEqual(sorties.lignes.map((l) => [l[0], l[1]]), [['D45 5082 (ex D45 846)', '1']]);
+});
+
+test('un vehicule est nomme par ses deux immatriculations, s’il en a deux', async () => {
+  const db = (await import('./aide.mjs')).db;
+  await charger({
+    vehicles: {
+      pool: [vehicule({ immatAncienne: 'D45 846', immatNouvelle: 'D45 5082' }), vehicule({ immatNouvelle: 'D45 717' }),
+        vehicule({ immatAncienne: 'D45 663' })],
+      mission: [], service: []
+    }
+  });
+  assert.equal(db.libelleVehicule('d45 846'), 'D45 5082 (ex D45 846)');
+  assert.equal(db.libelleVehicule('D45 5082'), 'D45 5082 (ex D45 846)');
+  assert.equal(db.libelleVehicule('D45 717'), 'D45 717');
+  assert.equal(db.libelleVehicule('D45 663'), 'D45 663');
+  // Une plaque que VÉHICULES ne connait pas reste telle quelle.
+  assert.equal(db.libelleVehicule('AB 123 CI'), 'AB 123 CI');
+});
+
+test('les exports portent la plaque saisie suivie de l’autre immatriculation', async () => {
+  const { db } = await import('./aide.mjs');
+  const { dsDecharges } = await import('../resources/js/export/datasets.js');
+  await charger({
+    vehicles: { pool: [vehicule({ immatAncienne: 'D45 846', immatNouvelle: 'D45 5082' }), vehicule({ immatNouvelle: 'D45 717' })], mission: [], service: [] },
+    decharges: [{ id: 'a', immat: 'D45 846' }, { id: 'b', immat: 'D45 5082' }, { id: 'c', immat: 'D45 717' }, { id: 'd', immat: '' }]
+  });
+  assert.deepEqual(dsDecharges().rows.map((r) => r.immat), ['D45 846 (nouvelle D45 5082)', 'D45 5082 (ex D45 846)', 'D45 717', '']);
+  // Le graphique au choix retrouve le vehicule derriere ces libelles.
+  assert.equal(db.libelleVehicule('D45 846 (nouvelle D45 5082)'), 'D45 5082 (ex D45 846)');
+  assert.equal(db.libelleVehicule('D45 5082 (ex D45 846)'), 'D45 5082 (ex D45 846)');
 });

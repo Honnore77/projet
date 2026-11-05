@@ -14,7 +14,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, sum } from '../../core/utils.js';
-import { card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS } from '../components.js';
+import { autreImmat, card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable, COLORS } from '../components.js';
 import { rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -86,7 +86,7 @@ export function renderVidanges(page) {
   ];
   const rows = list.map((x) => [
     `<span style="white-space:nowrap">${esc(dateFR(x.date))}</span>`,
-    `<a href="#" data-veh title="Ouvrir la fiche du véhicule" style="color:${COLORS.blue};white-space:nowrap;font-weight:bold">${esc(x.immat || '')}</a>`,
+    `<a href="#" data-veh title="Ouvrir la fiche du véhicule" style="color:${COLORS.blue};white-space:nowrap;font-weight:bold">${esc(x.immat || '')}</a>${autreImmat(x.immat)}`,
     esc(x.conducteur || ''),
     esc(x.structure || ''),
     `<span style="white-space:nowrap">${esc(kmOuTiret(x.kmAncienFutur))}</span>`,
