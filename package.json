@@ -53,6 +53,7 @@
     "files": [
       "public/app/**/*",
       "electron/**/*",
+      "!node_modules/**/*",
       "package.json"
     ],
     "win": {
@@ -83,7 +84,8 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "deleteAppDataOnUninstall": false
+      "deleteAppDataOnUninstall": false,
+      "include": "resources/static/installer.nsh"
     }
   },
   "overrides": {
