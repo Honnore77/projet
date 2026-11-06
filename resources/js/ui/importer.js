@@ -1,9 +1,12 @@
 /* ===================================================================
-   IMPORTER — bouton de la colonne des rubriques.
+   IMPORTER UNE IMAGE — bouton a cote de la recherche.
 
-   Une liste deroulante donne tous les formulaires qui ont un champ
-   « + Ajouter une image ». Un choix ouvre la rubrique et le formulaire,
-   puis amene la page sur ce champ, mis en evidence.
+   Une liste deroulante donne les formulaires de la rubrique ouverte qui
+   ont un champ « + Ajouter une image », ceux de la sous-rubrique ouverte
+   en tete. Une rubrique sans formulaire a image (tableau de bord,
+   rapports...) propose ceux de toute l'application. Un choix ouvre la
+   rubrique et le formulaire, puis amene la page sur ce champ, mis en
+   evidence.
 
    Les formulaires qui portent sur une fiche existante (rapport de mission,
    intervention, incident) demandent d'abord laquelle.
@@ -40,13 +43,32 @@ const FORMULAIRES = [
   { label: 'Course', detail: 'COURRIER · COURSES', rub: 'DECHARGE', page: ['DECHARGE', 'decharges'], ouvrir: () => openDechargeForm(null) }
 ];
 
-/** Le bouton IMPORTER, a placer sous les rubriques. */
+/** La rubrique de la page ouverte : une fiche compte pour la sienne. */
+function rubriqueDeLaPage() {
+  if (state.module === 'FICHE_VEHICULE') return 'VEHICULES';
+  if (state.module === 'FICHE_UTILISATEUR') return 'UTILISATEURS';
+  return state.module;
+}
+
+/**
+ * Les formulaires proposes : ceux de la rubrique ouverte, la sous-rubrique
+ * ouverte en tete ; a defaut, tous ceux que le compte peut remplir.
+ */
+export function formulairesProposes(rub, sub, permis = (f) => (f.droit ? f.droit() : peutSaisir(f.rub))) {
+  const autorises = FORMULAIRES.filter(permis);
+  const ici = autorises.filter((f) => f.page[0] === rub);
+  if (!ici.length) return autorises;
+  return ici.filter((f) => f.page[1] === sub).concat(ici.filter((f) => f.page[1] !== sub));
+}
+
+/** Le bouton « Importer une image ». */
 export function boutonImporter() {
   const b = el('<button type="button" class="importBtn" aria-haspopup="menu">⬆ Importer une image</button>');
-  b.title = 'Ajouter une image dans un formulaire';
+  b.title = 'Ajouter une image dans un formulaire de la rubrique ouverte';
   b.onclick = (ev) => {
     ev.stopPropagation();
-    const choix = FORMULAIRES.filter((f) => (f.droit ? f.droit() : peutSaisir(f.rub)));
+    const rub = rubriqueDeLaPage();
+    const choix = formulairesProposes(rub, state.sub[rub]);
     if (!choix.length) return toast('Votre compte ne peut ajouter d’image dans aucun formulaire.', 'info');
     ouvrirMenuChoix(b, choix.map((f) => ({ label: f.label, detail: f.detail, onClick: () => importerDans(f) })));
   };
