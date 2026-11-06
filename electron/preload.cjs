@@ -106,5 +106,8 @@ contextBridge.exposeInMainWorld('pduDesktop', {
    * @param {Uint8Array|null} ico icone complete (.ico) avec la pastille
    * @param {Uint8Array|null} seule pastille seule (PNG 32 px)
    */
-  pastilleAlertes: (n, ico, seule) => ipcRenderer.invoke('pastille:alertes', n, ico, seule)
+  pastilleAlertes: (n, ico, seule) => ipcRenderer.invoke('pastille:alertes', n, ico, seule),
+
+  /** Calendrier des jours feries du pays (texte iCalendar), voir core/feriesInternet.js. */
+  calendrierFeries: (pays) => ipcRenderer.invoke('feries:calendrier', pays)
 });

@@ -2736,10 +2736,21 @@ export function derniereConsommation(immat, db = DB) {
 
 export const MOTIFS_INDISPONIBILITE = ['En congé', 'Permissionnaire', 'Repos maladie'];
 
-/** Les jours feries saisis dans RÉGLAGES (fetes musulmanes, decrets), en dates ISO. */
+/** Les jours feries saisis a la main dans RÉGLAGES, en dates ISO. */
 export function joursFeriesSaisis(db = DB) {
   const l = db && db.settings && db.settings.joursFeries;
   return Array.isArray(l) ? l : [];
+}
+
+/**
+ * Les jours feries connus en plus des fixes et de ceux de Pâques : ceux du
+ * calendrier du pays telecharge sur Internet (core/feriesInternet.js) et
+ * ceux saisis a la main.
+ */
+export function joursFeriesConnus(db = DB) {
+  const f = db && db.settings && db.settings.feriesInternet;
+  const internet = f && Array.isArray(f.jours) ? f.jours.map((j) => j.date) : [];
+  return [...new Set(internet.concat(joursFeriesSaisis(db)))];
 }
 
 /**
@@ -2747,7 +2758,7 @@ export function joursFeriesSaisis(db = DB) {
  * reprise —, ou null tant qu'une date manque.
  */
 export function dureeIndisponibilite(dateDepart, dateReprise, db = DB) {
-  return joursOuvres(dateDepart, dateReprise, joursFeriesSaisis(db));
+  return joursOuvres(dateDepart, dateReprise, joursFeriesConnus(db));
 }
 
 /**

@@ -35,3 +35,33 @@ test('la duree d’une absence au tableau se compte en jours ouvres', async () =
   // Partir un samedi, reprendre le lundi : zero jour, sans erreur de dates.
   assert.equal(db.dureeIndisponibilite('2026-11-07', '2026-11-09'), 0);
 });
+
+const fi = await import('../resources/js/core/feriesInternet.js');
+
+/** Extrait du calendrier public Google de Cote d'Ivoire (format iCalendar). */
+const ICS = [
+  'BEGIN:VCALENDAR',
+  'BEGIN:VEVENT', 'DTSTART;VALUE=DATE:20260320', 'DTEND;VALUE=DATE:20260321', 'DESCRIPTION:Jour férié', 'SUMMARY:Aid-El-Fitr', 'END:VEVENT',
+  'BEGIN:VEVENT', 'DTSTART;VALUE=DATE:20260218', 'DTEND;VALUE=DATE:20260219',
+  "DESCRIPTION:Journée d'observance\nPour masquer les journées d'observance\, ", ' accédez à Paramètres', 'SUMMARY:Ramadan', 'END:VEVENT',
+  'BEGIN:VEVENT', 'DTSTART;VALUE=DATE:20261116', 'DTEND;VALUE=DATE:20261117', 'DESCRIPTION:Jour férié', 'SUMMARY:Journee Nationale de la Paix observée', 'END:VEVENT',
+  'END:VCALENDAR'
+].join('\r\n');
+
+test('le calendrier du pays ne garde que les jours feries, pas les journees d’observance', () => {
+  assert.deepEqual(fi.lireCalendrier(ICS), [
+    { date: '2026-03-20', nom: 'Aid-El-Fitr' },
+    { date: '2026-11-16', nom: 'Journee Nationale de la Paix observée' }
+  ]);
+});
+
+test('les feries telecharges comptent dans les absences, avec ceux saisis a la main', async () => {
+  await charger({ settings: {
+    feriesInternet: { pays: 'ci', majLe: '2026-11-06T08:00:00Z', jours: fi.lireCalendrier(ICS) },
+    joursFeries: ['2026-03-19']
+  } });
+  // Semaine du lundi 16 mars 2026 : le jeudi saisi a la main, le vendredi (Aïd el-Fitr) telecharge.
+  assert.equal(db.dureeIndisponibilite('2026-03-16', '2026-03-23'), 3);
+  // Le lundi 16 novembre « observé » ne compte pas.
+  assert.equal(db.dureeIndisponibilite('2026-11-16', '2026-11-17'), 0);
+});

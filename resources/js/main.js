@@ -16,6 +16,7 @@ import { demarrerPoste } from './core/reseauBureau.js';
 import { appliquerTheme, appliquerZoom } from './ui/theme.js';
 import { suivrePastille } from './ui/pastille.js';
 import { installerMajuscule } from './ui/majuscule.js';
+import { majFeriesAuDemarrage } from './core/feriesInternet.js';
 import { installerSuggestions } from './ui/suggestions.js';
 import { installerBarreFlottante } from './ui/barreFlottante.js';
 import { isAndroid, isDesktop } from './core/storage.js';
@@ -128,6 +129,9 @@ function showLogin(ctx = {}) {
 
 function showApp() {
   mountShell(root, { onLogout: () => showLogin({}) });
+  // Jours feries du pays, sur Internet, une fois par semaine ; sans
+  // connexion, la liste deja telechargee continue de servir.
+  majFeriesAuDemarrage();
 }
 
 // Ecriture immediate avant fermeture, pour ne perdre aucune saisie.

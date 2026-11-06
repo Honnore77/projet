@@ -18,7 +18,7 @@
 import { daysBetween } from './utils.js';
 import { joursOuvres } from './joursOuvres.js';
 // Les jours feries saisis dans RÉGLAGES, lus au moment du calcul.
-import { joursFeriesSaisis } from './db.js';
+import { joursFeriesConnus } from './db.js';
 
 export const TYPES_DEMANDE = {
   conge: 'Demande de congé',
@@ -45,7 +45,7 @@ export function lendemain(iso) {
 export function dureeConge(debut, fin) {
   const d = daysBetween(debut, fin);
   if (d === null || d < 0) return '';
-  const n = joursOuvres(debut, lendemain(fin), joursFeriesSaisis());
+  const n = joursOuvres(debut, lendemain(fin), joursFeriesConnus());
   return `${n} jour${n > 1 ? 's' : ''}`;
 }
 
@@ -72,7 +72,7 @@ export function totalAbsence(dateDebut, heureDebut, dateRetour, heureRetour) {
     return mn ? `${h} h ${String(mn).padStart(2, '0')}` : `${h} h`;
   }
   // Sur plusieurs jours : les jours ouvrés, du départ à la veille du retour.
-  const n = joursOuvres(dateDebut, fin, joursFeriesSaisis());
+  const n = joursOuvres(dateDebut, fin, joursFeriesConnus());
   return `${n} jour${n > 1 ? 's' : ''}`;
 }
 

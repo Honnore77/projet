@@ -16,6 +16,7 @@ import {
 } from '../../core/storage.js';
 import { esc, el, num, francSup, dateFR } from '../../core/utils.js';
 import { lireJoursFeries } from '../../core/joursOuvres.js';
+import { feriesTelecharges, telechargerFeries, PAYS_PAR_DEFAUT } from '../../core/feriesInternet.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
   card, toolbar, subtabs, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
@@ -52,7 +53,7 @@ const SOUS_RUBRIQUES_REGLAGES = [
     sections: [renderAccountsSection, renderNiveauxSection] },
   { key: 'parametres', label: 'PARAMÈTRES',
     texte: 'L’identité du PDU sur les documents, les prix du litre, les frais de mission, les seuils d’alerte, le style de l’interface et la page de connexion.',
-    sections: [renderThresholdsSection, renderStyleSection, renderApparenceSection] },
+    sections: [renderThresholdsSection, renderFeriesSection, renderStyleSection, renderApparenceSection] },
   { key: 'reseau', label: 'RÉSEAU ET SYNCHRONISATION',
     texte: 'Le PC serveur et les postes du bureau, et la synchronisation avec un autre PC ou avec le téléphone.',
     sections: [renderReseauSection, renderSynchroSection] },
@@ -68,6 +69,39 @@ const SOUS_RUBRIQUES_REGLAGES = [
  * Un clic l'applique tout de suite : on voit le resultat sans quitter
  * la page.
  */
+/**
+ * Les jours feries du pays, telecharges sur Internet : ceux de l'annee, la
+ * date de la derniere mise a jour, et le bouton pour la refaire.
+ */
+function renderFeriesSection(page) {
+  page.appendChild(sectionLabel('JOURS FÉRIÉS', COLORS.orange));
+  const f = feriesTelecharges();
+  const annee = String(new Date().getFullYear());
+  const cette = f ? f.jours.filter((j) => j.date.startsWith(annee)) : [];
+  page.appendChild(el(
+    '<div class="card"><p>' +
+      (f
+        ? `Calendrier de Côte d’Ivoire, mis à jour le ${esc(dateFR(f.majLe.slice(0, 10)))} depuis Internet (calendrier public Google). ` +
+          'Ces jours, avec les samedis et dimanches, ne comptent pas dans les congés et absences.\n\n' +
+          (cette.length ? cette.map((j) => `${esc(dateFR(j.date))} — ${esc(j.nom)}`).join('\n') : `Aucun jour férié pour ${annee} dans le calendrier.`)
+        : 'Le calendrier des jours fériés n’a pas encore été téléchargé : il le sera à la prochaine ouverture avec Internet, ou tout de suite par le bouton ci-dessous. ' +
+          'En attendant, les jours fériés fixes et ceux de Pâques sont comptés.') +
+    '</p></div>'
+  ));
+  page.appendChild(toolbar([{
+    label: 'Mettre à jour depuis Internet', color: COLORS.orange,
+    onClick: async () => {
+      try {
+        const jours = await telechargerFeries((f && f.pays) || PAYS_PAR_DEFAUT);
+        toast(`${jours.length} jours fériés téléchargés.`, 'ok');
+        rerender();
+      } catch (e) {
+        toast('Calendrier inaccessible : vérifiez la connexion Internet.', 'err');
+      }
+    }
+  }]));
+}
+
 function renderStyleSection(page) {
   // Le meme choix que le bouton 🎨 de l'en-tete : propre a cet appareil.
   page.appendChild(apparenceNode({ style: true, taille: false, decor: false, surChoix: () => rerender() }));
@@ -569,7 +603,7 @@ function renderThresholdsSection(page) {
         `Parcours en interne (simulations) : ${kmInterneParJour() ? `${num(kmInterneParJour())} km par jour` : 'non réglé'}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
-        `Autres jours fériés : ${joursFeriesSaisis().length ? joursFeriesSaisis().map(dateFR).join(', ') : 'aucun saisi'}\n` +
+        `Jours fériés ajoutés à la main : ${joursFeriesSaisis().length ? joursFeriesSaisis().map(dateFR).join(', ') : 'aucun'}\n` +
         `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
 ` +
         `Voyants de vidange : jaune de ${num(voyant.jaune)} à ${num(voyant.orange)} km, ` +
@@ -608,7 +642,7 @@ function openSettingsForm() {
       { key: 'joursFeries', label: 'Autres jours fériés', type: 'textarea', full: true, rows: 3,
         value: joursFeriesSaisis().map(dateFR).join('\n'),
         placeholder: 'Un jour par ligne, par exemple 20/03/2026',
-        hint: 'Ils ne comptent pas dans les congés et absences, comme les samedis, dimanches et jours fériés fixes (1er janvier, 1er mai, 7 août, 15 août, 1er novembre, 15 novembre, Noël) et ceux de Pâques (lundi de Pâques, Ascension, lundi de Pentecôte), déjà pris en compte. Ajoutez ici Korité, Tabaski, Maouloud, Nuit du Destin et les jours accordés par décret.' },
+        hint: 'Les jours fériés du pays viennent d’Internet (voir JOURS FÉRIÉS) ; n’ajoutez ici qu’un jour qui manquerait, par exemple un jour accordé par décret.' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,

@@ -6,7 +6,7 @@
    securite a chaque ecriture.
    =================================================================== */
 
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, nativeImage, net } = require('electron');
 const { spawn } = require('node:child_process');
 const path = require('node:path');
 const fs = require('node:fs');
@@ -636,6 +636,21 @@ function appliquerPastille(n, ico, seule) {
   } catch (e) { /* le bureau se mettra a jour a son rythme */ }
   return { ok: true };
 }
+
+/**
+ * Calendrier public des jours feries d'un pays (Google), pour les conges en
+ * jours ouvres. La page ne peut pas le lire elle-meme (Google ne l'autorise
+ * pas aux pages web) : le programme le telecharge pour elle. Seul ce
+ * calendrier est demande, pour un code pays de deux lettres.
+ */
+ipcMain.handle('feries:calendrier', async (_evt, pays) => {
+  const code = String(pays || '').toLowerCase();
+  if (!/^[a-z]{2}$/.test(code)) throw new Error('code pays invalide');
+  const url = `https://calendar.google.com/calendar/ical/fr.${code}%23holiday%40group.v.calendar.google.com/public/basic.ics`;
+  const r = await net.fetch(url);
+  if (!r.ok) throw new Error(`calendrier indisponible (${r.status})`);
+  return r.text();
+});
 
 ipcMain.handle('pastille:alertes', (_evt, n, ico, seule) => {
   try {
