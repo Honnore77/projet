@@ -48,10 +48,9 @@ const ICS = [
   'END:VCALENDAR'
 ].join('\r\n');
 
-test('le calendrier du pays ne garde que les jours feries, pas les journees d’observance', () => {
+test('le calendrier du pays ne garde que les jours feries : ni observance, ni report du dimanche', () => {
   assert.deepEqual(fi.lireCalendrier(ICS), [
-    { date: '2026-03-20', nom: 'Aid-El-Fitr' },
-    { date: '2026-11-16', nom: 'Journee Nationale de la Paix observée' }
+    { date: '2026-03-20', nom: 'Aid-El-Fitr' }
   ]);
 });
 
@@ -62,6 +61,14 @@ test('les feries telecharges comptent dans les absences, avec ceux saisis a la m
   } });
   // Semaine du lundi 16 mars 2026 : le jeudi saisi a la main, le vendredi (Aïd el-Fitr) telecharge.
   assert.equal(db.dureeIndisponibilite('2026-03-16', '2026-03-23'), 3);
-  // Le lundi 16 novembre « observé » ne compte pas.
-  assert.equal(db.dureeIndisponibilite('2026-11-16', '2026-11-17'), 0);
+  // Le dimanche 15 novembre n'est pas reporte : du lundi 9 au retour le
+  // lundi 23 novembre 2026, dix jours de conge.
+  assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 10);
+});
+
+test('une liste deja telechargee avec un jour « observé » ne le compte plus', async () => {
+  await charger({ settings: { feriesInternet: { pays: 'ci', majLe: '2026-11-06T08:00:00Z', jours: [
+    { date: '2026-11-16', nom: 'Journee Nationale de la Paix observée' }] } } });
+  assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 10);
+  assert.deepEqual(fi.feriesTelecharges().jours, []);
 });

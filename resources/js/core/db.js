@@ -2749,7 +2749,8 @@ export function joursFeriesSaisis(db = DB) {
  */
 export function joursFeriesConnus(db = DB) {
   const f = db && db.settings && db.settings.feriesInternet;
-  const internet = f && Array.isArray(f.jours) ? f.jours.map((j) => j.date) : [];
+  // Les jours « observés » (report d'un ferie tombe un dimanche) se travaillent.
+  const internet = f && Array.isArray(f.jours) ? f.jours.filter((j) => !/observ/i.test(String(j.nom || ''))).map((j) => j.date) : [];
   return [...new Set(internet.concat(joursFeriesSaisis(db)))];
 }
 

@@ -38,6 +38,15 @@ function champ(bloc, nom) {
   return m ? m[1].replace(/\n[ \t]/g, '').replace(/\\,/g, ',').replace(/\\n/g, ' ').trim() : '';
 }
 
+/**
+ * Un jour « observé » est le report d'un ferie tombe un dimanche (le lundi
+ * 16 novembre 2026 pour le 15) : au PDU, le dimanche n'est pas reporte, ce
+ * lundi se travaille et compte dans les conges.
+ */
+export function estReport(nom) {
+  return /observ/i.test(String(nom || ''));
+}
+
 const iso = (yyyymmdd) => `${yyyymmdd.slice(0, 4)}-${yyyymmdd.slice(4, 6)}-${yyyymmdd.slice(6, 8)}`;
 
 /**
@@ -53,6 +62,7 @@ export function lireCalendrier(texte) {
     if (!debut) return;
     const fin = /DTEND[^:\n]*:(\d{8})/.exec(bloc);
     const nom = champ(bloc, 'SUMMARY');
+    if (estReport(nom)) return;
     const a = new Date(`${iso(debut[1])}T00:00:00Z`).getTime();
     const b = fin ? new Date(`${iso(fin[1])}T00:00:00Z`).getTime() : a + 86400000;
     for (let t = a; t < Math.max(b, a + 86400000); t += 86400000) {
@@ -66,7 +76,8 @@ export function lireCalendrier(texte) {
 /** La liste rangee dans les reglages, ou null. */
 export function feriesTelecharges(db = DB) {
   const f = db && db.settings && db.settings.feriesInternet;
-  return f && Array.isArray(f.jours) ? f : null;
+  // Une liste telechargee avant l'ecart des reports les perd ici aussi.
+  return f && Array.isArray(f.jours) ? { ...f, jours: f.jours.filter((j) => !estReport(j.nom)) } : null;
 }
 
 async function lireTexte(pays) {
