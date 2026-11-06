@@ -34,7 +34,7 @@ import {
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
   dataTable, openModal, subEmpty, subtabs, statTile, sectionLabel, COLORS
 } from '../components.js';
-import { state, rerender, openUserSheet } from '../shell.js';
+import { state, rerender, openUserSheet, moduleColor } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -93,8 +93,8 @@ function incidentFields(h = {}) {
 }
 
 const SUBS = [
-  { key: 'liste', label: 'LISTE DES UTILISATEURS' },
-  { key: 'indisponibilites', label: 'CONGÉS ET ABSENCES AU POOL' },
+  { key: 'liste', label: 'AGENTS' },
+  { key: 'indisponibilites', label: 'CONGÉS ET ABSENCES' },
   SOUS_RUBRIQUE_STATS
 ];
 
@@ -103,8 +103,7 @@ export function renderUsers(page) {
   // Chaque sous-rubrique a son propre niveau d'acces (REGLAGES).
   const subs = SUBS.filter((s) => (s.key === 'liste' ? voit('UTILISATEURS') : s.key === 'indisponibilites' ? voit('CONGES') : true));
   page.appendChild(
-    subtabs(subs, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); },
-      { liste: COLORS.blue, indisponibilites: COLORS.purple, stats: COLORS.grey })
+    subtabs(subs, sub, (k) => { state.sub.UTILISATEURS = k; rerender(); })
   );
   if (sub === 'stats') renderStatistiques(page, 'UTILISATEURS');
   else if (sub === 'indisponibilites') renderIndisponibilites(page);
@@ -115,7 +114,7 @@ function renderListe(page) {
   const f = state.filters.users;
 
   page.appendChild(
-    card('UTILISATEURS', 'Agents du PDU. Le champ « Utilisateur » des fiches véhicule de pool et de service est synchronisé avec cette liste : un nom saisi là-bas apparaît ici, un nom modifié ici suit sur les fiches. Ils alimentent aussi le tour de rôle des missions.', COLORS.blue)
+    card('AGENTS', 'Agents du PDU. Le champ « Utilisateur » des fiches véhicule de pool et de service est synchronisé avec cette liste : un nom saisi là-bas apparaît ici, un nom modifié ici suit sur les fiches. Ils alimentent aussi le tour de rôle des missions.')
   );
 
   page.appendChild(
@@ -140,16 +139,23 @@ function renderListe(page) {
   if (f.statut) list = list.filter((u) => u.statut === f.statut);
   if (f.section) list = list.filter((u) => u.section === f.section);
 
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('Agents', fmt(list.length), 'dans la liste filtrée', moduleColor('UTILISATEURS')));
+  grid.appendChild(statTile('Actifs', fmt(list.filter((u) => u.statut === 'Actif').length), 'en poste', COLORS.green));
+  grid.appendChild(statTile('Conducteurs du pool', fmt(list.filter((u) => u.poolConducteur === 'Oui').length),
+    'au tour de rôle des missions', COLORS.orange));
+  page.appendChild(grid);
+
   page.appendChild(
     toolbar([
       canWrite() && {
-        label: '+ Ajouter un utilisateur',
+        label: '+ Nouvel agent',
         cls: 'addBtn',
         color: COLORS.blue,
         write: true,
         onClick: () => openUserForm(null)
       },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
@@ -279,7 +285,7 @@ function openHistorique(u) {
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => close() },
       ...(canWrite()
-        ? [{ label: '+ Ajouter un incident', cls: 'ok', onClick: () => openIncidentForm(u, null, dessiner) }]
+        ? [{ label: '+ Nouvel incident', cls: 'ok', onClick: () => openIncidentForm(u, null, dessiner) }]
         : [])
     ]
   });
@@ -360,9 +366,8 @@ function renderTableauAbsences(page) {
 
   page.appendChild(
     card(
-      'CONGÉS ET ABSENCES AU POOL',
-      'Congés, permissions et repos maladie des conducteurs du pool, avec l’intérimaire qui les remplace. La date de reprise est le jour du retour au poste : partir le 5 et reprendre le 8 fait 3 jours d’absence.',
-      COLORS.purple
+      'CONGÉS ET ABSENCES',
+      'Congés, permissions et repos maladie des conducteurs du pool, avec l’intérimaire qui les remplace. La date de reprise est le jour du retour au poste : partir le 5 et reprendre le 8 fait 3 jours d’absence.'
     )
   );
 
@@ -402,8 +407,8 @@ function renderTableauAbsences(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Ajout d’indisponibilité', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openIndisponibiliteForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportIndisponibilites('excel', list) },
+      canWrite() && { label: '+ Nouvelle indisponibilité', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openIndisponibiliteForm(null) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => exportIndisponibilites('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => exportIndisponibilites('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => exportIndisponibilites('word', list) }
     ])
@@ -590,8 +595,8 @@ function renderDemandes(page) {
   );
   page.appendChild(
     toolbar([
-      peutDeposer() && { label: '+ Demande de congé', cls: 'addBtn', color: COLORS.blue, write: true, onClick: () => openDemandeForm('conge', null) },
-      peutDeposer() && { label: '+ Demande d’absence', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openDemandeForm('absence', null) }
+      peutDeposer() && { label: '+ Nouvelle demande de congé', cls: 'addBtn', color: COLORS.blue, write: true, onClick: () => openDemandeForm('conge', null) },
+      peutDeposer() && { label: '+ Nouvelle demande d’absence', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openDemandeForm('absence', null) }
     ])
   );
 
@@ -829,7 +834,7 @@ function galerieDemande(images) {
   return zone;
 }
 
-/** L'agent enregistre dans UTILISATEURS sous ce nom. */
+/** L'agent enregistre dans PERSONNEL sous ce nom. */
 function agentParNom(nom) {
   const cle = norm(nom || '');
   return cle ? DB.users.find((u) => norm(nomComplet(u)) === cle) || null : null;
@@ -866,7 +871,7 @@ function demandeFields(type, d) {
     ? { key: 'agent', label: 'Agent (demandeur)', type: 'static', value: d.agent || agentConnecte() }
     : { key: 'agent', label: 'Agent (demandeur)', type: 'selectAdd', required: true, value: d.agent,
       options: agents, emptyLabel: '— choisir un agent —', addLabel: 'Autre personne',
-      hint: 'Nom, fonction et service se remplissent depuis UTILISATEURS' };
+      hint: 'Nom, fonction et service se remplissent depuis PERSONNEL' };
   // La decision n'est proposee qu'a qui peut valider, et jamais sur sa
   // propre demande.
   const decide = peutValider() && (!d.agent || peutValiderPour(d.agent));

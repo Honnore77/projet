@@ -17,9 +17,9 @@ import {
 import { esc, el, num, francSup } from '../../core/utils.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
-  card, toolbar, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
+  card, toolbar, subtabs, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
 } from '../components.js';
-import { rerender } from '../shell.js';
+import { rerender, state } from '../shell.js';
 import { renderSynchroSection, renderReseauSection } from './synchroUI.js';
 import { apparenceNode } from '../apparence.js';
 
@@ -29,24 +29,36 @@ export function renderSettings(page) {
     return;
   }
 
-  page.appendChild(
-    card('RÉGLAGES', 'Comptes utilisateurs, seuils d’alerte du tableau de bord, sauvegarde et restauration des données.', COLORS.purple)
-  );
-
-  renderAccountsSection(page);
-  renderNiveauxSection(page);
-  renderThresholdsSection(page);
-  renderApparenceSection(page);
-  renderReseauSection(page);
-  renderSynchroSection(page);
-  renderAutoBackupSection(page);
-  renderBackupSection(page);
+  const sub = SOUS_RUBRIQUES_REGLAGES.some((x) => x.key === state.sub.REGLAGES) ? state.sub.REGLAGES : 'comptes';
+  page.appendChild(subtabs(SOUS_RUBRIQUES_REGLAGES, sub, (k) => { state.sub.REGLAGES = k; rerender(); }));
+  const r = SOUS_RUBRIQUES_REGLAGES.find((x) => x.key === sub);
+  page.appendChild(card(r.label, r.texte));
+  r.sections.forEach((afficher) => afficher(page));
 
   // Mention du createur de l'application, discrete, en bas des reglages.
   page.appendChild(el(
     '<p class="mentionCreateur">Application créée par Delon Calixe César le 14/08/2026 — Tous droits réservés</p>'
   ));
 }
+
+/**
+ * Les sous-rubriques de RÉGLAGES : chacune rassemble des parties qui vont
+ * ensemble, au lieu d'une seule longue page.
+ */
+const SOUS_RUBRIQUES_REGLAGES = [
+  { key: 'comptes', label: 'COMPTES ET ACCÈS',
+    texte: 'Les comptes de l’application, leur rôle et l’agent auquel chacun est lié, puis ce que chaque rôle peut voir et faire dans chaque rubrique.',
+    sections: [renderAccountsSection, renderNiveauxSection] },
+  { key: 'parametres', label: 'PARAMÈTRES',
+    texte: 'L’identité du PDU sur les documents, les prix du litre, les frais de mission, les seuils d’alerte et la page de connexion.',
+    sections: [renderThresholdsSection, renderApparenceSection] },
+  { key: 'reseau', label: 'RÉSEAU ET SYNCHRONISATION',
+    texte: 'Le PC serveur et les postes du bureau, et la synchronisation avec un autre PC ou avec le téléphone.',
+    sections: [renderReseauSection, renderSynchroSection] },
+  { key: 'sauvegarde', label: 'SAUVEGARDE',
+    texte: 'La copie automatique des données dans un dossier, l’export d’une sauvegarde, sa restauration.',
+    sections: [renderAutoBackupSection, renderBackupSection] }
+];
 
 /* ----------------------------- Apparence ---------------------------- */
 
@@ -116,7 +128,7 @@ function renderAutoBackupSection(page) {
 
   page.appendChild(
     toolbar([
-      { label: '📁 Choisir le dossier', cls: 'addBtn', color: COLORS.blue, onClick: async () => {
+      { label: 'Choisir le dossier', cls: 'addBtn', color: COLORS.blue, onClick: async () => {
         const choisi = await backupChoisirDossier();
         if (!choisi) return;
         saveSettings({ dossierSauvegarde: choisi });
@@ -170,9 +182,9 @@ function renderAccountsSection(page) {
   page.appendChild(sectionLabel('COMPTES ET ACCÈS', COLORS.purple));
   page.appendChild(
     toolbar([
-      { label: '+ Créer un compte', cls: 'addBtn', color: COLORS.purple, onClick: openCreateAccount },
-      { label: '🔑 Changer mon mot de passe', color: COLORS.blue, onClick: () => openChangeOwnPassword() },
-      { label: '🛟 Clé de récupération', color: '#00695C', onClick: ouvrirCleRecuperation }
+      { label: '+ Nouveau compte', cls: 'addBtn', color: COLORS.purple, onClick: openCreateAccount },
+      { label: 'Changer mon mot de passe', color: COLORS.blue, onClick: () => openChangeOwnPassword() },
+      { label: 'Clé de récupération', color: '#00695C', onClick: ouvrirCleRecuperation }
     ])
   );
 
@@ -236,7 +248,7 @@ function renderAccountsSection(page) {
       '<div class="card"><h3 style="color:#5b7178">RÔLES</h3><p>' +
         ROLES.map((r) => `${r.label} — ${r.desc}`).join('\n') +
         '\n\nCe que chaque rôle voit et peut faire, rubrique par rubrique, se règle juste en dessous ' +
-        '(NIVEAUX D’ACCÈS). Un compte « Conducteur » doit être lié à son agent de la liste UTILISATEURS : ' +
+        '(NIVEAUX D’ACCÈS). Un compte « Conducteur » doit être lié à son agent de la liste PERSONNEL : ' +
         'c’est ce nom qui lui fait retrouver ses missions, son véhicule et ses demandes.' +
         '</p></div>'
     )
@@ -264,7 +276,7 @@ function ouvrirCleRecuperation() {
   );
   const zone = corps.querySelector('[data-cle]');
   openModal({
-    title: '🛟 Clé de récupération',
+    title: 'Clé de récupération',
     bodyNode: corps,
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => { close(); rerender(); } },
@@ -415,7 +427,7 @@ function accountFields(a = {}, withPassword) {
     { key: 'login', label: 'Identifiant', required: true, value: a.login, readonly: !!a.id },
     { key: 'nom', label: 'Nom complet', value: a.nom },
     { key: 'role', label: 'Rôle', type: 'select', options: ROLES.map((r) => ({ value: r.key, label: r.label })), value: a.role || 'direction' },
-    { key: 'agent', label: 'Agent lié (UTILISATEURS)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
+    { key: 'agent', label: 'Agent lié (PERSONNEL)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
       options: nomsUtilisateurs().slice().sort((x, y) => x.localeCompare(y, 'fr')), value: a.agent,
       hint: 'Indispensable pour un conducteur : ses missions, son véhicule et ses demandes se retrouvent par ce nom' },
     ...(withPassword
@@ -471,7 +483,7 @@ function openValiderInscription(a) {
       'le compte pourra servir aussitôt.',
     fields: [
       { key: 'role', label: 'Rôle', type: 'select', options: ROLES.map((r) => ({ value: r.key, label: r.label })), value: role },
-      { key: 'agent', label: 'Agent lié (UTILISATEURS)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
+      { key: 'agent', label: 'Agent lié (PERSONNEL)', type: 'select', allowEmpty: true, emptyLabel: '— aucun —',
         options: nomsUtilisateurs().slice().sort((x, y) => x.localeCompare(y, 'fr')), value: a.agent,
         hint: a.agent ? 'Retrouvé d’après le nom donné à l’inscription' : 'Aucun agent ne porte exactement ce nom : choisissez-le' }
     ],
@@ -581,9 +593,9 @@ function openSettingsForm() {
       { key: 'prixLitreDiesel', label: 'Prix du litre (Diesel)', type: 'montant', value: s.prixLitreDiesel,
         hint: 'Laisser à 0 tant que le prix n’est pas connu : il n’est alors pas proposé' },
       { key: 'fraisOmParParticipant', label: 'Frais OM par participant et par destination', type: 'montant', value: fraisOmParParticipant(),
-        hint: 'Utilisé par SIMULATION : frais OM = participants × ce montant' },
+        hint: 'Utilisé par MISSIONS → SIMULATIONS : frais OM = participants × ce montant' },
       { key: 'parcoursInterneKmParJour', label: 'Parcours en interne (km par jour)', type: 'nombre', value: kmInterneParJour(),
-        hint: 'Utilisé par SIMULATION : km à l’intérieur d’une destination = jours sur place × ce nombre. 0 = non réglé' },
+        hint: 'Utilisé par MISSIONS → SIMULATIONS : km à l’intérieur d’une destination = jours sur place × ce nombre. 0 = non réglé' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,
@@ -649,9 +661,9 @@ function renderBackupSection(page) {
   page.appendChild(sectionLabel('SAUVEGARDE ET RESTAURATION', COLORS.green));
   page.appendChild(
     toolbar([
-      { label: '💾 Exporter une sauvegarde (.zip)', cls: 'addBtn', color: COLORS.green, onClick: doBackup },
-      { label: '📂 Restaurer une sauvegarde', color: COLORS.blue, onClick: doRestore },
-      { label: '🗑 Vider toutes les données', color: COLORS.red, onClick: doWipe }
+      { label: 'Exporter une sauvegarde (.zip)', cls: 'addBtn', color: COLORS.green, onClick: doBackup },
+      { label: 'Restaurer une sauvegarde', color: COLORS.blue, onClick: doRestore },
+      { label: 'Vider toutes les données', color: COLORS.red, onClick: doWipe }
     ])
   );
 

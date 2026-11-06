@@ -72,7 +72,7 @@ export function renderStatistiques(page, cle) {
 
   page.appendChild(
     toolbar([
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', def, avecLibre(stats, cle), annee) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', def, avecLibre(stats, cle), annee) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', def, avecLibre(stats, cle), annee) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', def, avecLibre(stats, cle), annee) }
     ])
@@ -134,7 +134,7 @@ export function renderStatistiques(page, cle) {
 const TABLEAUX = {
   VEHICULES: [{ titre: 'Véhicules', ds: () => dsVehicles(allVehicles()) }],
   UTILISATEURS: [
-    { titre: 'Utilisateurs', ds: () => dsUsers() },
+    { titre: 'Agents', ds: () => dsUsers() },
     { titre: 'Incidents', ds: () => dsIncidents(), date: 'date' },
     { titre: 'Congés et absences', ds: () => dsIndisponibilites(), date: 'dateDepart' }
   ],
@@ -145,7 +145,9 @@ const TABLEAUX = {
   MISSION: [
     { titre: 'Missions', ds: () => dsMissions(), date: 'dateDepart' },
     { titre: 'Carburant des missions', ds: () => dsCarburantMissions(), date: 'dateDepart' },
-    { titre: 'Ravitaillements', ds: () => dsRavitaillementsMissions(), date: 'date' }
+    { titre: 'Ravitaillements', ds: () => dsRavitaillementsMissions(), date: 'date' },
+    { titre: 'Sorties d’Abidjan', ds: () => dsSortiesAbidjan(), date: 'date' },
+    { titre: 'Simulations', ds: () => dsSimulations(), date: 'periode' }
   ],
   ENTRETIEN: [
     { titre: 'Passages au garage', ds: () => dsMaintenance(), date: 'dateEntree' },
@@ -153,8 +155,7 @@ const TABLEAUX = {
   ],
   DECHARGE: [
     { titre: 'Courses', ds: () => dsDecharges(), date: 'date' },
-    { titre: 'Destinataires', ds: () => dsDestinataires() },
-    { titre: 'Sorties d’Abidjan', ds: () => dsSortiesAbidjan(), date: 'date' }
+    { titre: 'Destinataires', ds: () => dsDestinataires() }
   ],
   SIMULATION: [{ titre: 'Simulations', ds: () => dsSimulations(), date: 'periode' }]
 };
@@ -225,10 +226,8 @@ function sectionGraphiquesAuChoix(page, cle, annee, couleur, def) {
         retenirLibres(cle, [...etats.map((e) => e.choix), {}]);
         rerender();
       }
-    },
-    { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporterLibres('excel', cle, def, annee, titreExport) },
-    { label: '⬇ PDF', color: COLORS.red, onClick: () => exporterLibres('pdf', cle, def, annee, titreExport) },
-    { label: '⬇ Word', color: '#2B579A', onClick: () => exporterLibres('word', cle, def, annee, titreExport) }
+    }
+    // Les exports de la page reprennent deja les graphiques au choix.
   ]));
 
   const grille = el('<div class="chartGrid graphiquesAuChoix"></div>');

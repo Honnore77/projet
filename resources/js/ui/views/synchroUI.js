@@ -44,10 +44,10 @@ export function renderSynchroSection(page) {
   page.appendChild(
     toolbar([
       isDesktop
-        ? { label: '📱 Afficher le code QR', cls: 'addBtn', color: COULEUR, onClick: afficherQR }
-        : { label: '📷 Scanner le code QR du PC', cls: 'addBtn', color: COULEUR, onClick: scanner },
+        ? { label: 'Afficher le code QR', cls: 'addBtn', color: COULEUR, onClick: afficherQR }
+        : { label: 'Scanner le code QR du PC', cls: 'addBtn', color: COULEUR, onClick: scanner },
       // Entre deux PC, sans camera : l'un affiche son code, l'autre le recopie.
-      isDesktop && { label: '🔄 Synchroniser avec un autre PC', color: '#1976D2', onClick: synchroAutrePC }
+      isDesktop && { label: 'Synchroniser avec un autre PC', color: '#1976D2', onClick: synchroAutrePC }
     ])
   );
 }
@@ -265,7 +265,7 @@ function synchroAutrePC() {
     buttons: [
       { label: 'Fermer', cls: 'cancel', onClick: (close) => { close(); rerender(); } },
       {
-        label: '🔄 Synchroniser',
+        label: 'Synchroniser',
         cls: 'ok',
         onClick: async () => {
           if (enCours) return;

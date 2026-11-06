@@ -38,8 +38,7 @@ export function renderGarages(page) {
   page.appendChild(card(
     'GARAGES',
     'Les garages où passent les véhicules : contacts, point focal, localisation à ouvrir dans Google Maps, et les véhicules sur lesquels chacun est intervenu. ' +
-      'Un garage saisi dans une fiche d’entretien ou une intervention s’ajoute ici de lui-même.',
-    COULEUR_GARAGES
+      'Un garage saisi dans une fiche d’entretien ou une intervention s’ajoute ici de lui-même.'
   ));
 
   // Les garages deja cites dans l'entretien, avant que la liste existe, la
@@ -56,7 +55,7 @@ export function renderGarages(page) {
 
   page.appendChild(toolbar([
     canWrite() && { label: '+ Nouveau garage', cls: 'addBtn', color: COULEUR_GARAGES, write: true, onClick: () => ouvrirGarage(null) },
-    { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', list) },
+    { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }
   ]));

@@ -1262,7 +1262,7 @@ export function detacherAgentDesVehicules(nom) {
  * malheureux.
  *
  * Sur un agent qui existe deja, on ne complete que les cases vides : une
- * fiche vehicule n'a pas a ecraser ce qui a ete saisi dans UTILISATEURS.
+ * fiche vehicule n'a pas a ecraser ce qui a ete saisi dans PERSONNEL.
  */
 export function assurerAgent(nom, infos = {}) {
   const propre = String(nom || '').trim();
@@ -2711,7 +2711,7 @@ export function etatIndisponibilite(i, jour = todayISO(), db = DB) {
   return 'terminée';
 }
 
-/** Les conducteurs du pool, tels qu'ils s'ecrivent dans UTILISATEURS. */
+/** Les conducteurs du pool, tels qu'ils s'ecrivent dans PERSONNEL. */
 export function conducteursDuPool(db = DB) {
   return (db.users || [])
     .filter((u) => u.poolConducteur === 'Oui')

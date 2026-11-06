@@ -1,11 +1,11 @@
 /* ===================================================================
-   SORTIES (cle DECHARGE) — trois sous-rubriques :
+   COURRIER (cle DECHARGE) — deux sous-rubriques :
 
-     COURSES            courriers deposes contre decharge, en tableau
-     DESTINATAIRES      structures qui les recoivent : contacts, localisation
-     SORTIES D'ABIDJAN  deplacements hors d'Abidjan qui ne sont pas des
-                        missions : ni tour de role, ni jours, ni rang du
-                        conducteur (collection `sortiesAbidjan`)
+     COURSES        courriers deposes contre decharge, en tableau
+     DESTINATAIRES  structures qui les recoivent : contacts, localisation
+
+   Les sorties d'Abidjan, qui y etaient, sont passees dans MISSIONS
+   (views/sortiesAbidjan.js).
 
    Une structure tapee dans une decharge rejoint d'elle-meme la liste des
    destinataires : on ne la saisit qu'une fois.
@@ -14,12 +14,10 @@
 import {
   DB, insert, update, remove, knownImmats, knownDrivers, nomsUtilisateurs,
   prochaineRefDecharge, refDechargeEnDouble, nomsDestinataires, destinataireParNom,
-  assurerDestinataire, renommerDestinataire, dechargesDuDestinataire, lienCarte,
-  prochaineRefSortieAbidjan, refSortieAbidjanEnDouble, nomsDestinationsMission, destinationMissionParNom,
-  assurerDestinationMission, parcoursMission, libelleParcours, totauxRapportMission, ravMontant
+  assurerDestinataire, renommerDestinataire, dechargesDuDestinataire, lienCarte
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
-import { esc, escLignes, el, fmt, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
+import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
 import { autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
@@ -29,31 +27,25 @@ import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord } from '../../export/word.js';
-import { dsDecharges, dsDestinataires, dsSortiesAbidjan } from '../../export/datasets.js';
+import { dsDecharges, dsDestinataires } from '../../export/datasets.js';
 import { filtrer } from '../../core/acces.js';
-import { monterRavitaillements } from './missions.js';
 
 const SUBS = [
   { key: 'decharges', label: 'COURSES' },
-  { key: 'destinataires', label: 'LES DESTINATAIRES' },
-  { key: 'abidjan', label: 'SORTIES D’ABIDJAN' },
+  { key: 'destinataires', label: 'DESTINATAIRES' },
   SOUS_RUBRIQUE_STATS
 ];
 
-/** Couleur de la rubrique, et des teintes plus sombres pour les autres pages. */
+/** Couleur de la rubrique : ses pages, ses cartes et ses boutons. */
 const COULEUR = () => moduleColor('DECHARGE');
-const COULEUR_DEST = '#4E342E';
-const COULEUR_ABIDJAN = '#6D4C41';
 
 export function renderDecharges(page) {
   const sub = state.sub.DECHARGE || 'decharges';
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.DECHARGE = k; rerender(); },
-      { decharges: COULEUR(), destinataires: COULEUR_DEST, abidjan: COULEUR_ABIDJAN, stats: COLORS.grey })
+    subtabs(SUBS, sub, (k) => { state.sub.DECHARGE = k; rerender(); })
   );
   if (sub === 'stats') renderStatistiques(page, 'DECHARGE');
   else if (sub === 'destinataires') renderDestinataires(page);
-  else if (sub === 'abidjan') renderSortiesAbidjan(page);
   else renderListeDecharges(page);
 }
 
@@ -108,7 +100,7 @@ function renderListeDecharges(page) {
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Courses', fmt(list.length), 'sur la période filtrée', COULEUR()));
   grid.appendChild(statTile('Destinataires', fmt(new Set(list.map((d) => norm(d.destinataire || '')).filter(Boolean)).size),
-    'structures concernées', COULEUR_DEST));
+    'structures concernées', COULEUR()));
   grid.appendChild(statTile('Sans décharge signée', fmt(list.filter((d) => !(d.images || []).length).length),
     'photo à joindre', '#F47B20'));
   page.appendChild(grid);
@@ -116,7 +108,7 @@ function renderListeDecharges(page) {
   page.appendChild(
     toolbar([
       canWrite() && { label: '+ Nouvelle course', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDechargeForm(null) },
-      { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'decharges', list) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', 'decharges', list) },
       { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'decharges', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'decharges', list) }
     ])
@@ -263,24 +255,23 @@ export function openDechargeForm(d) {
 function renderDestinataires(page) {
   page.appendChild(
     card(
-      'LES DESTINATAIRES',
-      'Structures auxquelles les courriers sont remis : nom, contacts et localisation, à ouvrir dans Google Maps.',
-      COULEUR_DEST
+      'DESTINATAIRES',
+      'Structures auxquelles les courriers sont remis : nom, contacts et localisation, à ouvrir dans Google Maps.'
     )
   );
 
   const list = DB.destinataires.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
 
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Destinataires', fmt(list.length), 'structures enregistrées', COULEUR_DEST));
+  grid.appendChild(statTile('Destinataires', fmt(list.length), 'structures enregistrées', COULEUR()));
   grid.appendChild(statTile('Localisés', fmt(list.filter((d) => lienCarte(d.localisation)).length),
     'avec une localisation', COULEUR()));
   page.appendChild(grid);
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouveau destinataire', cls: 'addBtn', color: COULEUR_DEST, write: true, onClick: () => openDestinataireForm(null) },
-      { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'destinataires', list) },
+      canWrite() && { label: '+ Nouveau destinataire', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDestinataireForm(null) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', 'destinataires', list) },
       { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'destinataires', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'destinataires', list) }
     ])
@@ -406,227 +397,13 @@ function openDestinataireForm(d) {
   });
 }
 
-/* ========================= SORTIES D'ABIDJAN ======================= */
-
-function renderSortiesAbidjan(page) {
-  const f = state.filters.sortiesAbidjan;
-
-  page.appendChild(
-    card(
-      'SORTIES D’ABIDJAN',
-      'Déplacements hors d’Abidjan qui ne sont pas des missions : ils ne comptent ni dans le tour de rôle, ' +
-        'ni dans les jours, ni dans le nombre de missions des conducteurs.',
-      COULEUR_ABIDJAN
-    )
-  );
-
-  // Un conducteur n'y voit que ses propres sorties.
-  const tous = filtrer('DECHARGE', (DB.sortiesAbidjan || []).slice());
-  const conducteurs = [...new Set(tous.map((x) => x.conducteur).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'fr'));
-  page.appendChild(
-    filterBar([
-      { type: 'date', title: 'Du', value: f.dateFrom, onChange: (v) => { f.dateFrom = v; rerender(); } },
-      { type: 'date', title: 'Au', value: f.dateTo, onChange: (v) => { f.dateTo = v; rerender(); } },
-      {
-        type: 'select', value: f.conducteur,
-        options: [{ value: '', label: 'Tous les conducteurs' }].concat(conducteurs),
-        onChange: (v) => { f.conducteur = v; rerender(); }
-      }
-    ])
-  );
-
-  let list = tous;
-  if (f.dateFrom) list = list.filter((x) => !x.date || x.date >= f.dateFrom);
-  if (f.dateTo) list = list.filter((x) => !x.date || x.date <= f.dateTo);
-  if (f.conducteur) list = list.filter((x) => norm(x.conducteur || '') === norm(f.conducteur));
-  list.sort((a, b) =>
-    String(b.date || '').localeCompare(String(a.date || '')) ||
-    String(b.ref || '').localeCompare(String(a.ref || ''), 'fr', { numeric: true }));
-
-  const rav = list.flatMap((x) => x.ravitaillements || []);
-  const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Sorties', fmt(list.length), 'sur la période filtrée', COULEUR_ABIDJAN));
-  grid.appendChild(statTile('Carburant', `${fmt(sum(rav, (r) => r.quantite))} L`, `${fmt(sum(rav, ravMontant))} F`, '#F47B20'));
-  grid.appendChild(statTile('Dépenses', `${fmt(sum(list, (x) => totauxRapportMission(x).total))} F`,
-    'carburant, frais OM, péage, divers', COULEUR()));
-  page.appendChild(grid);
-
-  page.appendChild(
-    toolbar([
-      canWrite() && { label: '+ Nouvelle sortie d’Abidjan', cls: 'addBtn', color: COULEUR_ABIDJAN, write: true, onClick: () => openSortieAbidjanForm(null) },
-      { label: '⬇ Excel', color: '#1976D2', onClick: () => doExport('excel', 'abidjan', list) },
-      { label: '⬇ PDF', color: '#D32F2F', onClick: () => doExport('pdf', 'abidjan', list) },
-      { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'abidjan', list) }
-    ])
-  );
-
-  if (!list.length) {
-    page.appendChild(emptyState((DB.sortiesAbidjan || []).length
-      ? 'Aucune sortie d’Abidjan ne correspond aux filtres.' : 'Aucune sortie d’Abidjan enregistrée.'));
-    return;
-  }
-
-  const headers = [
-    'Réf.', 'Date', 'Conducteur', 'Véhicule', 'Destination', 'Km<br>départ', 'Km<br>arrivée',
-    'Parcours<br>(A-R)', 'Participants', 'Dotation', 'Carburant', 'Péage', 'Total', ''
-  ];
-  const droite = (v) => `<span style="display:block;text-align:right;white-space:nowrap">${v}</span>`;
-  const vide = (v) => v === '' || v === undefined || v === null;
-  const francs = (v) => (vide(v) ? '' : `${fmt(v)} F`);
-
-  const rows = list.map((x) => {
-    const t = totauxRapportMission(x);
-    return [
-      `<b style="white-space:nowrap">${esc(x.ref || '')}</b>`,
-      esc(dateFR(x.date)),
-      esc(x.conducteur || ''),
-      esc(x.vehicule || '') + autreImmat(x.vehicule),
-      esc(x.destination || ''),
-      droite(vide(x.kmDepart) ? '' : esc(fmt(x.kmDepart))),
-      droite(vide(x.kmArrivee) ? '' : esc(fmt(x.kmArrivee))),
-      droite(esc(libelleParcours(parcoursMission(x)) || '—')),
-      escLignes((x.participants || []).filter(Boolean).join('\n')),
-      droite(esc(francs(x.dotationCarburant))),
-      droite(esc(francs(t.carburant))),
-      droite(esc(francs(t.fraisPeage))),
-      droite(`<b>${esc(francs(t.total))}</b>`),
-      canWrite()
-        ? `${miniBtn('#008A3B', 'data-edit data-write', '✎')} ${miniBtn('#D32F2F', 'data-del data-write', '✕')}`
-        : ''
-    ];
-  });
-
-  page.appendChild(
-    dataTable(headers, rows, (tr, i) => {
-      const x = list[i];
-      tr.dataset.search = norm(
-        `${x.ref} ${x.date} ${x.conducteur} ${x.vehicule} ${x.destination} ${(x.participants || []).join(' ')}`
-      );
-
-      const ed = tr.querySelector('[data-edit]');
-      if (ed) ed.onclick = () => openSortieAbidjanForm(x);
-
-      const del = tr.querySelector('[data-del]');
-      if (del) {
-        del.onclick = async () => {
-          if (!(await confirmDialog({
-            title: 'Supprimer la sortie d’Abidjan',
-            message: `Supprimer la sortie ${x.ref || ''} de ${x.conducteur || '—'} vers ${x.destination || '—'} ?`,
-            okLabel: 'Supprimer', danger: true
-          }))) return;
-          remove('sortiesAbidjan', x.id);
-          toast('Sortie d’Abidjan supprimée.', 'ok');
-          rerender();
-        };
-      }
-    })
-  );
-}
-
-/** « 640 km » aller-retour, ou ce qui manque pour le calculer. */
-function texteParcoursSortie(destination) {
-  if (!String(destination || '').trim()) return 'choisir une destination';
-  return libelleParcours(parcoursMission({ destinations: [destination] })) ||
-    'distance inconnue — à renseigner dans MISSION → DESTINATIONS';
-}
-
-function sortieAbidjanFields(x = {}) {
-  const p = x.participants || [];
-  return [
-    { key: 'ref', label: 'Référence', required: true, value: x.ref || prochaineRefSortieAbidjan(),
-      hint: 'Proposée à la suite de la dernière ; modifiable' },
-    { key: 'date', label: 'Date de la sortie', type: 'date', required: true, value: x.date || todayISO() },
-    { key: 'conducteur', label: 'Conducteur', required: true, value: x.conducteur, list: knownDrivers() },
-    { key: 'vehicule', label: 'Véhicule', value: x.vehicule, list: knownImmats() },
-    // Les memes destinations que les missions : la distance depuis Abidjan
-    // ne se renseigne qu'une fois, dans MISSION → DESTINATIONS.
-    { key: 'destination', label: 'Destination', type: 'selectAdd', required: true, value: x.destination,
-      options: nomsDestinationsMission(), emptyLabel: '— choisir —', addLabel: 'Nouvelle destination',
-      hint: 'Une nouvelle destination rejoint MISSION → DESTINATIONS' },
-    { key: 'kmDepart', label: 'Kilométrage départ', type: 'nombre', value: x.kmDepart },
-    { key: 'kmArrivee', label: 'Kilométrage arrivée', type: 'nombre', value: x.kmArrivee },
-    { key: 'dotationCarburant', label: 'Dotation (F)', type: 'montant', value: x.dotationCarburant },
-    { key: 'participant1', label: 'Participant 1', value: p[0] },
-    { key: 'participant2', label: 'Participant 2', value: p[1] },
-    { key: 'participant3', label: 'Participant 3', value: p[2] },
-    { key: 'participant4', label: 'Participant 4', value: p[3] },
-    { key: 'parcours', label: 'Parcours calculé (aller-retour)', type: 'static', value: texteParcoursSortie(x.destination),
-      hint: 'Abidjan → destination → Abidjan' },
-    { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: x.fraisPeage },
-    { key: 'fraisOm', label: 'Frais OM (F)', type: 'montant', value: x.fraisOm },
-    { key: 'depenseDivers', label: 'Dépense divers (F)', type: 'montant', value: x.depenseDivers },
-    { key: 'justificationDivers', label: 'Justification de la dépense divers', value: x.justificationDivers }
-  ];
-}
-
-export function openSortieAbidjanForm(x) {
-  const isEdit = !!x;
-  const rav = ((x && x.ravitaillements) || []).map((r) => Object.assign({}, r));
-  let majTotaux = () => {};
-  const francsOuVide = (v) => (v === '' ? '' : francSup(v));
-
-  openForm({
-    title: isEdit ? `Modifier la sortie d’Abidjan — ${x.ref || ''}` : 'Nouvelle sortie d’Abidjan',
-    fields: sortieAbidjanFields(x || {}),
-    okLabel: isEdit ? 'Enregistrer les modifications' : 'Enregistrer la sortie',
-    onInput: (values, scope) => {
-      majTotaux();
-      const node = scope.querySelector('[data-key="parcours"]');
-      if (node) node.value = texteParcoursSortie(values.destination);
-    },
-    // Les points de ravitaillement et le total des depenses, comme dans le
-    // rapport de mission.
-    extra: (scope) => { majTotaux = monterRavitaillements(scope, rav); },
-    onSubmit: (v) => {
-      const ref = String(v.ref || '').trim().toUpperCase();
-      if (refSortieAbidjanEnDouble(ref, x && x.id)) {
-        return `La référence ${ref} est déjà attribuée à une autre sortie d’Abidjan.`;
-      }
-      // Une destination deja connue garde son ecriture ; une nouvelle
-      // rejoint la liste des destinations des missions.
-      const connue = destinationMissionParNom(v.destination);
-      const destination = connue ? connue.nom : String(v.destination || '').trim();
-      const creee = connue ? null : assurerDestinationMission(destination);
-
-      const payload = {
-        ref,
-        date: v.date,
-        conducteur: v.conducteur,
-        vehicule: String(v.vehicule || '').trim().toUpperCase(),
-        destination,
-        destinations: destination ? [destination] : [],
-        kmDepart: v.kmDepart,
-        kmArrivee: v.kmArrivee,
-        dotationCarburant: francsOuVide(v.dotationCarburant),
-        participants: [v.participant1, v.participant2, v.participant3, v.participant4].filter(Boolean),
-        ravitaillements: rav,
-        fraisPeage: francsOuVide(v.fraisPeage),
-        fraisOm: francsOuVide(v.fraisOm),
-        depenseDivers: francsOuVide(v.depenseDivers),
-        justificationDivers: v.justificationDivers
-      };
-      if (isEdit) update('sortiesAbidjan', x.id, payload);
-      else insert('sortiesAbidjan', Object.assign({ createdAt: new Date().toISOString() }, payload));
-
-      toast(
-        (isEdit ? 'Sortie d’Abidjan mise à jour.' : 'Sortie d’Abidjan enregistrée.') +
-          (creee ? ` « ${creee.nom} » ajoutée aux destinations, distance à renseigner.` : ''),
-        'ok', creee ? 4500 : 2600
-      );
-      rerender();
-      return null;
-    }
-  });
-}
-
 /* ============================== Exports ============================ */
 
 async function doExport(kind, sub, list) {
   try {
     const [ds, name, titre] = {
       decharges: [dsDecharges, 'PDU_courses', 'Courses'],
-      destinataires: [dsDestinataires, 'PDU_destinataires', 'Destinataires des courses'],
-      abidjan: [dsSortiesAbidjan, 'PDU_sorties_abidjan', 'Sorties d’Abidjan']
+      destinataires: [dsDestinataires, 'PDU_destinataires', 'Destinataires des courses']
     }[sub];
     const datasets = [ds(list)];
     const res = kind === 'excel'

@@ -45,8 +45,7 @@ export function renderVidanges(page) {
     'VIDANGES',
     'Toutes les vidanges des véhicules, à part des passages au garage. ' +
       'Le kilométrage de la prochaine vidange devient la « Prochaine vidange » du véhicule dans VÉHICULES ; ' +
-      'l’observation après la vidange est signalée dans ÉTAT DES VÉHICULES.',
-    COULEUR_VIDANGES
+      'l’observation après la vidange est signalée dans ÉTAT DES VÉHICULES.'
   ));
 
   const tous = (DB.vidanges || []).slice()
@@ -70,7 +69,7 @@ export function renderVidanges(page) {
 
   page.appendChild(toolbar([
     canWrite() && { label: '+ Nouvelle vidange', cls: 'addBtn', color: COULEUR_VIDANGES, write: true, onClick: () => ouvrirVidange(null) },
-    { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', list) },
+    { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }
   ]));

@@ -26,8 +26,7 @@ export function renderDashboard(page) {
   page.appendChild(
     card(
       'TABLEAU DE BORD',
-      `Vue d'ensemble du parc automobile ${DB.settings.organisation}. Dernière mise à jour des données : ${new Date(DB.meta.updatedAt).toLocaleString('fr-FR')}.`,
-      COLORS.green
+      `Vue d'ensemble du parc automobile ${DB.settings.organisation}. Dernière mise à jour des données : ${new Date(DB.meta.updatedAt).toLocaleString('fr-FR')}.`
     )
   );
 
@@ -35,7 +34,7 @@ export function renderDashboard(page) {
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Véhicules', fmt(nbVeh), `${DB.vehicles.pool.length} pool · ${DB.vehicles.mission.length} mission · ${DB.vehicles.service.length} service`, COLORS.green));
   grid.appendChild(statTile('Au garage', fmt(auGarage), auGarage ? 'immobilisations en cours' : 'aucune immobilisation', auGarage ? COLORS.orange : COLORS.green));
-  grid.appendChild(statTile('Utilisateurs', fmt(DB.users.length), `${DB.users.filter((u) => u.statut === 'Actif').length} actif(s)`, COLORS.blue));
+  grid.appendChild(statTile('Agents', fmt(DB.users.length), `${DB.users.filter((u) => u.statut === 'Actif').length} actif(s)`, COLORS.blue));
   grid.appendChild(statTile('Missions', fmt(DB.missions.length), `${impayees.length} en attente de paiement`, COLORS.purple));
   grid.appendChild(statTile('Entretien', fmtF(totalEntretien), `${DB.maintenance.length} passage(s) au garage`, COLORS.red));
   page.appendChild(grid);

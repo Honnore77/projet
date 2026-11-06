@@ -54,8 +54,7 @@ export function renderEtatsVehicules(page) {
     'Les problèmes constatés sur les véhicules : qui les a signalés, à qui, et quand ils ont été résolus. ' +
       'Les observations notées ailleurs s’y ajoutent d’elles-mêmes : rapport de mission, dotation, entrée et retour du garage, incident, fiche du véhicule. ' +
       'Au retour du garage, les pannes signalées avant l’entrée sont réglées : seule l’observation du retour reste affichée. ' +
-      'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État actuel du véhicule » des tableaux POOL, MISSION et SERVICE.',
-    COULEUR_ETAT
+      'Tant qu’un problème n’est pas résolu, il s’affiche dans la colonne « État actuel du véhicule » des tableaux POOL, MISSION et SERVICE.'
   ));
 
   // Reglees par un passage au garage, les pannes d'avant l'entree ne
@@ -92,8 +91,8 @@ export function renderEtatsVehicules(page) {
     || String(b.dateSignalement || '').localeCompare(String(a.dateSignalement || '')));
 
   page.appendChild(toolbar([
-    canWrite() && { label: '+ Signaler un problème', cls: 'addBtn', color: COULEUR_ETAT, write: true, onClick: () => ouvrirSignalement(null) },
-    { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', list) },
+    canWrite() && { label: '+ Nouveau signalement', cls: 'addBtn', color: COULEUR_ETAT, write: true, onClick: () => ouvrirSignalement(null) },
+    { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }
   ]));

@@ -33,7 +33,7 @@ export function renderVehicleSheet(page) {
     toolbar([
       { label: '← Retour aux véhicules', color: COLORS.blue, onClick: () => navigate('VEHICULES') },
       canWrite() && vehicle && { label: '✎ Modifier le véhicule', color: COLORS.green, write: true, onClick: () => (cat === 'reforme' ? openReformeForm(stripCat(vehicle), 'reforme') : openVehicleForm(stripCat(vehicle), cat)) },
-      canWrite() && cat !== 'reforme' && { label: '+ Fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
+      canWrite() && cat !== 'reforme' && { label: '+ Nouvelle fiche d’entretien', color: COLORS.orange, write: true, onClick: () => openFicheForm(null, immat) },
       ...menusExportFiche((kind, mode) => doExport(kind, { immat, vehicle, cat, dots, missionsCarburant, missions, maint }, mode))
     ])
   );

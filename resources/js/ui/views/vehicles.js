@@ -17,10 +17,10 @@ import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm, dateFR, grouperMilliers, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
-  dataTable, COLORS
+  dataTable, statTile, COLORS
 } from '../components.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
-import { state, rerender, openVehicleSheet } from '../shell.js';
+import { state, rerender, openVehicleSheet, moduleColor } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord } from '../../export/word.js';
@@ -102,7 +102,7 @@ function vehicleFields(v = {}, cat = 'pool') {
       options: valeursVehicules('couleur', COULEURS), emptyLabel: '— choisir —', addLabel: 'Autre couleur' },
     { key: 'energie', label: 'Énergie', type: 'select', options: ENERGIES, value: v.energie || 'Essence' },
     { key: 'consommation', label: 'Consommation (litres pour 100 km)', type: 'nombre', step: '0.1', value: v.consommation,
-      placeholder: 'Ex. 9,5', hint: 'Reprise par SIMULATION quand on choisit ce véhicule' },
+      placeholder: 'Ex. 9,5', hint: 'Reprise par MISSIONS → SIMULATIONS quand on choisit ce véhicule' },
     { key: 'statut', label: 'Statut', type: 'select', options: statuts, value: v.statut || 'Disponible' },
     ...(withSection
       ? [
@@ -126,7 +126,7 @@ function vehicleFields(v = {}, cat = 'pool') {
             emptyLabel: '— aucun —',
             addLabel: 'Autre nom',
             value: v.utilisateur,
-            hint: 'Un nom saisi ici est ajouté à la rubrique UTILISATEURS'
+            hint: 'Un nom saisi ici est ajouté à la rubrique PERSONNEL'
           }
         ]
       : []),
@@ -149,25 +149,26 @@ export function renderVehicles(page) {
   const withSection = cat !== 'mission';
 
   page.appendChild(
-    card('VÉHICULES', 'Véhicules de pool, de mission et de service. Cliquez sur « Fiche » pour voir tout l’historique d’un véhicule.', COLORS.green)
-  );
-
-  page.appendChild(
     subtabs(
       [
-        ...CATEGORIES.map((c) => ({ key: c.key, label: `${c.label} (${DB.vehicles[c.key].length})` })),
-        { key: CAT_REFORME, label: `VÉHICULES RÉFORMÉS (${DB.vehicles[CAT_REFORME].length})` },
-        { key: 'etat', label: `ÉTAT DES VÉHICULES (${(DB.etatsVehicules || []).filter((s) => s.resolu !== 'Oui').length})` },
+        ...CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
+        { key: CAT_REFORME, label: 'RÉFORMÉS' },
+        { key: 'etat', label: 'ÉTAT DES VÉHICULES' },
         SOUS_RUBRIQUE_STATS
       ],
       cat,
-      (k) => { state.sub.VEHICULES = k; rerender(); },
-      CAT_COLORS
+      (k) => { state.sub.VEHICULES = k; rerender(); }
     )
   );
   if (cat === 'stats') return renderStatistiques(page, 'VEHICULES');
   if (cat === CAT_REFORME) return renderReformes(page);
   if (cat === 'etat') return renderEtatsVehicules(page);
+
+  const nomCategorie = CATEGORIES.find((c) => c.key === cat).label;
+  page.appendChild(card(
+    `VÉHICULES ${nomCategorie === 'POOL' ? 'DU POOL' : nomCategorie === 'MISSION' ? 'DE MISSION' : 'DE SERVICE'}`,
+    'Cliquez sur « Fiche » pour voir tout l’historique d’un véhicule : dotations, missions, passages au garage, photos et documents.'
+  ));
 
   page.appendChild(
     filterBar([
@@ -191,16 +192,23 @@ export function renderVehicles(page) {
   if (f.statut) list = list.filter((v) => v.statut === f.statut);
   if (f.section) list = list.filter((v) => v.section === f.section);
 
+  const grid = document.createElement('div');
+  grid.className = 'statGrid';
+  grid.appendChild(statTile('Véhicules', fmt(list.length), 'dans la liste filtrée', moduleColor('VEHICULES')));
+  grid.appendChild(statTile('Disponibles', fmt(list.filter((v) => v.statut === 'Disponible').length), 'prêts à partir', COLORS.green));
+  grid.appendChild(statTile('En entretien', fmt(list.filter((v) => v.statut === 'En entretien').length), 'au garage', COLORS.orange));
+  page.appendChild(grid);
+
   page.appendChild(
     toolbar([
       canWrite() && {
-        label: `+ Ajouter un véhicule (${CATEGORIES.find((c) => c.key === cat).label})`,
+        label: '+ Nouveau véhicule',
         cls: 'addBtn',
         color: COLORS.green,
         write: true,
         onClick: () => openVehicleForm(null, cat)
       },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list, cat) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', list, cat) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list, cat) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list, cat) }
     ])

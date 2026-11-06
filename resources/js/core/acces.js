@@ -45,19 +45,20 @@ const SANS_SIENNES = ['masque', 'lecture', 'saisie', 'complet'];
 
 /**
  * Les rubriques soumises a des droits. CONGES est la sous-rubrique
- * CONGÉS ET ABSENCES AU POOL de UTILISATEURS, reglee a part : un conducteur
- * y depose ses demandes sans voir la liste des agents.
+ * CONGÉS ET ABSENCES de PERSONNEL, reglee a part : un conducteur y depose
+ * ses demandes sans voir la liste des agents. SIMULATION est la
+ * sous-rubrique SIMULATIONS de MISSIONS, reglee a part elle aussi.
  */
 export const RUBRIQUES_ACCES = [
   { key: 'TABLEAU DE BORD', label: 'Tableau de bord', niveaux: ['masque', 'lecture'] },
   { key: 'VEHICULES', label: 'Véhicules', niveaux: TOUS, siennes: 'son véhicule, en consultation' },
-  { key: 'UTILISATEURS', label: 'Utilisateurs (liste des agents)', niveaux: TOUS, siennes: 'sa propre fiche, en consultation' },
-  { key: 'CONGES', label: 'Congés et absences au pool', niveaux: TOUS, siennes: 'ses absences ; il dépose et corrige ses demandes' },
-  { key: 'DOTATION', label: 'Dotation', niveaux: TOUS, siennes: 'les dotations de son véhicule, en consultation' },
-  { key: 'MISSION', label: 'Mission', niveaux: TOUS, siennes: 'ses missions ; il remplit leur rapport' },
+  { key: 'UTILISATEURS', label: 'Personnel (liste des agents)', niveaux: TOUS, siennes: 'sa propre fiche, en consultation' },
+  { key: 'CONGES', label: 'Personnel → Congés et absences', niveaux: TOUS, siennes: 'ses absences ; il dépose et corrige ses demandes' },
+  { key: 'DOTATION', label: 'Carburant', niveaux: TOUS, siennes: 'les dotations de son véhicule, en consultation' },
+  { key: 'MISSION', label: 'Missions (et sorties d’Abidjan)', niveaux: TOUS, siennes: 'ses missions ; il remplit leur rapport' },
   { key: 'ENTRETIEN', label: 'Entretien', niveaux: SANS_SIENNES },
-  { key: 'DECHARGE', label: 'Sorties', niveaux: TOUS, siennes: 'les courses qu’il a déposées, en consultation' },
-  { key: 'SIMULATION', label: 'Simulation', niveaux: SANS_SIENNES },
+  { key: 'DECHARGE', label: 'Courrier', niveaux: TOUS, siennes: 'les courses qu’il a déposées, en consultation' },
+  { key: 'SIMULATION', label: 'Missions → Simulations', niveaux: SANS_SIENNES },
   { key: 'RAPPORTS', label: 'Rapports', niveaux: ['masque', 'lecture'] }
 ];
 

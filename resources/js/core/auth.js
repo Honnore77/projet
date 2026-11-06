@@ -183,7 +183,7 @@ export async function inscrire({ login: loginName, nom, password }) {
   const pwErr = passwordProblem(password);
   if (pwErr) return { ok: false, error: pwErr };
 
-  // L'agent de la liste UTILISATEURS qui porte ce nom, s'il existe :
+  // L'agent de la liste PERSONNEL qui porte ce nom, s'il existe :
   // l'administrateur n'aura qu'a confirmer.
   const agent = DB.users.find((u) => norm(`${u.nom || ''} ${u.prenoms || ''}`.trim()) === norm(nomPropre));
   const maintenant = new Date().toISOString();

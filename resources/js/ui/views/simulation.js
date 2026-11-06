@@ -20,11 +20,10 @@ import {
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, lireMontant } from '../../core/utils.js';
 import { autreImmat,
-  card, toolbar, subtabs, emptyState, openForm, openModal, confirmDialog, toast, statTile, dataTable, COLORS
+  card, toolbar, emptyState, openForm, openModal, confirmDialog, toast, statTile, dataTable, COLORS
 } from '../components.js';
 import { state, rerender, moduleColor, navigate } from '../shell.js';
 import { cablerParcours, enregistrerParcours, openMissionForm } from './missions.js';
-import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord, exportModeleWord } from '../../export/word.js';
@@ -32,25 +31,18 @@ import { menusExportFiche } from '../ficheExports.js';
 import { dsSimulations } from '../../export/datasets.js';
 import { modeleFicheSimulation, ficheHtml, exportFichePdf, exportFicheExcel, modeleSimple } from '../../export/ficheSimulation.js';
 
-const SUBS = [{ key: 'simulation', label: 'SIMULATION DE MISSION' }, SOUS_RUBRIQUE_STATS];
-
-const COULEUR = () => moduleColor('SIMULATION');
-
-export function renderSimulation(page) {
-  const sub = state.sub.SIMULATION || 'simulation';
-  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.SIMULATION = k; rerender(); }, { simulation: COULEUR(), stats: COLORS.grey }));
-  if (sub === 'stats') renderStatistiques(page, 'SIMULATION');
-  else renderListe(page);
-}
+/** Les simulations sont une sous-rubrique de MISSIONS : elles en prennent la couleur. */
+const COULEUR = () => moduleColor('MISSION');
 
 /* ============================== Liste ============================== */
 
-function renderListe(page) {
+/** MISSIONS → SIMULATIONS. */
+export function renderSimulations(page) {
   page.appendChild(
     card(
-      'SIMULATION DE MISSION',
+      'SIMULATIONS',
       'Estimez les frais d’une mission avant le départ : frais OM (' + fmt(fraisOmParParticipant()) +
-      ' F par participant et par destination, réglable dans RÉGLAGES) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations. « Créer la mission » reprend une simulation dans MISSION.',
+      ' F par participant et par destination, réglable dans RÉGLAGES) + frais de péage + carburant, calculé sur le parcours aller-retour et les déplacements à l’intérieur des destinations. « Créer la mission » reprend une simulation dans MISSIONS → SUIVI DES MISSIONS.',
       COULEUR()
     )
   );
@@ -59,10 +51,19 @@ function renderListe(page) {
     String(b.dateDepart || '').localeCompare(String(a.dateDepart || '')) ||
     String(b.createdAt || '').localeCompare(String(a.createdAt || '')));
 
+  // Les chiffres d'abord, puis les boutons : l'ordre de toutes les pages.
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('Simulations', fmt(list.length), 'enregistrées', COULEUR()));
+  grid.appendChild(statTile('Dernière estimation', list.length ? `${fmt(list[0].estimation)} F` : '—',
+    list.length ? texteDestinations(list[0].destinations) || '—' : 'aucune simulation', COLORS.green));
+  grid.appendChild(statTile('Missions créées', fmt(list.filter((x) => x.missionId && DB.missions.some((m) => m.id === x.missionId)).length),
+    'depuis une simulation', COLORS.orange));
+  page.appendChild(grid);
+
   page.appendChild(
     toolbar([
       canWrite() && { label: '+ Nouvelle simulation', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openSimulationForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
@@ -72,12 +73,6 @@ function renderListe(page) {
     page.appendChild(emptyState('Aucune simulation enregistrée. « + Nouvelle simulation » ouvre le formulaire.'));
     return;
   }
-
-  const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Simulations', fmt(list.length), 'enregistrées', COULEUR()));
-  grid.appendChild(statTile('Dernière estimation', `${fmt(list[0].estimation)} F`,
-    texteDestinations(list[0].destinations) || '—', COLORS.green));
-  page.appendChild(grid);
 
   const droite = (v) => `<span style="display:block;text-align:right">${v}</span>`;
   const headers = [

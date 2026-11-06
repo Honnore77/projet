@@ -1,11 +1,15 @@
 /* ===================================================================
-   MISSION — deux sous-rubriques :
+   MISSIONS (cle MISSION) — sous-rubriques :
 
-     TABLEAU DE SUIVI     toutes les missions en tableau, avec les
+     SUIVI DES MISSIONS   toutes les missions en tableau, avec les
                           informations du formulaire et les cumuls par
                           conducteur (les missions se font a tour de role)
-     RAPPORT DE MISSION   la liste des rapports en tableau, chacun
+     RAPPORTS DE MISSION  la liste des rapports en tableau, chacun
                           consultable par le bouton « Voir »
+     SORTIES D'ABIDJAN    deplacements hors mission (sortiesAbidjan.js)
+     SIMULATIONS          estimation des frais avant le depart
+                          (simulation.js), droits de SIMULATION
+     DESTINATIONS         lieux, distances et trajets
    =================================================================== */
 
 import {
@@ -20,13 +24,15 @@ import {
 } from '../../core/db.js';
 import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicules.js';
 import { canWrite } from '../../core/auth.js';
-import { filtrer, seulementSiennes, peutModifier } from '../../core/acces.js';
+import { filtrer, seulementSiennes, peutModifier, voit } from '../../core/acces.js';
+import { renderSortiesAbidjan } from './sortiesAbidjan.js';
+import { renderSimulations } from './simulation.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
 import { autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
   statTile, dataTable, groupHeader, subEmpty, cablerMontant, COLORS
 } from '../components.js';
-import { state, rerender, openVehicleSheet } from '../shell.js';
+import { state, rerender, openVehicleSheet, moduleColor } from '../shell.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -35,20 +41,34 @@ import { dsSuiviMissions, dsMissions, dsMissionsParConducteur, dsDestinationsMis
 import { exportMissionReport, printMissionReport, reportData } from '../../export/missionReport.js';
 
 const SUBS = [
-  { key: 'suivi', label: 'TABLEAU DE SUIVI' },
-  { key: 'rapport', label: 'RAPPORT DE MISSION' },
+  { key: 'suivi', label: 'SUIVI DES MISSIONS' },
+  { key: 'rapport', label: 'RAPPORTS DE MISSION' },
+  { key: 'sorties', label: 'SORTIES D’ABIDJAN' },
+  { key: 'simulations', label: 'SIMULATIONS', acces: 'SIMULATION' },
   { key: 'destinations', label: 'DESTINATIONS' },
   SOUS_RUBRIQUE_STATS
 ];
 
+/** La couleur de MISSIONS, pour ses pages, ses cartes et ses boutons. */
+const COULEUR = () => moduleColor('MISSION');
+
+/**
+ * Les sous-rubriques ouvertes au compte : SIMULATIONS suit les droits de
+ * SIMULATION, les autres ceux de MISSION.
+ */
+export function sousRubriquesMission() {
+  return SUBS.filter((s) => voit(s.acces || 'MISSION'));
+}
+
 export function renderMissions(page) {
-  const sub = state.sub.MISSION || 'suivi';
-  page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.MISSION = k; rerender(); },
-      { suivi: COLORS.purple, rapport: COLORS.purple, destinations: COLORS.purple, stats: COLORS.grey })
-  );
+  const subs = sousRubriquesMission();
+  if (!subs.some((s) => s.key === state.sub.MISSION)) state.sub.MISSION = (subs[0] || SUBS[0]).key;
+  const sub = state.sub.MISSION;
+  page.appendChild(subtabs(subs, sub, (k) => { state.sub.MISSION = k; rerender(); }));
   if (sub === 'stats') renderStatistiques(page, 'MISSION');
   else if (sub === 'rapport') renderRapport(page);
+  else if (sub === 'sorties') renderSortiesAbidjan(page);
+  else if (sub === 'simulations') renderSimulations(page);
   else if (sub === 'destinations') renderDestinations(page);
   else renderSuivi(page);
 }
@@ -60,9 +80,8 @@ function renderSuivi(page) {
 
   page.appendChild(
     card(
-      'TABLEAU DE SUIVI DES MISSIONS',
-      'Toutes les missions enregistrées, avec le nombre de missions et le cumul des jours de chaque conducteur. Les références suivent l’ordre des départs : la mission partie le plus tôt porte M-001.',
-      COLORS.purple
+      'SUIVI DES MISSIONS',
+      'Toutes les missions enregistrées, avec le nombre de missions et le cumul des jours de chaque conducteur. Les références suivent l’ordre des départs : la mission partie le plus tôt porte M-001.'
     )
   );
 
@@ -75,7 +94,7 @@ function renderSuivi(page) {
   const cumuls = cumulsJoursConducteurs(filtrer('MISSION', DB.missions));
 
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Missions', fmt(list.length), 'sur la période filtrée', COLORS.purple));
+  grid.appendChild(statTile('Missions', fmt(list.length), 'sur la période filtrée', COULEUR()));
   grid.appendChild(statTile('Jours cumulés', fmt(sum(list, (m) => m.jours)), 'toutes missions filtrées', COLORS.blue));
   grid.appendChild(statTile('Non payées', fmt(list.filter((m) => !m.paye).length), 'à régler', COLORS.red));
   grid.appendChild(statTile('Conducteurs', fmt(Object.keys(parConducteur).length), 'ayant effectué une mission', COLORS.green));
@@ -83,8 +102,8 @@ function renderSuivi(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Ajouter une mission', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openMissionForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', list) },
+      canWrite() && { label: '+ Nouvelle mission', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openMissionForm(null) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', list) }
     ])
@@ -165,7 +184,7 @@ function renderRotation(page) {
     page.appendChild(
       emptyState(
         'Aucun conducteur du pool. Le tour de rôle ne retient que les agents actifs marqués ' +
-        '« conducteur du pool » dans UTILISATEURS : ce sont les seuls autorisés à conduire les ' +
+        '« conducteur du pool » dans PERSONNEL : ce sont les seuls autorisés à conduire les ' +
         'véhicules de mission.'
       )
     );
@@ -180,12 +199,12 @@ function renderRotation(page) {
     groupHeader(
       `🔁 TOUR DE RÔLE — prochain : ${prochain ? prochain.nom : 'aucun conducteur disponible'}`,
       `${rot.length} conducteur(s) du pool${absents ? ` · ${absents} indisponible(s)` : ''}`,
-      COLORS.purple
+      COULEUR()
     )
   );
 
   const wrap = el('<div class="entry"></div>');
-  wrap.style.borderLeftColor = COLORS.purple;
+  wrap.style.borderLeftColor = COULEUR();
   wrap.innerHTML =
     '<div class="subBlock"><h5>Ordre de passage</h5>' +
     rot
@@ -207,8 +226,8 @@ function renderRotation(page) {
     '</div>' +
     '<div class="fields"><small>Seuls les conducteurs du pool figurent ici : ils sont les seuls ' +
     'autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur ' +
-    'du pool » de sa fiche, dans UTILISATEURS. Un conducteur en congé, en permission ou en repos ' +
-    'maladie (UTILISATEURS → Congés et absences au pool) passe en fin de liste jusqu’à sa reprise.</small></div>';
+    'du pool » de sa fiche, dans PERSONNEL. Un conducteur en congé, en permission ou en repos ' +
+    'maladie (PERSONNEL → CONGÉS ET ABSENCES) passe en fin de liste jusqu’à sa reprise.</small></div>';
   page.appendChild(wrap);
 }
 
@@ -217,9 +236,8 @@ function renderRotation(page) {
 function renderRapport(page) {
   page.appendChild(
     card(
-      'RAPPORT DE MISSION',
-      'Un rapport par mission. Le bouton « Voir » ouvre le rapport complet : participants, dotation en carburant, ravitaillements, kilométrage et état du véhicule.',
-      COLORS.purple
+      'RAPPORTS DE MISSION',
+      'Un rapport par mission. Le bouton « Voir » ouvre le rapport complet : participants, dotation en carburant, ravitaillements, kilométrage et état du véhicule.'
     )
   );
 
@@ -227,9 +245,20 @@ function renderRapport(page) {
 
   const list = filtered();
 
+  const estRempli = (m) => {
+    const d = reportData(m);
+    return d.participants.length || d.ravitaillements.length || d.kmDepart !== '' || d.observations || d.observationsDivers;
+  };
+  const remplis = list.filter(estRempli).length;
+  const grid = el('<div class="statGrid"></div>');
+  grid.appendChild(statTile('Missions', fmt(list.length), 'sur la période filtrée', COULEUR()));
+  grid.appendChild(statTile('Rapports remplis', fmt(remplis), 'participants, kilométrage ou carburant saisis', COLORS.green));
+  grid.appendChild(statTile('À compléter', fmt(list.length - remplis), 'rapport encore vide', COLORS.orange));
+  page.appendChild(grid);
+
   if (!DB.missions.length) {
     page.appendChild(
-      emptyState('Aucune mission enregistrée. Créez-la dans le tableau de suivi, puis remplissez son rapport ici.')
+      emptyState('Aucune mission enregistrée. Créez-la dans SUIVI DES MISSIONS, puis remplissez son rapport ici.')
     );
   } else if (!list.length) {
     page.appendChild(emptyState('Aucune mission ne correspond aux filtres.'));
@@ -245,7 +274,7 @@ function renderRapport(page) {
         `${esc(dateFR(m.dateDepart) || '…')} → ${esc(dateFR(m.dateRetour) || '…')}` +
           (m.jours !== '' && m.jours !== undefined ? `<br><small>${m.jours} jour(s)</small>` : ''),
         celluleDestinations(m),
-        `<span class="badge" style="background:${rempli ? COLORS.purple : COLORS.orange}">${rempli ? 'Rempli' : 'À compléter'}</span>`,
+        `<span class="badge" style="background:${rempli ? COULEUR() : COLORS.orange}">${rempli ? 'Rempli' : 'À compléter'}</span>`,
         `<button class="miniBtn" style="background:${COLORS.blue};padding:6px 12px" data-voir>Voir</button>`
       ];
     });
@@ -268,7 +297,7 @@ function renderRapport(page) {
         {
           label: '✎ Remplir le rapport',
           cls: 'addBtn',
-          color: COLORS.purple,
+          color: COULEUR(),
           write: true,
           onClick: () => choisirMission((m) => openRapportForm(m))
         }
@@ -780,7 +809,7 @@ export function openMissionForm(m, options = {}) {
       if (absence && absence.motif === 'Repos maladie' && !memeAffectation) {
         return `${values.conducteur} est en repos maladie du ${dateFR(absence.dateDepart)} à sa reprise le ` +
           `${dateFR(absence.dateReprise) || '…'} : ce conducteur ne peut pas partir en mission sur ces dates. ` +
-          'Choisissez un autre conducteur, ou corrigez la date de reprise dans UTILISATEURS → CONGÉS ET ABSENCES AU POOL ' +
+          'Choisissez un autre conducteur, ou corrigez la date de reprise dans PERSONNEL → CONGÉS ET ABSENCES ' +
           'si le repos a pris fin plus tôt.';
       }
       if (absence && !(isEdit && absence === dejaSignalee)) {
@@ -891,7 +920,7 @@ function celluleDestinations(m) {
     const connue = destinationMissionParNom(e.vers);
     const km = e.km === null
       ? `<small style="color:${COLORS.orange}">? km</small>`
-      : `<small style="color:${COLORS.purple};white-space:nowrap"><b>${e.estimee ? '≈ ' : ''}${fmt(e.km)} km</b>` +
+      : `<small style="color:${COULEUR()};white-space:nowrap"><b>${e.estimee ? '≈ ' : ''}${fmt(e.km)} km</b>` +
         `${p.etapes.length > 1 ? ` depuis ${esc(e.de)}` : ' d’Abidjan'}</small>`;
     return `${esc(e.vers)} ${km}` +
       (connue ? ` <a href="#" data-carte="${i}" title="Voir sur Google Maps" style="text-decoration:none">📍</a>` : '');
@@ -899,7 +928,7 @@ function celluleDestinations(m) {
   if (p.etapes.length > 1 && p.retour) {
     lignes.push(`↩ ${esc(p.retour.vers)} ` + (p.retour.km === null
       ? `<small style="color:${COLORS.orange}">? km</small>`
-      : `<small style="color:${COLORS.purple};white-space:nowrap"><b>${p.retour.estimee ? '≈ ' : ''}${fmt(p.retour.km)} km</b> depuis ${esc(p.retour.de)}</small>`));
+      : `<small style="color:${COULEUR()};white-space:nowrap"><b>${p.retour.estimee ? '≈ ' : ''}${fmt(p.retour.km)} km</b> depuis ${esc(p.retour.de)}</small>`));
   }
   if (p.etapes.length) lignes.push(`<small><b>Aller-retour : ${esc(libelleParcours(p) || '? km')}</b></small>`);
   return lignes.join('<br>');
@@ -998,7 +1027,7 @@ export function ajouterEtape(parcours, saisie) {
  * Effacer des destinations de la liste deroulante, depuis un formulaire
  * (mission ou simulation). Les missions et simulations deja enregistrees
  * gardent leur nom de destination ; la destination perd sa fiche (distance,
- * localisation), comme dans MISSION → DESTINATIONS.
+ * localisation), comme dans MISSIONS → DESTINATIONS.
  *
  * @param {(nom:string) => void} [surEffacement] apres chaque suppression
  */
@@ -1042,7 +1071,7 @@ export function cablerParcours(scope, parcours, saisies, surChangement) {
   const bloc = el(
     '<div class="subBlock" style="margin-top:8px">' +
       `<div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:6px">` +
-        `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-ajout-etape>+ Ajouter cette destination</button>` +
+        `<button type="button" class="miniBtn" style="background:${COULEUR()}" data-ajout-etape>+ Ajouter cette destination</button>` +
         (canWrite()
           ? `<button type="button" class="miniBtn" style="background:${COLORS.grey}" data-effacer-dest title="Retirer une destination de la liste déroulante">🗑 Effacer une destination de la liste</button>`
           : '') +
@@ -1125,7 +1154,7 @@ export function cablerParcours(scope, parcours, saisies, surChangement) {
               `<input type="number" min="0" step="any" data-km="${i}" value="${e.km === null ? '' : esc(e.km)}" placeholder="km" ` +
                 `title="Distance de ${esc(e.de)} à ${esc(e.vers)} (km)" style="width:80px">` +
               '<small>km</small>' +
-              `<button type="button" class="miniBtn" style="background:${COLORS.purple};padding:4px 7px" data-carte-e="${i}" title="Voir ${esc(e.vers)} sur Google Maps">📍</button>` +
+              `<button type="button" class="miniBtn" style="background:${COULEUR()};padding:4px 7px" data-carte-e="${i}" title="Voir ${esc(e.vers)} sur Google Maps">📍</button>` +
               `<button type="button" class="miniBtn" style="background:${COLORS.blue};padding:4px 7px" data-itin-e="${i}" title="Itinéraire ${esc(e.de)} → ${esc(e.vers)}">🧭</button>` +
               (i > 0 ? `<button type="button" class="miniBtn" style="background:${COLORS.grey};padding:4px 7px" data-monte="${i}" title="Plus tôt dans le parcours">↑</button>` : '') +
               `<button type="button" class="miniBtn" style="background:${COLORS.red};padding:4px 7px" data-retire="${i}" title="Retirer">✕</button>` +
@@ -1183,7 +1212,7 @@ export function cablerParcours(scope, parcours, saisies, surChangement) {
       '</div>' +
       `<div class="subEntryRow" style="border:none"><span><b>Distance totale du parcours (aller-retour)</b>` +
         `<br><small>${[...p.etapes, r].map((e) => (e.km === null ? '?' : fmt(e.km))).join(' + ')} km</small>` +
-      `</span><b style="color:${COLORS.purple}">${esc(libelleParcours(p) || '? km')}</b></div>` +
+      `</span><b style="color:${COULEUR()}">${esc(libelleParcours(p) || '? km')}</b></div>` +
       `<button type="button" class="miniBtn" style="background:${COLORS.blue};margin-top:4px" data-parcours>` +
         `🧭 Parcours sur Google Maps (Abidjan → ${esc(p.etapes[p.etapes.length - 1].vers)})</button>`;
     resume.querySelector('[data-parcours]').onclick = () => ouvrirLien(lienParcours(parcours.map((e) => e.nom)));
@@ -1209,24 +1238,23 @@ export function cablerParcours(scope, parcours, saisies, surChangement) {
 function renderDestinations(page) {
   page.appendChild(
     card(
-      'DESTINATIONS DES MISSIONS',
-      'Les lieux de mission, avec leur distance depuis Abidjan et leur localisation sur Google Maps. Ils sont proposés dans le formulaire de mission ; une destination ajoutée là rejoint cette liste. Les distances des villes fournies sont indicatives : « Itinéraire » ouvre le trajet routier exact pour les vérifier.',
-      COLORS.purple
+      'DESTINATIONS',
+      'Les lieux de mission, avec leur distance depuis Abidjan et leur localisation sur Google Maps. Ils sont proposés dans le formulaire de mission ; une destination ajoutée là rejoint cette liste. Les distances des villes fournies sont indicatives : « Itinéraire » ouvre le trajet routier exact pour les vérifier.'
     )
   );
 
   const list = DB.destinationsMission.slice().sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
 
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Destinations', fmt(list.length), 'enregistrées', COLORS.purple));
+  grid.appendChild(statTile('Destinations', fmt(list.length), 'enregistrées', COULEUR()));
   grid.appendChild(statTile('Sans distance', fmt(list.filter((d) => d.distanceKm === '' || d.distanceKm === undefined).length),
     'à compléter', COLORS.orange));
   page.appendChild(grid);
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouvelle destination', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openDestinationForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exportDestinations('excel', list) },
+      canWrite() && { label: '+ Nouvelle destination', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openDestinationForm(null) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => exportDestinations('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => exportDestinations('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => exportDestinations('word', list) }
     ])
@@ -1248,7 +1276,7 @@ function renderDestinations(page) {
         ? `<b>${esc(dist)}</b>${d.estimee ? '<br><small>estimée</small>' : ''}`
         : `<span class="badge" style="background:${COLORS.orange}">à renseigner</span>`}</span>`,
       (d.localisation ? `${esc(d.localisation)}<br>` : '') +
-        `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-carte>📍 Carte</button> ` +
+        `<button class="miniBtn" style="background:${COULEUR()};padding:5px 8px" data-carte>📍 Carte</button> ` +
         `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-itin>🧭 Itinéraire</button>`,
       `<span style="display:block;text-align:center">${fmt(n)}</span>`,
       canWrite()
@@ -1296,11 +1324,11 @@ function renderDestinations(page) {
  */
 function renderTrajets(page) {
   page.appendChild(
-    groupHeader('🛣️ TRAJETS ENTRE VILLES', `${DB.trajets.length} enregistré(s)`, COLORS.purple)
+    groupHeader('🛣️ TRAJETS ENTRE VILLES', `${DB.trajets.length} enregistré(s)`, COULEUR())
   );
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouveau trajet', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openTrajetForm(null) }
+      canWrite() && { label: '+ Nouveau trajet', cls: 'addBtn', color: COULEUR(), write: true, onClick: () => openTrajetForm(null) }
     ])
   );
   if (!DB.trajets.length) {
@@ -1398,7 +1426,7 @@ function openDestinationForm(d) {
       const champ = scope.querySelector('[data-key="localisation"]');
       const barre = el(
         '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">' +
-          `<button type="button" class="miniBtn" style="background:${COLORS.purple}" data-voir-carte>📍 Rechercher sur Google Maps</button>` +
+          `<button type="button" class="miniBtn" style="background:${COULEUR()}" data-voir-carte>📍 Rechercher sur Google Maps</button>` +
           `<button type="button" class="miniBtn" style="background:${COLORS.blue}" data-itineraire>🧭 Itinéraire depuis Abidjan</button>` +
         '</div>'
       );

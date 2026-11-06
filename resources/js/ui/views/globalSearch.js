@@ -99,7 +99,7 @@ export function renderGlobalSearch(page) {
   filtrer('DECHARGE', DB.decharges).forEach((d) => {
     if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.immat}`).includes(q)) {
       results.push({
-        type: 'SORTIES',
+        type: 'COURSE',
         color: '#8D6E63',
         title: `${d.ref || 'Course'} — ${d.destinataire || '—'}`,
         sub: `${dateFR(d.date)}${d.numeroCourrier ? ` · courrier ${d.numeroCourrier}` : ''}\n${d.objet || ''}`,
@@ -108,14 +108,14 @@ export function renderGlobalSearch(page) {
     }
   });
 
-  filtrer('DECHARGE', DB.sortiesAbidjan || []).forEach((x) => {
+  filtrer('MISSION', DB.sortiesAbidjan || []).forEach((x) => {
     if (norm(`${x.ref} ${x.conducteur} ${x.vehicule} ${x.destination} ${(x.participants || []).join(' ')}`).includes(q)) {
       results.push({
         type: 'SORTIE D’ABIDJAN',
         color: '#8D6E63',
         title: `${x.ref || 'Sortie'} — ${x.conducteur || '—'}`,
         sub: `${x.destination || '—'} · ${dateFR(x.date)}${x.vehicule ? ` · ${x.vehicule}` : ''}`,
-        action: () => { state.sub.DECHARGE = 'abidjan'; navigate('DECHARGE'); }
+        action: () => { state.sub.MISSION = 'sorties'; navigate('MISSION'); }
       });
     }
   });

@@ -28,21 +28,21 @@ const FORMULAIRES = [
   { label: 'Nouveau véhicule — Pool', detail: 'VÉHICULES', rub: 'VEHICULES', page: ['VEHICULES', 'pool'], ouvrir: () => openVehicleForm(null, 'pool') },
   { label: 'Nouveau véhicule — Mission', detail: 'VÉHICULES', rub: 'VEHICULES', page: ['VEHICULES', 'mission'], ouvrir: () => openVehicleForm(null, 'mission') },
   { label: 'Nouveau véhicule — Service', detail: 'VÉHICULES', rub: 'VEHICULES', page: ['VEHICULES', 'service'], ouvrir: () => openVehicleForm(null, 'service') },
-  { label: 'Nouvel utilisateur', detail: 'UTILISATEURS', rub: 'UTILISATEURS', page: ['UTILISATEURS', 'liste'], ouvrir: () => openUserForm(null) },
-  { label: 'Incident d’un agent', detail: 'UTILISATEURS · choisir l’agent', rub: 'UTILISATEURS', page: ['UTILISATEURS', 'liste'], ouvrir: () => choisirAgent((u) => openIncidentForm(u, null, rerender)) },
-  { label: 'Indisponibilité au pool', detail: 'UTILISATEURS · CONGÉS ET ABSENCES', rub: 'CONGES', page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openIndisponibiliteForm(null) },
-  { label: 'Demande de congé', detail: 'UTILISATEURS · CONGÉS ET ABSENCES', droit: peutDeposer, page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openDemandeForm('conge', null) },
-  { label: 'Demande d’absence', detail: 'UTILISATEURS · CONGÉS ET ABSENCES', droit: peutDeposer, page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openDemandeForm('absence', null) },
-  { label: 'Dotation en carburant pool', detail: 'DOTATION', rub: 'DOTATION', page: ['DOTATION', 'pool'], ouvrir: () => openPoolForm(null) },
-  { label: 'Rapport de mission', detail: 'MISSION · choisir la mission', droit: () => peutSaisir('MISSION') || seulementSiennes('MISSION'), page: ['MISSION', 'rapport'], ouvrir: () => choisirMission((m) => openRapportForm(m)) },
-  { label: 'Fiche d’entretien', detail: 'ENTRETIEN', rub: 'ENTRETIEN', page: ['ENTRETIEN', 'liste'], ouvrir: () => openFicheForm(null) },
+  { label: 'Nouvel agent', detail: 'PERSONNEL · AGENTS', rub: 'UTILISATEURS', page: ['UTILISATEURS', 'liste'], ouvrir: () => openUserForm(null) },
+  { label: 'Incident d’un agent', detail: 'PERSONNEL · choisir l’agent', rub: 'UTILISATEURS', page: ['UTILISATEURS', 'liste'], ouvrir: () => choisirAgent((u) => openIncidentForm(u, null, rerender)) },
+  { label: 'Indisponibilité', detail: 'PERSONNEL · CONGÉS ET ABSENCES', rub: 'CONGES', page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openIndisponibiliteForm(null) },
+  { label: 'Demande de congé', detail: 'PERSONNEL · CONGÉS ET ABSENCES', droit: peutDeposer, page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openDemandeForm('conge', null) },
+  { label: 'Demande d’absence', detail: 'PERSONNEL · CONGÉS ET ABSENCES', droit: peutDeposer, page: ['UTILISATEURS', 'indisponibilites'], ouvrir: () => openDemandeForm('absence', null) },
+  { label: 'Dotation du pool', detail: 'CARBURANT · DOTATIONS DU POOL', rub: 'DOTATION', page: ['DOTATION', 'pool'], ouvrir: () => openPoolForm(null) },
+  { label: 'Rapport de mission', detail: 'MISSIONS · choisir la mission', droit: () => peutSaisir('MISSION') || seulementSiennes('MISSION'), page: ['MISSION', 'rapport'], ouvrir: () => choisirMission((m) => openRapportForm(m)) },
+  { label: 'Fiche d’entretien', detail: 'ENTRETIEN · FICHES D’ENTRETIEN', rub: 'ENTRETIEN', page: ['ENTRETIEN', 'liste'], ouvrir: () => openFicheForm(null) },
   { label: 'Intervention d’entretien', detail: 'ENTRETIEN · choisir la fiche', rub: 'ENTRETIEN', page: ['ENTRETIEN', 'liste'], ouvrir: () => choisirFiche((m) => openInterventionForm(m, null)) },
-  { label: 'Course', detail: 'SORTIES · COURSES', rub: 'DECHARGE', page: ['DECHARGE', 'decharges'], ouvrir: () => openDechargeForm(null) }
+  { label: 'Course', detail: 'COURRIER · COURSES', rub: 'DECHARGE', page: ['DECHARGE', 'decharges'], ouvrir: () => openDechargeForm(null) }
 ];
 
 /** Le bouton IMPORTER, a placer sous les rubriques. */
 export function boutonImporter() {
-  const b = el('<button type="button" class="tab tabImporter" aria-haspopup="menu">⬆ IMPORTER</button>');
+  const b = el('<button type="button" class="importBtn" aria-haspopup="menu">⬆ Importer une image</button>');
   b.title = 'Ajouter une image dans un formulaire';
   b.onclick = (ev) => {
     ev.stopPropagation();

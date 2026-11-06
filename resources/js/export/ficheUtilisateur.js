@@ -17,7 +17,7 @@ import { previewAndSave } from './preview.js';
 import { toWinAnsi as clean } from './winansi.js';
 
 const VERT = [0, 138, 59];
-const BLEU = [25, 118, 210];         // couleur de la rubrique UTILISATEURS
+const BLEU = [25, 118, 210];         // couleur de la rubrique PERSONNEL
 const ENCRE = [23, 49, 59];
 const GRIS = [91, 113, 120];
 const FOND = [244, 247, 248];

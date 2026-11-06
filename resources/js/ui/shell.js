@@ -22,7 +22,6 @@ import { renderNotes, renderComptes } from './views/notes.js';
 import { notesNonLues } from '../core/notes.js';
 import { demarrerNotesFlottantes, annoncerNotes, fermer as fermerNotesFlottantes } from './notesFlottante.js';
 import { etatPoste, suivrePoste, surReceptionPoste } from '../core/reseauBureau.js';
-import { renderSimulation } from './views/simulation.js';
 import { renderReports } from './views/reports.js';
 import { renderSettings, openChangeOwnPassword } from './views/settings.js';
 import { ouvrirApparence } from './apparence.js';
@@ -42,12 +41,14 @@ import { boutonImporter } from './importer.js';
 export const MODULES = [
   { key: 'TABLEAU DE BORD', label: 'TABLEAU DE BORD', color: '#008A3B' },
   { key: 'VEHICULES', label: 'VÉHICULES', color: '#1976D2' },
-  { key: 'UTILISATEURS', label: 'UTILISATEURS', color: '#6A3CB4' },
-  { key: 'DOTATION', label: 'DOTATION', color: '#F47B20' },
-  { key: 'MISSION', label: 'MISSION', color: '#C2185B' },
+  // Les cles restent celles d'avant (droits, synchronisation, reglages
+  // retenus) : seuls les noms affiches ont change.
+  { key: 'UTILISATEURS', label: 'PERSONNEL', color: '#6A3CB4' },
+  { key: 'DOTATION', label: 'CARBURANT', color: '#F47B20' },
+  // SIMULATIONS et SORTIES D'ABIDJAN y sont des sous-rubriques.
+  { key: 'MISSION', label: 'MISSIONS', color: '#C2185B' },
   { key: 'ENTRETIEN', label: 'ENTRETIEN', color: '#D32F2F' },
-  { key: 'DECHARGE', label: 'SORTIES', color: '#8D6E63' },
-  { key: 'SIMULATION', label: 'SIMULATION', color: '#3949AB' },
+  { key: 'DECHARGE', label: 'COURRIER', color: '#8D6E63' },
   { key: 'RAPPORTS', label: 'RAPPORTS', color: '#00838F' },
   // Messagerie interne : chaque compte y ecrit et y lit ses notes.
   { key: 'NOTES', label: 'NOTES', color: '#558B2F', pourTous: true },
@@ -66,25 +67,24 @@ export function moduleColor(key) {
 const TITLES = {
   'TABLEAU DE BORD': 'TABLEAU DE BORD',
   VEHICULES: 'VÉHICULES',
-  UTILISATEURS: 'UTILISATEURS',
-  DOTATION: 'DOTATION',
-  MISSION: 'MISSION',
+  UTILISATEURS: 'PERSONNEL',
+  DOTATION: 'CARBURANT',
+  MISSION: 'MISSIONS',
   ENTRETIEN: 'ENTRETIEN',
-  DECHARGE: 'SORTIES',
-  SIMULATION: 'SIMULATION',
-  RAPPORTS: 'RAPPORTS ET EXPORTS',
+  DECHARGE: 'COURRIER',
+  RAPPORTS: 'RAPPORTS',
   NOTES: 'NOTES',
   COMPTE: 'COMPTE',
   REGLAGES: 'RÉGLAGES',
   FICHE_VEHICULE: 'FICHE VÉHICULE',
-  FICHE_UTILISATEUR: 'FICHE UTILISATEUR',
+  FICHE_UTILISATEUR: 'FICHE AGENT',
   RECHERCHE_GLOBALE: 'RECHERCHE GLOBALE'
 };
 
 /** Etat de navigation et de filtrage, partage par les vues. */
 export const state = {
   module: 'TABLEAU DE BORD',
-  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', SIMULATION: 'simulation', UTILISATEURS: 'liste', ENTRETIEN: 'liste', NOTES: 'recues' },
+  sub: { VEHICULES: 'pool', DOTATION: 'pool', MISSION: 'suivi', DECHARGE: 'decharges', UTILISATEURS: 'liste', ENTRETIEN: 'liste', NOTES: 'recues', REGLAGES: 'comptes' },
   vehicleSheetImmat: null,
   userSheetId: null,
   visite: 0,
@@ -141,7 +141,10 @@ export function mountShell(appRoot, { onLogout }) {
         <div class="shellMain">
           <div class="searchWrap">
             <div class="inner">
-              <input id="search" type="text" placeholder="Rechercher dans l'application…" autocomplete="off">
+              <div class="searchLigne">
+                <input id="search" type="text" placeholder="Rechercher dans l'application…" autocomplete="off">
+                <span id="importerSlot"></span>
+              </div>
               <div class="searchActions">
                 <button id="globalSearchBtn" class="globalBtn" type="button">🔍 Voir dans toutes les rubriques →</button>
                 <button id="exportSearchBtn" class="globalBtn exportBtn" type="button" aria-haspopup="true">⬇ Exporter le résultat ▾</button>
@@ -161,6 +164,8 @@ export function mountShell(appRoot, { onLogout }) {
   globalBtn = dash.querySelector('#globalSearchBtn');
   exportBtn = dash.querySelector('#exportSearchBtn');
   alertBarEl = dash.querySelector('#alertBar');
+  // Ajouter une image dans un formulaire : une action, pas une rubrique.
+  dash.querySelector('#importerSlot').replaceWith(boutonImporter());
 
   // Le bandeau vit hors du contenu : il ne se redessine pas avec la rubrique.
   // On le raccroche donc aux changements de la base. Se deconnecter puis se
@@ -295,13 +300,15 @@ function annoncer() {
 }
 
 /**
- * Une rubrique du menu est-elle ouverte au compte connecte ? UTILISATEURS
- * l'est aussi pour qui ne voit que CONGES ET ABSENCES.
+ * Une rubrique du menu est-elle ouverte au compte connecte ? PERSONNEL
+ * l'est aussi pour qui ne voit que CONGÉS ET ABSENCES, MISSIONS pour qui ne
+ * voit que les SIMULATIONS.
  */
 function rubriqueOuverte(m) {
   if (m.pourTous) return true;
   if (m.adminOnly) return canAdmin();
   if (m.key === 'UTILISATEURS') return voit('UTILISATEURS') || voit('CONGES');
+  if (m.key === 'MISSION') return voit('MISSION') || voit('SIMULATION');
   return voit(m.key);
 }
 
@@ -314,8 +321,6 @@ function premiereRubrique() {
 function buildTabs() {
   tabsEl.innerHTML = '';
   MODULES.filter(rubriqueOuverte).forEach((m) => {
-    // Juste au-dessus de RAPPORTS : ajouter une image dans un formulaire.
-    if (m.key === 'RAPPORTS') tabsEl.appendChild(boutonImporter());
     const b = el(`<button type="button" class="tab">${m.label}</button>`);
     b.dataset.mod = m.key;
     b.style.setProperty('--tabColor', m.color);
@@ -323,8 +328,6 @@ function buildTabs() {
     if (m.key === 'NOTES') b.appendChild(el('<span class="tabBadge" hidden></span>'));
     tabsEl.appendChild(b);
   });
-  // Sans acces a RAPPORTS, le bouton vient sous les rubriques.
-  if (!tabsEl.querySelector('.tabImporter')) tabsEl.appendChild(boutonImporter());
   majBadgeNotes();
 }
 
@@ -343,6 +346,11 @@ function majBadgeNotes() {
 
 /** Change de rubrique. */
 export function navigate(moduleKey, params = {}) {
+  // L'ancienne rubrique SIMULATION est une sous-rubrique de MISSIONS.
+  if (moduleKey === 'SIMULATION') {
+    state.sub.MISSION = 'simulations';
+    moduleKey = 'MISSION';
+  }
   // Un style seulement apercu ne survit pas a la page.
   annulerApercuTheme();
   state.module = moduleKey;
@@ -566,12 +574,18 @@ export function rerender() {
     if (state.sub.UTILISATEURS !== 'indisponibilites' && !voit('UTILISATEURS') && voit('CONGES')) state.sub.UTILISATEURS = 'indisponibilites';
     if (state.sub.UTILISATEURS === 'indisponibilites' && !voit('CONGES') && voit('UTILISATEURS')) state.sub.UTILISATEURS = 'liste';
   }
+  if (state.module === 'MISSION') {
+    if (state.sub.MISSION !== 'simulations' && !voit('MISSION') && voit('SIMULATION')) state.sub.MISSION = 'simulations';
+    if (state.sub.MISSION === 'simulations' && !voit('SIMULATION') && voit('MISSION')) state.sub.MISSION = 'suivi';
+  }
   const rub = rubriqueDeLaPage();
   definirRubrique(rub);
   // Boutons d'ajout et de modification, puis de suppression, selon le
   // niveau du compte dans la rubrique affichee. Un conducteur garde les
   // siens dans MISSION (rapport) et CONGES (ses demandes).
-  const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub);
+  // Pas ses SORTIES D'ABIDJAN : il les consulte, il ne les saisit pas.
+  const sesFiches = seulementSiennes(rub) && ['MISSION', 'CONGES'].includes(rub) &&
+    !(state.module === 'MISSION' && state.sub.MISSION === 'sorties');
   // NOTES et COMPTE ne sont jamais en lecture seule : chacun y ecrit ses
   // propres notes et y regle son propre compte.
   const reglagesPerso = rub === 'NOTES' || rub === 'COMPTE';
@@ -597,6 +611,7 @@ function rubriqueDeLaPage() {
   if (m === 'FICHE_VEHICULE') return 'VEHICULES';
   if (m === 'FICHE_UTILISATEUR') return 'UTILISATEURS';
   if (m === 'UTILISATEURS') return state.sub.UTILISATEURS === 'indisponibilites' ? 'CONGES' : 'UTILISATEURS';
+  if (m === 'MISSION') return state.sub.MISSION === 'simulations' ? 'SIMULATION' : 'MISSION';
   return m;
 }
 
@@ -614,6 +629,7 @@ function pageAutorisee(rub) {
     return voitTout('UTILISATEURS') || (seulementSiennes('UTILISATEURS') && estAMoi('UTILISATEURS', u));
   }
   if (m === 'UTILISATEURS') return voit('UTILISATEURS') || voit('CONGES');
+  if (m === 'MISSION') return voit('MISSION') || voit('SIMULATION');
   return voit(rub);
 }
 
@@ -625,7 +641,6 @@ const ROUTES = {
   MISSION: renderMissions,
   ENTRETIEN: renderMaintenance,
   DECHARGE: renderDecharges,
-  SIMULATION: renderSimulation,
   RAPPORTS: renderReports,
   NOTES: renderNotes,
   COMPTE: renderComptes,

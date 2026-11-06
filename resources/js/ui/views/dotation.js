@@ -29,15 +29,15 @@ import { dsDotationPool, dsCarburantMissions, dsRavitaillementsMissions } from '
 import { filtrer } from '../../core/acces.js';
 
 const SUBS = [
-  { key: 'pool', label: 'DOTATION EN CARBURANT POOL' },
-  { key: 'mission', label: 'DOTATION EN CARBURANT MISSION' },
+  { key: 'pool', label: 'DOTATIONS DU POOL' },
+  { key: 'mission', label: 'CARBURANT DES MISSIONS' },
   SOUS_RUBRIQUE_STATS
 ];
 
 export function renderDotation(page) {
   const sub = state.sub.DOTATION || 'pool';
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.DOTATION = k; rerender(); }, { pool: COLORS.orange, mission: COLORS.purple, stats: COLORS.grey })
+    subtabs(SUBS, sub, (k) => { state.sub.DOTATION = k; rerender(); })
   );
   if (sub === 'stats') renderStatistiques(page, 'DOTATION');
   else if (sub === 'mission') renderMission(page);
@@ -163,10 +163,9 @@ function renderPool(page) {
 
   page.appendChild(
     card(
-      'DOTATION EN CARBURANT — POOL',
+      'DOTATIONS DU POOL',
       'Date · Nombre de jours depuis la prise précédente du véhicule · Immatriculation · Marque/Modèle · Carte carburant · Énergie · Kilométrage · Quantité · Prix/L · Montant · ' +
-      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Écart (solde après de la prise précédente sur la carte moins solde avant de celle-ci) · Station-service · État vidange · Conducteur.',
-      COLORS.orange
+      'Solde avant et après prise, enchaînés d’une prise à l’autre sur chaque carte · Écart (solde après de la prise précédente sur la carte moins solde avant de celle-ci) · Station-service · État vidange · Conducteur.'
     )
   );
 
@@ -201,8 +200,8 @@ function renderPool(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Ajouter une dotation pool', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openPoolForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', 'pool', list) },
+      canWrite() && { label: '+ Nouvelle dotation', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openPoolForm(null) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', 'pool', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'pool', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'pool', list) }
     ])
@@ -396,9 +395,8 @@ function renderMission(page) {
 
   page.appendChild(
     card(
-      'DOTATION EN CARBURANT — MISSION',
-      'Le carburant consommé en mission, tel qu’il a été saisi dans le rapport de mission : conducteur, véhicule, période, destination, points de ravitaillement, litres et montant.',
-      COLORS.purple
+      'CARBURANT DES MISSIONS',
+      'Le carburant consommé en mission, tel qu’il a été saisi dans le rapport de mission : conducteur, véhicule, période, destination, points de ravitaillement, litres et montant.'
     )
   );
 
@@ -432,7 +430,7 @@ function renderMission(page) {
         write: true,
         onClick: () => { state.sub.MISSION = 'rapport'; navigate('MISSION'); }
       },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', 'mission', list) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', 'mission', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'mission', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'mission', list) }
     ])
@@ -440,7 +438,7 @@ function renderMission(page) {
 
   if (!list.length) {
     page.appendChild(
-      emptyState('Aucun carburant de mission saisi. Renseignez-le dans MISSION → Rapport de mission.')
+      emptyState('Aucun carburant de mission saisi. Renseignez-le dans MISSIONS → RAPPORTS DE MISSION.')
     );
     return;
   }

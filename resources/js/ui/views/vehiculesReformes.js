@@ -13,7 +13,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, fmt, num, norm, dateFR, todayISO } from '../../core/utils.js';
-import { toolbar, emptyState, openForm, confirmDialog, toast, dataTable, COLORS } from '../components.js';
+import { card, toolbar, emptyState, openForm, confirmDialog, toast, dataTable, COLORS } from '../components.js';
 import { state, rerender, openVehicleSheet } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
@@ -135,16 +135,21 @@ export function renderReformes(page) {
   const list = filtrer('VEHICULES', DB.vehicles[CAT_REFORME].slice())
     .sort((a, b) => String(b.dateReforme || '').localeCompare(String(a.dateReforme || '')));
 
+  page.appendChild(card(
+    'VÉHICULES RÉFORMÉS',
+    'Les véhicules sortis du parc : leur fiche reste lisible, avec tout leur historique, mais ils ne sont plus proposés dans les formulaires.'
+  ));
+
   page.appendChild(
     toolbar([
       canWrite() && {
-        label: '+ Ajouter un véhicule réformé',
+        label: '+ Nouveau véhicule réformé',
         cls: 'addBtn',
         color: COLORS.green,
         write: true,
         onClick: () => openReformeForm(null, CAT_REFORME)
       },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => exporter('excel', list) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }
     ])

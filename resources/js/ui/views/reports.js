@@ -1,34 +1,42 @@
 /* ===================================================================
-   RAPPORTS ET EXPORTS — synthèses et production de documents.
+   RAPPORTS — un document par rubrique, dans l'ordre du menu, et le
+   rapport complet.
    =================================================================== */
 
 import { DB, allVehicles, openMaintenance, unpaidMissions, carburantMissions } from '../../core/db.js';
 import { el, fmt, esc, escLignes, sum, mentionLieuDate } from '../../core/utils.js';
 import { card, statTile, dataTable, emptyState, toast, COLORS, sectionLabel } from '../components.js';
+import { moduleColor } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord } from '../../export/word.js';
 import {
   dsAll, dsVehicles, dsUsers, dsIncidents, dsDotationPool, dsCarburantMissions,
   dsRavitaillementsMissions, dsMissions, dsMissionsParConducteur, dsSuiviMissions, dsMaintenance,
-  dsInterventions, dsCoutParVehicule
+  dsInterventions, dsCoutParVehicule, dsVidanges, dsGarages, dsDecharges, dsDestinataires,
+  dsSortiesAbidjan, dsSimulations, dsIndisponibilites, dsDestinationsMission
 } from '../../export/datasets.js';
 import { dsEtatsVehicules } from './etatsVehicules.js';
 import { dsVehiculesReformes } from './vehiculesReformes.js';
 
 const RAPPORTS = [
-  { key: 'parc', label: 'État du parc', desc: 'Tous les véhicules : kilométrage, vidange et état actuel', build: () => [dsVehicles()], file: 'PDU_etat_du_parc' },
-  { key: 'couts', label: 'Coûts par véhicule', desc: 'Classement des véhicules par coût total de possession', build: () => [dsCoutParVehicule()], file: 'PDU_couts_par_vehicule' },
+  { key: 'parc', label: 'Véhicules', desc: 'Le parc : kilométrage, vidange et état actuel ; les problèmes signalés ; les véhicules réformés',
+    build: () => [dsVehicles(), dsEtatsVehicules(DB.etatsVehicules), dsVehiculesReformes(DB.vehicles.reforme)], file: 'PDU_vehicules' },
+  { key: 'couts', label: 'Coûts par véhicule', desc: 'Classement des véhicules par coût total : carburant et entretien', build: () => [dsCoutParVehicule()], file: 'PDU_couts_par_vehicule' },
+  { key: 'personnel', label: 'Personnel', desc: 'Les agents, l’historique des incidents, les congés et absences',
+    build: () => [dsUsers(), dsIncidents(), dsIndisponibilites()], file: 'PDU_personnel' },
   { key: 'carburant', label: 'Carburant', desc: 'Dotations du pool, carburant des missions et points de ravitaillement', build: () => [dsDotationPool(), dsCarburantMissions(), dsRavitaillementsMissions()], file: 'PDU_carburant' },
-  { key: 'missions', label: 'Missions', desc: 'Missions détaillées et récapitulatif par conducteur', build: () => [dsSuiviMissions(), dsMissions(), dsMissionsParConducteur()], file: 'PDU_missions' },
-  { key: 'entretien', label: 'Entretien', desc: 'Passages au garage et interventions détaillées', build: () => [dsMaintenance(), dsInterventions()], file: 'PDU_entretien' },
-  { key: 'personnel', label: 'Personnel', desc: 'Utilisateurs et historique des incidents', build: () => [dsUsers(), dsIncidents()], file: 'PDU_personnel' },
+  { key: 'missions', label: 'Missions', desc: 'Suivi des missions, récapitulatif par conducteur, sorties d’Abidjan, simulations et destinations',
+    build: () => [dsSuiviMissions(), dsMissions(), dsMissionsParConducteur(), dsSortiesAbidjan(), dsSimulations(), dsDestinationsMission()], file: 'PDU_missions' },
+  { key: 'entretien', label: 'Entretien', desc: 'Fiches d’entretien et interventions, vidanges, garages',
+    build: () => [dsMaintenance(), dsInterventions(), dsVidanges(), dsGarages()], file: 'PDU_entretien' },
+  { key: 'courrier', label: 'Courrier', desc: 'Les courses et leurs destinataires', build: () => [dsDecharges(), dsDestinataires()], file: 'PDU_courrier' },
   { key: 'complet', label: 'Rapport complet', desc: 'Toutes les rubriques dans un seul document', build: () => [...dsAll(), dsEtatsVehicules(DB.etatsVehicules), dsVehiculesReformes(DB.vehicles.reforme)], file: 'PDU_rapport_complet' }
 ];
 
 export function renderReports(page) {
   page.appendChild(
-    card('RAPPORTS ET EXPORTS', 'Produisez un classeur Excel ou un document PDF prêt à imprimer pour chaque volet de la gestion du parc. Les filtres appliqués dans les rubriques ne sont pas repris ici : les rapports portent sur l’ensemble des données.', COLORS.blue)
+    card('RAPPORTS', 'Un document par rubrique, en Excel, PDF ou Word, prêt à imprimer, et le rapport complet. Les filtres appliqués dans les rubriques ne sont pas repris ici : les rapports portent sur l’ensemble des données.')
   );
 
   const vehicles = allVehicles();
@@ -42,19 +50,19 @@ export function renderReports(page) {
   grid.appendChild(statTile('Coût global', `${fmt(totalCarburant + totalEntretien)} F`, 'carburant + entretien', COLORS.blue));
   page.appendChild(grid);
 
-  page.appendChild(sectionLabel('DOCUMENTS DISPONIBLES', COLORS.blue));
+  page.appendChild(sectionLabel('DOCUMENTS DISPONIBLES', moduleColor('RAPPORTS')));
 
   RAPPORTS.forEach((r) => {
     const e = el('<div class="entry"></div>');
-    e.style.borderLeftColor = COLORS.blue;
+    e.style.borderLeftColor = moduleColor('RAPPORTS');
     e.dataset.search = `${r.label} ${r.desc}`.toLowerCase();
     e.innerHTML =
       `<div class="row1"><h4>${esc(r.label)}</h4></div><div class="meta">${esc(r.desc)}</div>` +
       '<div class="actions">' +
-      `<button class="miniBtn" style="background:${COLORS.green}" data-x>⬇ Excel (.xlsx)</button>` +
+      '<button class="miniBtn" style="background:#1D6F42" data-x>⬇ Excel</button>' +
       `<button class="miniBtn" style="background:${COLORS.red}" data-p>⬇ PDF</button>` +
       '<button class="miniBtn" style="background:#2B579A" data-w>⬇ Word</button>' +
-      `<button class="miniBtn" style="background:${COLORS.blue}" data-print>🖨 Imprimer</button>` +
+      `<button class="miniBtn" style="background:${COLORS.grey}" data-print>Imprimer</button>` +
       '</div>';
     e.querySelector('[data-x]').onclick = () => run(r, 'excel');
     e.querySelector('[data-p]').onclick = () => run(r, 'pdf');

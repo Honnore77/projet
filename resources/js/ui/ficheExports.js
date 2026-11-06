@@ -18,7 +18,7 @@ export function menusExportFiche(lancer) {
     { label: `${NOMS[kind]} complet`, detail: 'La carte et tous les historiques', onClick: () => lancer(kind, 'complet') }
   ];
   return [
-    { label: '⬇ Excel', color: COLORS.blue, menu: choix('excel') },
+    { label: '⬇ Excel', color: '#1D6F42', menu: choix('excel') },
     { label: '⬇ PDF', color: COLORS.red, menu: choix('pdf') },
     { label: '⬇ Word', color: '#2B579A', menu: choix('word') }
   ];

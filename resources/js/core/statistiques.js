@@ -20,6 +20,7 @@ import {
   vehiculesDeLAgent, vehiculesImmobilises, cleVehicule, totauxRapportMission
 } from './db.js';
 import { fmt, num, norm, sum, daysBetween, todayISO } from './utils.js';
+import { voitTout } from './acces.js';
 
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 
@@ -338,20 +339,48 @@ export function statsEntretien(annee) {
   };
 }
 
-/* ============================= DÉCHARGE ============================ */
+/* ========================= SORTIES D'ABIDJAN ======================= */
+
+export function statsSortiesAbidjan(annee) {
+  const sa = deLAnnee(DB.sortiesAbidjan || [], (x) => x.date, annee);
+  return {
+    tuiles: [
+      { titre: 'Sorties d’Abidjan', valeur: fmt(sa.length), detail: annee ? `en ${annee}` : 'toutes années' },
+      { titre: 'Dépenses des sorties', valeur: F(sum(sa, (x) => totauxRapportMission(x).total)), detail: 'carburant et frais' }
+    ],
+    blocs: [
+      blocMensuel('Sorties d’Abidjan par mois', parMois(sa, (x) => x.date, annee, { Sorties: () => 1 })),
+      blocRepartition('Sorties d’Abidjan par destination', repartition(sa, (x) => x.destination, { limite: 10 }), { type: 'bar' }),
+      blocRepartition('Sorties d’Abidjan par véhicule', repartition(sa, (x) => libelleVehicule(x.vehicule), { limite: 10 }), { type: 'bar' })
+    ]
+  };
+}
+
+/**
+ * MISSIONS → STATISTIQUES : les missions, puis leurs sous-rubriques
+ * SORTIES D'ABIDJAN et SIMULATIONS (ces dernieres pour qui voit les
+ * simulations).
+ */
+export function statsMissionsEtSorties(annee, { simulations = voitTout('SIMULATION') } = {}) {
+  const parties = [statsMissions(annee), statsSortiesAbidjan(annee)];
+  if (simulations) parties.push(statsSimulations(annee));
+  return {
+    tuiles: parties.flatMap((x, i) => (i === 0 ? x.tuiles : x.tuiles.slice(0, i === 1 ? 2 : 1))),
+    blocs: parties.flatMap((x) => x.blocs)
+  };
+}
+
+/* ============================= COURRIER ============================ */
 
 export function statsDecharges(annee) {
   const ds = deLAnnee(DB.decharges || [], (d) => d.date, annee);
   const signees = ds.filter((d) => (d.images || []).length);
-  const sa = deLAnnee(DB.sortiesAbidjan || [], (x) => x.date, annee);
   return {
     tuiles: [
       { titre: 'Courses', valeur: fmt(ds.length), detail: annee ? `en ${annee}` : 'toutes années' },
       { titre: 'Destinataires', valeur: fmt(new Set(ds.map((d) => norm(d.destinataire || '')).filter(Boolean)).size), detail: `${fmt((DB.destinataires || []).length)} dans la liste` },
       { titre: 'Décharges signées jointes', valeur: fmt(signees.length), detail: pct(signees.length, ds.length) },
-      { titre: 'Photo à joindre', valeur: fmt(ds.length - signees.length), detail: 'décharge signée manquante' },
-      { titre: 'Sorties d’Abidjan', valeur: fmt(sa.length), detail: annee ? `en ${annee}` : 'toutes années' },
-      { titre: 'Dépenses des sorties', valeur: F(sum(sa, (x) => totauxRapportMission(x).total)), detail: 'carburant et frais' }
+      { titre: 'Photo à joindre', valeur: fmt(ds.length - signees.length), detail: 'décharge signée manquante' }
     ],
     blocs: [
       blocMensuel('Courses par mois', parMois(ds, (d) => d.date, annee, { Courses: () => 1 })),
@@ -360,10 +389,7 @@ export function statsDecharges(annee) {
       blocRepartition('Courses par conducteur', repartition(ds, (d) => d.conducteur, { limite: 10 }), { type: 'bar' }),
       // Ancienne et nouvelle immatriculation : un seul vehicule.
       blocRepartition('Courses par véhicule', repartition(ds, (d) => libelleVehicule(d.immat), { limite: 10 }), { type: 'bar' }),
-      blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' }),
-      blocMensuel('Sorties d’Abidjan par mois', parMois(sa, (x) => x.date, annee, { Sorties: () => 1 })),
-      blocRepartition('Sorties d’Abidjan par destination', repartition(sa, (x) => x.destination, { limite: 10 }), { type: 'bar' }),
-      blocRepartition('Sorties d’Abidjan par véhicule', repartition(sa, (x) => libelleVehicule(x.vehicule), { limite: 10 }), { type: 'bar' })
+      blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' })
     ]
   };
 }
@@ -402,10 +428,11 @@ export const STATISTIQUES = {
   // les sorties du pool.
   VEHICULES: { titre: 'Véhicules', calcul: statsVehicules, datee: true,
     intro: (annee) => `L’état du parc aujourd’hui, et les sorties du pool (courses) ${annee ? `de l’année ${annee}` : 'de toutes les années'}. L’année choisie ci-dessous ne porte que sur les sorties ; les exports reprennent ce qui est affiché.` },
-  UTILISATEURS: { titre: 'Utilisateurs', calcul: statsUtilisateurs, datee: true },
-  DOTATION: { titre: 'Dotation en carburant', calcul: statsDotation, datee: true },
-  MISSION: { titre: 'Missions', calcul: statsMissions, datee: true },
+  UTILISATEURS: { titre: 'Personnel', calcul: statsUtilisateurs, datee: true },
+  DOTATION: { titre: 'Carburant', calcul: statsDotation, datee: true },
+  MISSION: { titre: 'Missions', calcul: (annee) => statsMissionsEtSorties(annee), datee: true },
   ENTRETIEN: { titre: 'Entretien', calcul: statsEntretien, datee: true },
-  DECHARGE: { titre: 'Courses', calcul: statsDecharges, datee: true },
+  DECHARGE: { titre: 'Courrier', calcul: statsDecharges, datee: true },
+  // Repris dans MISSIONS → STATISTIQUES ; garde pour les exports et les essais.
   SIMULATION: { titre: 'Simulations', calcul: statsSimulations, datee: true }
 };

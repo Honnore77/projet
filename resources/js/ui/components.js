@@ -568,7 +568,8 @@ export function openForm(cfg) {
 
 /* --------------------------- Blocs de page ------------------------- */
 
-export function card(heading, body, color = COLORS.green) {
+/** Sans couleur donnee, la carte prend celle de la rubrique ouverte. */
+export function card(heading, body, color = 'var(--couleur-rubrique, #008A3B)') {
   return el(
     `<div class="card" data-search="${esc(String(heading) + ' ' + String(body)).toLowerCase()}">` +
       `<h3 style="color:${color}">${esc(heading)}</h3><p>${esc(body)}</p></div>`
@@ -738,7 +739,8 @@ export function subtabs(items, activeKey, onClick, colorMap = {}) {
     // La couleur passe par la feuille de style : chaque style d'interface
     // (REGLAGES → Apparence) dessine la sous-rubrique active a sa facon.
     b.classList.toggle('active', active);
-    b.style.setProperty('--c', colorMap[it.key] || COLORS.green);
+    // La couleur de la rubrique, les statistiques en gris.
+    b.style.setProperty('--c', colorMap[it.key] || (it.key === 'stats' ? COLORS.grey : 'var(--couleur-rubrique, #008A3B)'));
     b.onclick = () => onClick(it.key);
     bar.appendChild(b);
   });

@@ -92,7 +92,7 @@ export function dsVehicles(list = allVehicles()) {
 
 export function dsUsers(list = DB.users) {
   return {
-    title: 'Utilisateurs',
+    title: 'Agents',
     columns: [
       C('nom', 'Nom', 16),
       C('prenoms', 'Prénoms', 20),
@@ -178,7 +178,7 @@ export function dsDotationPool(list = DB.dotationPool) {
   const rang = new Map([...suivi.keys()].map((id, i) => [id, i]));
   list = list.slice().sort((a, b) => rang.get(b.id) - rang.get(a.id));
   return {
-    title: 'Dotation pool',
+    title: 'Dotations du pool',
     columns: [
       C('date', 'Date', 12),
       C('jours', 'Nombre de jours', 10),
@@ -540,6 +540,7 @@ export function dsAll() {
     dsMissions(),
     dsMissionsParConducteur(),
     dsDestinationsMission(),
+    dsSortiesAbidjan(),
     dsMaintenance(),
     dsInterventions(),
     dsVidanges(),

@@ -56,7 +56,7 @@ export function renderNotes(page) {
     nouvelles.clear();
   }
   page.appendChild(
-    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); }, { recues: COULEUR(), envoyees: COULEUR_ENVOI })
+    subtabs(SUBS, sub, (k) => { state.sub.NOTES = k; rerender(); })
   );
   if (sub === 'envoyees') renderEnvoyees(page, moi);
   else renderRecues(page, moi);
@@ -68,8 +68,7 @@ function renderRecues(page, moi) {
   const f = filtres.recues;
   page.appendChild(card(
     'NOTES REÇUES',
-    'Les notes publiques, lues par tous les comptes, et les notes privées qui vous sont adressées.',
-    COULEUR()
+    'Les notes publiques, lues par tous les comptes, et les notes privées qui vous sont adressées.'
   ));
 
   const toutes = notesRecues(moi.id);
@@ -117,8 +116,7 @@ function renderEnvoyees(page, moi) {
   const f = filtres.envoyees;
   page.appendChild(card(
     'NOTES ENVOYÉES',
-    'Les notes que vous avez écrites. Vous pouvez les modifier ou les supprimer.',
-    COULEUR_ENVOI
+    'Les notes que vous avez écrites. Vous pouvez les modifier ou les supprimer.'
   ));
 
   const toutes = notesEnvoyees(moi.id);
@@ -152,8 +150,7 @@ export function renderComptes(page) {
   page.appendChild(card(
     'COMPTES',
     'Tous les comptes créés dans l’application et le point de leurs notes. ' +
-      'Voyant vert allumé : compte en utilisation ; éteint : compte existant mais pas connecté.',
-    COULEUR_COMPTES
+      'Voyant vert allumé : compte en utilisation ; éteint : compte existant mais pas connecté.'
   ));
 
   const point = pointDesComptes();

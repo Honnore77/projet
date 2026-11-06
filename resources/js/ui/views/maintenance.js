@@ -74,19 +74,18 @@ function retourFields(m = {}) {
   ];
 }
 
-const SUBS = [{ key: 'liste', label: 'SUIVI DES ENTRETIENS' }, { key: 'vidanges', label: 'VIDANGES' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
+const SUBS = [{ key: 'liste', label: 'FICHES D’ENTRETIEN' }, { key: 'vidanges', label: 'VIDANGES' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
 
 export function renderMaintenance(page) {
   const sub = state.sub.ENTRETIEN || 'liste';
-  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); },
-    { liste: COLORS.red, vidanges: COULEUR_VIDANGES, garages: COULEUR_GARAGES, stats: COLORS.grey }));
+  page.appendChild(subtabs(SUBS, sub, (k) => { state.sub.ENTRETIEN = k; rerender(); }));
   if (sub === 'stats') return renderStatistiques(page, 'ENTRETIEN');
   if (sub === 'garages') return renderGarages(page);
   if (sub === 'vidanges') return renderVidanges(page);
   const f = state.filters.maintenance;
 
   page.appendChild(
-    card('ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation. Cliquez sur « Fiche » pour voir le détail d’un véhicule et agir dessus.', COLORS.green)
+    card('FICHES D’ENTRETIEN', 'Suivi de tous les véhicules du PDU : entrée au garage, interventions réalisées, retour et durée d’immobilisation. Cliquez sur « Fiche » pour voir le détail d’un véhicule et agir dessus.')
   );
 
   page.appendChild(
@@ -121,7 +120,7 @@ export function renderMaintenance(page) {
   page.appendChild(
     toolbar([
       canWrite() && { label: '+ Nouvelle fiche d’entretien', cls: 'addBtn', color: COLORS.green, write: true, onClick: () => openFicheForm(null) },
-      { label: '⬇ Excel', color: COLORS.blue, onClick: () => doExport('excel', retenus) },
+      { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', retenus) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', retenus) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', retenus) }
     ])

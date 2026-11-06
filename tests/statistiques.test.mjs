@@ -112,7 +112,8 @@ test('SORTIES : ancienne et nouvelle immatriculation comptent pour un seul vehic
   const s = st.statsDecharges('');
   const courses = s.blocs.find((b) => b.titre === 'Courses par véhicule');
   assert.deepEqual(courses.lignes.map((l) => [l[0], l[1]]), [['D45 5082 (ex D45 846)', '2']]);
-  const sorties = s.blocs.find((b) => b.titre === 'Sorties d’Abidjan par véhicule');
+  // Les sorties d'Abidjan sont passees dans MISSIONS → STATISTIQUES.
+  const sorties = st.statsMissionsEtSorties('', { simulations: false }).blocs.find((b) => b.titre === 'Sorties d’Abidjan par véhicule');
   assert.deepEqual(sorties.lignes.map((l) => [l[0], l[1]]), [['D45 5082 (ex D45 846)', '1']]);
 });
 

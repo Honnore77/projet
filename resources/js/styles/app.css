@@ -214,7 +214,13 @@ nav.tabs{position:fixed;bottom:0;left:0;right:0;background:var(--white);
   background:#D32F2F;color:#fff;font-size:10.5px;font-weight:800;line-height:16px;text-align:center;vertical-align:1px;}
 .tabBadge[hidden]{display:none;}
 /* IMPORTER, parmi les rubriques. Le champ des images vise s'allume. */
-.tabImporter{--tabColor:#37474F;}
+/* Importer une image : a cote de la recherche, une action et pas une rubrique. */
+.searchLigne{display:flex;gap:8px;align-items:stretch;}
+.searchLigne input{flex:1;min-width:0;}
+.importBtn{flex:0 0 auto;border:none;border-radius:14px;padding:0 16px;background:#37474F;color:#fff;font-weight:700;
+  font-size:13.5px;cursor:pointer;white-space:nowrap;box-shadow:var(--shadow);}
+.importBtn:hover{filter:brightness(1.12);}
+@media (max-width:560px){.importBtn{padding:0 12px;font-size:12.5px;}}
 .champImporter{outline:3px solid #F47B20;outline-offset:4px;border-radius:8px;transition:outline-color .4s;}
 
 /* ---------------- NOTES ---------------- */
