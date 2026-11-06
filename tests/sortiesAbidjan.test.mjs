@@ -67,3 +67,19 @@ test('l’export porte le total des depenses, sans frais OM', async () => {
   assert.equal(ds.rows[0].total, 17500 + 3000);
   assert.equal(ds.rows[0].distance, 500);
 });
+
+test('l’observation d’une sortie est signalee dans ÉTAT DES VÉHICULES, et retiree si « RAS »', async () => {
+  const { synchroniserEtats } = await import('../resources/js/core/etatsVehicules.js');
+  const base = await charger({
+    vehicles: { pool: [vehicule({ id: 'v1', immatNouvelle: 'D45 5082' })], mission: [], service: [] },
+    sortiesAbidjan: [sortie({ observations: 'Bruit au freinage' })]
+  });
+  synchroniserEtats(base, '2026-11-06');
+  const s = base.etatsVehicules.find((e) => e.origine === 'sortie:s1');
+  assert.ok(s, 'signalement cree');
+  assert.equal(s.immat, 'D45 5081');
+  assert.match(s.probleme, /Bruit au freinage/);
+  base.sortiesAbidjan[0].observations = 'RAS';
+  synchroniserEtats(base, '2026-11-06');
+  assert.equal(base.etatsVehicules.some((e) => e.origine === 'sortie:s1'), false);
+});

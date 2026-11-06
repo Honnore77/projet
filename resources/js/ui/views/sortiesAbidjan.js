@@ -182,8 +182,11 @@ function sortieAbidjanFields(x = {}) {
     { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: x.fraisPeage },
     { key: 'depenseDivers', label: 'Dépense divers (F)', type: 'montant', value: x.depenseDivers },
     { key: 'justificationDivers', label: 'Justification de la dépense divers', value: x.justificationDivers },
+    // Reliee a VÉHICULES → ÉTAT DES VÉHICULES, comme l'observation du
+    // rapport de mission (voir observationsSources).
     { key: 'observations', label: 'Observation', type: 'textarea', full: true, rows: 3, value: x.observations,
-      placeholder: 'Déroulement de la sortie, état du véhicule, remarques…' }
+      placeholder: 'RAS, ou le problème constaté sur le véhicule pendant la sortie',
+      hint: 'Un problème décrit ici est signalé dans VÉHICULES → ÉTAT DES VÉHICULES ; « RAS » si rien à signaler' }
   ];
 }
 

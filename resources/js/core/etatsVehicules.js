@@ -88,6 +88,7 @@ export function relierRapportMission(m, texte, db = DB, aujourdhui = new Date().
    devient un signalement relie a sa source (`origine`) :
      - rapport de mission, champ « Observation (état du véhicule) » — la
        « Observation divers » du rapport n'y vient pas ;
+     - sortie d'Abidjan, champ « Observation » ;
      - dotation pool, champ « Observations » ;
      - entree au garage, « Motif / problème » — resolu des que le vehicule
        sort du garage, a la date de sortie ;
@@ -111,6 +112,10 @@ export function observationsSources(db = DB) {
     origine: `mission:${m.id}`, missionId: m.id, missionRef: m.ref || '',
     libelle: `Rapport de mission ${m.ref || ''}`.trim(),
     immat: m.vehicule, texte: m.observations, date: m.dateRetour || m.dateDepart, par: m.conducteur
+  }));
+  (db.sortiesAbidjan || []).forEach((x) => ajouter({
+    origine: `sortie:${x.id}`, libelle: `Sortie d’Abidjan ${x.ref || ''}`.trim(),
+    immat: x.vehicule, texte: x.observations, date: x.date, par: x.conducteur
   }));
   (db.dotationPool || []).forEach((d) => ajouter({
     origine: `dotation:${d.id}`, libelle: `Dotation pool du ${dateFR(d.date)}`,
