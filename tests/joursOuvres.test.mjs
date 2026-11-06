@@ -48,9 +48,10 @@ const ICS = [
   'END:VCALENDAR'
 ].join('\r\n');
 
-test('le calendrier du pays ne garde que les jours feries : ni observance, ni report du dimanche', () => {
+test('le calendrier du pays ne garde que les jours feries, pas les journees d’observance', () => {
   assert.deepEqual(fi.lireCalendrier(ICS), [
-    { date: '2026-03-20', nom: 'Aid-El-Fitr' }
+    { date: '2026-03-20', nom: 'Aid-El-Fitr' },
+    { date: '2026-11-16', nom: 'Journee Nationale de la Paix observée' }
   ]);
 });
 
@@ -66,9 +67,12 @@ test('les feries telecharges comptent dans les absences, avec ceux saisis a la m
   assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 10);
 });
 
-test('une liste deja telechargee avec un jour « observé » ne le compte plus', async () => {
-  await charger({ settings: { feriesInternet: { pays: 'ci', majLe: '2026-11-06T08:00:00Z', jours: [
-    { date: '2026-11-16', nom: 'Journee Nationale de la Paix observée' }] } } });
+test('le report au lundi se travaille, sauf s’il est declare chome', async () => {
+  await charger({ settings: { feriesInternet: { pays: 'ci', majLe: '2026-11-06T08:00:00Z', jours: fi.lireCalendrier(ICS) } } });
   assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 10);
-  assert.deepEqual(fi.feriesTelecharges().jours, []);
+  fi.marquerReport('2026-11-16', true);
+  assert.deepEqual(fi.reportsChomes(), ['2026-11-16']);
+  assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 9);
+  fi.marquerReport('2026-11-16', false);
+  assert.equal(db.dureeIndisponibilite('2026-11-09', '2026-11-23'), 10);
 });

@@ -16,7 +16,7 @@ import {
 } from '../../core/storage.js';
 import { esc, el, num, francSup, dateFR } from '../../core/utils.js';
 import { lireJoursFeries } from '../../core/joursOuvres.js';
-import { feriesTelecharges, telechargerFeries, PAYS_PAR_DEFAUT } from '../../core/feriesInternet.js';
+import { feriesTelecharges, telechargerFeries, estReport, reportsChomes, marquerReport, PAYS_PAR_DEFAUT } from '../../core/feriesInternet.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
   card, toolbar, subtabs, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
@@ -77,7 +77,7 @@ function renderFeriesSection(page) {
   page.appendChild(sectionLabel('JOURS FÉRIÉS', COLORS.orange));
   const f = feriesTelecharges();
   const annee = String(new Date().getFullYear());
-  const cette = f ? f.jours.filter((j) => j.date.startsWith(annee)) : [];
+  const cette = f ? f.jours.filter((j) => j.date.startsWith(annee) && !estReport(j.nom)) : [];
   page.appendChild(el(
     '<div class="card"><p>' +
       (f
@@ -100,6 +100,36 @@ function renderFeriesSection(page) {
       }
     }
   }]));
+  renderReports(page, f, annee);
+}
+
+/**
+ * Les reports au lundi d'un ferie tombe un dimanche, de cette annee et de
+ * la suivante : chacun se declare chome ou travaille selon la decision de
+ * l'annee (travaille tant que rien n'est dit).
+ */
+function renderReports(page, f, annee) {
+  const suivante = String(Number(annee) + 1);
+  const reports = f ? f.jours.filter((j) => estReport(j.nom) && (j.date.startsWith(annee) || j.date.startsWith(suivante))) : [];
+  if (!reports.length) return;
+  const chomes = reportsChomes();
+  page.appendChild(el(
+    '<div class="card"><p><b>Férié tombé un dimanche : reporté au lundi ?</b>\n' +
+    'Le report n’est pas automatique : il dépend de la décision de l’année. Tant que rien n’est dit, le lundi se travaille et compte dans les congés. ' +
+    'Cliquez pour le déclarer chômé (ou à nouveau travaillé).</p></div>'
+  ));
+  page.appendChild(toolbar(reports.map((j) => {
+    const chome = chomes.includes(j.date);
+    return {
+      label: `${dateFR(j.date)} — ${j.nom.replace(/\s*\(?observ[ée]+e?\)?\s*$/i, '')} : ${chome ? 'CHÔMÉ' : 'travaillé'}`,
+      color: chome ? COLORS.orange : COLORS.green,
+      onClick: () => {
+        marquerReport(j.date, !chome);
+        toast(`Lundi ${dateFR(j.date)} : ${chome ? 'travaillé, il compte dans les congés' : 'chômé, il ne compte plus dans les congés'}.`, 'ok');
+        rerender();
+      }
+    };
+  })));
 }
 
 function renderStyleSection(page) {
