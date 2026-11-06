@@ -642,7 +642,7 @@ function openSettingsForm() {
       { key: 'joursFeries', label: 'Autres jours fériés', type: 'textarea', full: true, rows: 3,
         value: joursFeriesSaisis().map(dateFR).join('\n'),
         placeholder: 'Un jour par ligne, par exemple 20/03/2026',
-        hint: 'Les jours fériés du pays viennent d’Internet (voir JOURS FÉRIÉS) ; n’ajoutez ici qu’un jour qui manquerait, par exemple un jour accordé par décret.' },
+        hint: 'Les jours fériés du pays viennent d’Internet (voir JOURS FÉRIÉS) ; n’ajoutez ici qu’un jour qui manquerait : un jour accordé par décret, ou le lundi déclaré chômé quand un férié tombe un dimanche (il n’est pas reporté d’office).' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,
