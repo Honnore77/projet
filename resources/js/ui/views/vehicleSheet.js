@@ -2,7 +2,7 @@
    FICHE VÉHICULE — tout ce que l application sait d une immatriculation.
    =================================================================== */
 
-import { DB, vehicleByImmat, vehiculeReformeParImmat, kmCourant, ravMontant, memeVehicule } from '../../core/db.js';
+import { DB, vehicleByImmat, vehiculeReformeParImmat, kmCourant, ravMontant, memeVehicule, missionsAvecCarburant } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { el, esc, fmt, num, dateFR, sum, daysBetween } from '../../core/utils.js';
 import { urlImage, octetsImage } from '../../core/images.js';
@@ -24,7 +24,8 @@ export function renderVehicleSheet(page) {
 
   const dots = DB.dotationPool.filter((d) => same(d.immat, immat));
   // Le carburant des missions est porte par la mission elle-meme (rapport).
-  const missionsCarburant = DB.missions.filter((m) => same(m.vehicule, immat) && (m.ravitaillements || []).length);
+  // Le carburant des missions et des sorties d'Abidjan, comme son cout (fuelCost).
+  const missionsCarburant = missionsAvecCarburant().filter((m) => same(m.vehicule, immat));
   const missions = DB.missions.filter((m) => same(m.vehicule, immat));
   const sorties = (DB.sortiesAbidjan || []).filter((x) => same(x.vehicule, immat));
   const maint = DB.maintenance.filter((m) => same(m.immat, immat));

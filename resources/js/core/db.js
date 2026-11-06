@@ -1674,22 +1674,30 @@ export function totauxSortieAbidjan(x) {
   return totauxRapportMission(Object.assign({}, x, { fraisOm: 0 }));
 }
 
-/** Missions dont le rapport porte au moins un ravitaillement. */
-export function missionsAvecCarburant() {
-  return DB.missions.filter((m) => (m.ravitaillements || []).length);
+/**
+ * Missions et sorties d'Abidjan dont le carburant a ete saisi. Une sortie
+ * s'y presente comme une mission d'un jour (`sortie: true`, depart et
+ * retour a sa date) : CARBURANT, ses statistiques, ses exports, les totaux
+ * de RAPPORTS et la fiche du vehicule comptent ainsi le meme carburant que
+ * le tableau de bord et le cout par vehicule.
+ */
+export function missionsAvecCarburant(db = DB) {
+  const sorties = (db.sortiesAbidjan || []).map((x) =>
+    Object.assign({}, x, { sortie: true, dateDepart: x.date, dateRetour: x.date }));
+  return (db.missions || []).concat(sorties).filter((m) => (m.ravitaillements || []).length);
 }
 
-/** Tous les ravitaillements de mission, a plat, avec leur mission. */
+/** Tous les ravitaillements de mission (et de sortie), a plat, avec leur mission. */
 export function tousRavitaillementsMission() {
   const out = [];
-  DB.missions.forEach((m) => {
+  missionsAvecCarburant().forEach((m) => {
     (m.ravitaillements || []).forEach((r) => out.push({ mission: m, rav: r }));
   });
   return out;
 }
 
-/** Litres et montant du carburant de mission (rapports de mission). */
-export function carburantMissions(list = DB.missions) {
+/** Litres et montant du carburant des missions et des sorties d'Abidjan. */
+export function carburantMissions(list = missionsAvecCarburant()) {
   let litres = 0;
   let montant = 0;
   list.forEach((m) => {
@@ -2012,6 +2020,10 @@ export function renommerGarage(ancien, nouveau, db = DB) {
     (m.interventions || []).forEach((iv) => {
       if (norm(iv.garage || '') === cle && iv.garage !== propre) { iv.garage = propre; n += 1; }
     });
+  });
+  // Une vidange faite au garage le cite comme « Garage ou station ».
+  (db.vidanges || []).forEach((x) => {
+    if (norm(x.structure || '') === cle && x.structure !== propre) { x.structure = propre; n += 1; }
   });
   if (n && db === DB) persist();
   return n;
@@ -2501,6 +2513,14 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
     x.destinations = [propre];
     n += 1;
   });
+  (db.simulations || []).forEach((x) => {
+    const liste = (x.destinations || []).slice();
+    const i = liste.findIndex((d) => norm(d || '') === cle && d !== propre);
+    if (i < 0) return;
+    liste[i] = propre;
+    x.destinations = liste;
+    n += 1;
+  });
   (db.trajets || []).forEach((t) => {
     if (norm(t.a || '') === cle) t.a = propre;
     if (norm(t.b || '') === cle) t.b = propre;
@@ -2780,6 +2800,76 @@ export function indisponibiliteSurMission(conducteur, dateDepart, dateRetour, db
     norm(i.conducteur || '') === cle &&
     i.dateDepart && i.dateDepart <= fin &&
     dateDepart < (i.dateReprise || '9999-12-31')) || null;
+}
+
+/**
+ * Reporte le nouveau nom d'un agent sur toutes les fiches qui le citent,
+ * hors vehicules (renommerAgentSurVehicules) : missions et leurs
+ * participants, sorties d'Abidjan, dotations, courses, entretien, vidanges,
+ * signalements, kilometrages actualises, conges et demandes — et le compte
+ * qui lui est lie, dont dependent ses droits.
+ *
+ * Ces fiches ne retiennent qu'un nom : sans ce report, le tour de role
+ * compterait l'agent deux fois et un compte « Conducteur » perdrait ses
+ * propres fiches.
+ * @returns {number} le nombre de champs reportes
+ */
+export function renommerAgentDansLesFiches(ancien, nouveau, db = DB) {
+  const cle = norm(ancien || '');
+  const propre = String(nouveau || '').trim();
+  if (!cle || !propre || norm(propre) === cle && ancien === propre) return 0;
+  let n = renommerAgentDansIndisponibilites(ancien, propre, db);
+  const suivre = (o, k) => {
+    if (o && norm(o[k] || '') === cle && o[k] !== propre) { o[k] = propre; n += 1; }
+  };
+  const suivreListe = (o) => {
+    if (!o || !Array.isArray(o.participants)) return;
+    o.participants = o.participants.map((x) => {
+      if (norm(x || '') === cle && x !== propre) { n += 1; return propre; }
+      return x;
+    });
+  };
+  (db.missions || []).forEach((m) => { suivre(m, 'conducteur'); suivreListe(m); });
+  (db.sortiesAbidjan || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
+  (db.dotationPool || []).forEach((d) => suivre(d, 'conducteur'));
+  (db.decharges || []).forEach((d) => { suivre(d, 'conducteur'); suivre(d, 'recuperePar'); });
+  (db.vidanges || []).forEach((x) => suivre(x, 'conducteur'));
+  (db.maintenance || []).forEach((m) => ['conducteurEntree', 'conducteurRetour', 'signalePar'].forEach((k) => suivre(m, k)));
+  (db.etatsVehicules || []).forEach((e) => { suivre(e, 'signalePar'); suivre(e, 'signaleA'); });
+  (db.relevesKm || []).forEach((r) => suivre(r, 'saisiPar'));
+  (db.accounts || []).forEach((a) => suivre(a, 'agent'));
+  if (n && db === DB) persist();
+  return n;
+}
+
+/**
+ * Reporte une immatriculation corrigee sur toutes les fiches qui la citent :
+ * dotations, entretien, missions, sorties, courses, vidanges, signalements,
+ * kilometrages actualises, simulations, incidents. Sans ce report, une faute
+ * de frappe corrigee sur la fiche du vehicule le detacherait de son
+ * historique.
+ * @returns {number} le nombre de fiches reportees
+ */
+export function renommerImmatriculation(ancienne, nouvelle, db = DB) {
+  const cle = immatComparable(ancienne);
+  const propre = String(nouvelle || '').trim().toUpperCase();
+  if (!cle || !propre || immatComparable(propre) === cle) return 0;
+  let n = 0;
+  const suivre = (o, k) => {
+    if (o && immatComparable(o[k]) === cle) { o[k] = propre; n += 1; }
+  };
+  (db.dotationPool || []).forEach((d) => suivre(d, 'immat'));
+  (db.maintenance || []).forEach((m) => suivre(m, 'immat'));
+  (db.missions || []).forEach((m) => suivre(m, 'vehicule'));
+  (db.sortiesAbidjan || []).forEach((x) => suivre(x, 'vehicule'));
+  (db.decharges || []).forEach((d) => suivre(d, 'immat'));
+  (db.vidanges || []).forEach((x) => suivre(x, 'immat'));
+  (db.etatsVehicules || []).forEach((e) => suivre(e, 'immat'));
+  (db.relevesKm || []).forEach((r) => suivre(r, 'immat'));
+  (db.simulations || []).forEach((x) => suivre(x, 'vehicule'));
+  (db.users || []).forEach((u) => (u.historique || []).forEach((h) => suivre(h, 'vehicule')));
+  if (n && db === DB) { oublierIndexPlaques(); persist(); }
+  return n;
 }
 
 /** Les indisponibilites en cours a une date donnee. */

@@ -11,7 +11,7 @@ import {
   DB, CATEGORIES, CAT_REFORME, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange, niveauVoyantVidange,
-  nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant, origineKm
+  nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant, origineKm, renommerImmatriculation
 } from '../../core/db.js';
 import { canWrite, currentUser } from '../../core/auth.js';
 import { esc, fmt, num, norm, dateFR, todayISO, grouperMilliers, lireMontant } from '../../core/utils.js';
@@ -522,13 +522,23 @@ export function openVehicleForm(vehicle, cat) {
 
       let enregistre;
       if (isEdit) {
+        // Une plaque corrigee (et qui n'est pas devenue l'autre plaque du
+        // vehicule) suit sur tout son historique.
+        const cleP = (x) => String(x || '').replace(/\s+/g, '').toUpperCase();
+        const nouvelles = [payload.immatNouvelle, payload.immatAncienne].map(cleP);
+        let reportees = 0;
+        [['immatNouvelle', vehicle.immatNouvelle], ['immatAncienne', vehicle.immatAncienne]].forEach(([champ, avant]) => {
+          if (avant && !nouvelles.includes(cleP(avant)) && payload[champ]) {
+            reportees += renommerImmatriculation(avant, payload[champ]);
+          }
+        });
         update(`vehicles.${cat}`, vehicle.id, payload);
         if (targetCat !== cat) {
           moveVehicle(vehicle.id, cat, targetCat);
           state.sub.VEHICULES = targetCat;
         }
         enregistre = Object.assign({}, vehicle, payload);
-        toast('Véhicule mis à jour.', 'ok');
+        toast(reportees ? `Véhicule mis à jour — la nouvelle immatriculation suit sur ${reportees} fiche(s).` : 'Véhicule mis à jour.', 'ok');
       } else {
         enregistre = insert(`vehicles.${targetCat}`, payload);
         state.sub.VEHICULES = targetCat;

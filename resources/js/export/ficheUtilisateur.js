@@ -35,6 +35,12 @@ export function dossierAgent(u, jour = todayISO()) {
     nom,
     vehicules: vehiculesDeLAgent(nom),
     missions: DB.missions.filter((m) => norm(m.conducteur || '') === cle),
+    // Ou il est passager : missions et sorties dont il est participant.
+    participations: DB.missions.concat(DB.sortiesAbidjan || [])
+      .filter((m) => (m.participants || []).some((x) => norm(x || '') === cle)),
+    sorties: (DB.sortiesAbidjan || []).filter((x) => norm(x.conducteur || '') === cle),
+    dotations: (DB.dotationPool || []).filter((x) => norm(x.conducteur || '') === cle),
+    courses: (DB.decharges || []).filter((x) => norm(x.conducteur || '') === cle || norm(x.recuperePar || '') === cle),
     incidents: u.historique || [],
     absences,
     interims: (DB.indisponibilites || []).filter((i) => norm(i.interimaire || '') === cle),
@@ -103,6 +109,29 @@ export function historiquesAgent(d) {
       entetes: ['Réf.', 'Destination', 'Véhicule', 'Départ', 'Retour', 'Jours', 'Paiement'],
       lignes: d.missions.slice().sort(parDate('dateDepart')).map((m) => [m.ref || '', m.destination || '', m.vehicule || '',
         dateFR(m.dateDepart), dateFR(m.dateRetour), m.jours || '', m.paye ? 'payée' : 'en attente'])
+    },
+    {
+      titre: 'Sorties d’Abidjan',
+      entetes: ['Réf.', 'Date', 'Destination', 'Véhicule', 'Km départ', 'Km arrivée'],
+      lignes: d.sorties.slice().sort(parDate('date')).map((x) => [x.ref || '', dateFR(x.date), x.destination || '', x.vehicule || '',
+        x.kmDepart === undefined ? '' : x.kmDepart, x.kmArrivee === undefined ? '' : x.kmArrivee])
+    },
+    {
+      titre: 'Participations',
+      entetes: ['Réf.', 'Date', 'Destination', 'Conducteur'],
+      lignes: d.participations.slice().sort((a, b) => String(b.dateDepart || b.date || '').localeCompare(String(a.dateDepart || a.date || '')))
+        .map((m) => [m.ref || '', dateFR(m.dateDepart || m.date), m.destination || '', m.conducteur || ''])
+    },
+    {
+      titre: 'Dotations de carburant',
+      entetes: ['Date', 'Véhicule', 'Station', 'Quantité (L)', 'Montant'],
+      lignes: d.dotations.slice().sort(parDate('date')).map((x) => [dateFR(x.date), x.immat || '', x.station || '', x.quantite || '', x.montant || ''])
+    },
+    {
+      titre: 'Courses',
+      entetes: ['Réf.', 'Date', 'Destinataire', 'Objet', 'Rôle'],
+      lignes: d.courses.slice().sort(parDate('date')).map((x) => [x.ref || '', dateFR(x.date), x.destinataire || '',
+        String(x.objet || '').split('\n')[0], norm(x.conducteur || '') === norm(d.nom) ? 'conducteur' : 'décharge récupérée'])
     },
     {
       titre: 'Incidents',

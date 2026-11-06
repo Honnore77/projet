@@ -396,7 +396,7 @@ function renderMission(page) {
   page.appendChild(
     card(
       'CARBURANT DES MISSIONS',
-      'Le carburant consommé en mission, tel qu’il a été saisi dans le rapport de mission : conducteur, véhicule, période, destination, points de ravitaillement, litres et montant.'
+      'Le carburant des missions et des sorties d’Abidjan, tel qu’il a été saisi dans le rapport de mission ou la sortie : conducteur, véhicule, période, destination, points de ravitaillement, litres et montant.'
     )
   );
 
@@ -416,7 +416,7 @@ function renderMission(page) {
 
   const total = carburantMissions(list);
   const grid = el('<div class="statGrid"></div>');
-  grid.appendChild(statTile('Missions', fmt(list.length), 'avec du carburant saisi', COLORS.purple));
+  grid.appendChild(statTile('Missions et sorties', fmt(list.length), `dont ${fmt(list.filter((m) => m.sortie).length)} sortie(s) d’Abidjan`, COLORS.purple));
   grid.appendChild(statTile('Litres', fmt(total.litres), 'tous ravitaillements', COLORS.blue));
   grid.appendChild(statTile('Montant', `${fmt(total.montant)} F`, 'dépense carburant mission', COLORS.green));
   page.appendChild(grid);
@@ -463,7 +463,7 @@ function renderMission(page) {
       rav.map((r) => `${esc(r.station || '—')} (${fmt(r.quantite)} L × ${fmt(r.prixL)} F)`).join('<br>'),
       `<span style="display:block;text-align:right">${fmt(sum(rav, (r) => r.quantite))}</span>`,
       `<span style="display:block;text-align:right"><b>${fmt(sum(rav, ravMontant))} F</b></span>`,
-      `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-rapport>Rapport</button>`
+      `<button class="miniBtn" style="background:${COLORS.purple};padding:5px 8px" data-rapport>${m.sortie ? 'Sortie' : 'Rapport'}</button>`
     ];
   });
 
@@ -472,8 +472,13 @@ function renderMission(page) {
       const m = list[i];
       tr.dataset.search = norm(`${m.ref} ${m.conducteur} ${m.vehicule} ${m.destination}`);
       tr.querySelector('[data-rapport]').onclick = () => {
-        state.sub.MISSION = 'rapport';
-        state.filters.missions.conducteur = m.conducteur || '';
+        if (m.sortie) {
+          state.sub.MISSION = 'sorties';
+          state.filters.sortiesAbidjan.conducteur = m.conducteur || '';
+        } else {
+          state.sub.MISSION = 'rapport';
+          state.filters.missions.conducteur = m.conducteur || '';
+        }
         navigate('MISSION');
       };
     })

@@ -16,7 +16,7 @@ import { immatAvecAutre,
   nomComplet, vehiculesDeLAgent, renommerAgentSurVehicules, detacherAgentDesVehicules,
   lignesTelephone, MOTIFS_INDISPONIBILITE, dureeIndisponibilite, etatIndisponibilite,
   conducteursDuPool, chevauchementIndisponibilite, indisponibilitesEnCours,
-  renommerAgentDansIndisponibilites, nomsUtilisateurs
+  renommerAgentDansIndisponibilites, renommerAgentDansLesFiches, nomsUtilisateurs
 } from '../../core/db.js';
 import {
   TYPES_DEMANDE, MOTIF_DEMANDE, lendemain, dureeConge, totalAbsence, periodeAuTableau, etatValidation,
@@ -318,11 +318,12 @@ export function openUserForm(u) {
         const ancien = nomComplet(u);
         update('users', u.id, values);
         const suivis = renommerAgentSurVehicules(ancien, nomComplet(u));
-        renommerAgentDansIndisponibilites(ancien, nomComplet(u));
+        // Missions, dotations, courses, conges, compte lie... suivent aussi.
+        const autres = renommerAgentDansLesFiches(ancien, nomComplet(u));
         toast(
-          suivis
-            ? `Utilisateur mis à jour — ${suivis} fiche(s) véhicule suivies.`
-            : 'Utilisateur mis à jour.',
+          suivis || autres
+            ? `Agent mis à jour — le nouveau nom suit sur ${suivis + autres} fiche(s).`
+            : 'Agent mis à jour.',
           'ok'
         );
       } else {
