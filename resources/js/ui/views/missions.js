@@ -28,7 +28,7 @@ import { filtrer, seulementSiennes, peutModifier, voit } from '../../core/acces.
 import { renderSortiesAbidjan } from './sortiesAbidjan.js';
 import { renderSimulations } from './simulation.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
-import { autreImmat,
+import { champVehicule, champParticipant, autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, openModal, confirmDialog, toast,
   statTile, dataTable, groupHeader, subEmpty, cablerMontant, COLORS
 } from '../components.js';
@@ -491,9 +491,9 @@ function problemesVehiculeMission(m) {
 }
 
 /** Lignes « carburant, frais OM, peage, divers, TOTAL » du rapport. */
-function lignesTotaux(t) {
+function lignesTotaux(t, { fraisOm = true } = {}) {
   const ligne = (k, v, gras) => `<div class="subEntryRow"><span>${gras ? `<b>${k}</b>` : k}</span><b>${fmt(v)} F</b></div>`;
-  return ligne('Carburant (ravitaillements)', t.carburant) + ligne('Frais OM', t.fraisOm) +
+  return ligne('Carburant (ravitaillements)', t.carburant) + (fraisOm ? ligne('Frais OM', t.fraisOm) : '') +
     ligne('Frais de péage', t.fraisPeage) + ligne('Dépense divers', t.depenseDivers) + ligne('TOTAL', t.total, true);
 }
 
@@ -508,7 +508,7 @@ function lignesTotaux(t) {
  *
  * @returns {() => void} recalcul des totaux, a appeler a chaque frappe
  */
-export function monterRavitaillements(scope, rav) {
+export function monterRavitaillements(scope, rav, { fraisOm = true, titre = 'Total des dépenses de la mission' } = {}) {
   const bloc = el(
     '<div class="subBlock" style="margin-top:14px"><h5>Dotation en carburant — points de ravitaillement</h5>' +
     '<div data-ravlist></div>' +
@@ -523,13 +523,13 @@ export function monterRavitaillements(scope, rav) {
   );
   // Carburant + frais saisis : recalcule a chaque frappe et a chaque
   // ravitaillement ajoute ou retire.
-  const recap = el('<div class="subBlock" style="margin-top:14px"><h5>Total des dépenses de la mission</h5><div data-recap></div></div>');
+  const recap = el(`<div class="subBlock" style="margin-top:14px"><h5>${esc(titre)}</h5><div data-recap></div></div>`);
   const zoneTotaux = recap.querySelector('[data-recap]');
   const majTotaux = () => {
     const lire = (k) => lireMontant((scope.querySelector(`[data-key="${k}"]`) || {}).value || '');
     zoneTotaux.innerHTML = lignesTotaux(totauxRapportMission({
-      ravitaillements: rav, fraisOm: lire('fraisOm'), fraisPeage: lire('fraisPeage'), depenseDivers: lire('depenseDivers')
-    }));
+      ravitaillements: rav, fraisOm: fraisOm ? lire('fraisOm') : 0, fraisPeage: lire('fraisPeage'), depenseDivers: lire('depenseDivers')
+    }), { fraisOm });
   };
 
   const liste = bloc.querySelector('[data-ravlist]');
@@ -597,10 +597,10 @@ export function openRapportForm(m) {
       `${libelleParcours(parcoursMission(m)) ? ` (parcours : ${libelleParcours(parcoursMission(m))})` : ''}` +
       ` · ${dateFR(m.dateDepart) || '…'} → ${dateFR(m.dateRetour) || '…'}`,
     fields: [
-      { key: 'participant1', label: 'Participant 1', value: (m.participants || [])[0] },
-      { key: 'participant2', label: 'Participant 2', value: (m.participants || [])[1] },
-      { key: 'participant3', label: 'Participant 3', value: (m.participants || [])[2] },
-      { key: 'participant4', label: 'Participant 4', value: (m.participants || [])[3] },
+      champParticipant('participant1', 'Participant 1', (m.participants || [])[0]),
+      champParticipant('participant2', 'Participant 2', (m.participants || [])[1]),
+      champParticipant('participant3', 'Participant 3', (m.participants || [])[2]),
+      champParticipant('participant4', 'Participant 4', (m.participants || [])[3]),
       { key: 'dotationCarburant', label: 'Dotation en carburant (F)', type: 'montant', value: m.dotationCarburant },
       { key: 'kmDepart', label: 'Km départ', type: 'nombre', value: m.kmDepart },
       { key: 'kmArrivee', label: 'Km arrivée', type: 'nombre', value: m.kmArrivee },
@@ -722,7 +722,7 @@ function missionFields(m = {}) {
     { key: 'ref', label: 'Référence', type: 'static', value: m.ref || '',
       hint: 'Attribuée selon la date de départ — la plus ancienne porte M-001' },
     { key: 'conducteur', label: 'Conducteur', required: true, value: m.conducteur, list: conducteursProposes() },
-    { key: 'vehicule', label: 'Véhicule (immatriculation)', value: m.vehicule, list: knownImmats() },
+    champVehicule('vehicule', 'Véhicule (immatriculation)', m.vehicule),
     // Liste ou l'on puise les destinations, une a une : chacune rejoint le
     // parcours affiche juste dessous (voir cablerParcours). Le champ lui-meme
     // revient a vide apres chaque ajout, il n'est pas enregistre.

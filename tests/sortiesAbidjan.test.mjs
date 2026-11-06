@@ -60,9 +60,10 @@ test('la sortie se synchronise et suit le renommage de sa destination', async ()
   assert.deepEqual(base.sortiesAbidjan[0].destinations, ['YAMOUSSOUKRO']);
 });
 
-test('l’export porte le total des depenses', async () => {
+test('l’export porte le total des depenses, sans frais OM', async () => {
   await charger({ sortiesAbidjan: [sortie({ fraisOm: 10000 })] });
   const ds = dsSortiesAbidjan();
-  assert.equal(ds.rows[0].total, 17500 + 3000 + 10000);
+  // Les frais OM ne comptent plus pour une sortie, meme saisis avant.
+  assert.equal(ds.rows[0].total, 17500 + 3000);
   assert.equal(ds.rows[0].distance, 500);
 });

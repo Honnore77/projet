@@ -10,11 +10,11 @@
 import {
   DB, insert, update, remove, knownImmats, knownDrivers,
   prochaineRefSortieAbidjan, refSortieAbidjanEnDouble, nomsDestinationsMission, destinationMissionParNom,
-  assurerDestinationMission, parcoursMission, libelleParcours, totauxRapportMission, ravMontant
+  assurerDestinationMission, parcoursMission, libelleParcours, totauxSortieAbidjan, ravMontant
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO, sum, francSup } from '../../core/utils.js';
-import {
+import { champVehicule, champParticipant,
   autreImmat, card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast, statTile, dataTable
 } from '../components.js';
 import { state, rerender, moduleColor } from '../shell.js';
@@ -73,8 +73,8 @@ export function renderSortiesAbidjan(page) {
   const grid = el('<div class="statGrid"></div>');
   grid.appendChild(statTile('Sorties', fmt(list.length), 'sur la période filtrée', COULEUR()));
   grid.appendChild(statTile('Carburant', `${fmt(sum(rav, (r) => r.quantite))} L`, `${fmt(sum(rav, ravMontant))} F`, '#F47B20'));
-  grid.appendChild(statTile('Dépenses', `${fmt(sum(list, (x) => totauxRapportMission(x).total))} F`,
-    'carburant, frais OM, péage, divers', COULEUR()));
+  grid.appendChild(statTile('Dépenses', `${fmt(sum(list, (x) => totauxSortieAbidjan(x).total))} F`,
+    'carburant, péage, divers', COULEUR()));
   page.appendChild(grid);
 
   page.appendChild(
@@ -94,14 +94,14 @@ export function renderSortiesAbidjan(page) {
 
   const headers = [
     'Réf.', 'Date', 'Conducteur', 'Véhicule', 'Destination', 'Km<br>départ', 'Km<br>arrivée',
-    'Parcours<br>(A-R)', 'Participants', 'Dotation', 'Carburant', 'Péage', 'Total', ''
+    'Parcours<br>(A-R)', 'Participants', 'Dotation', 'Carburant', 'Péage', 'Total', 'Observation', ''
   ];
   const droite = (v) => `<span style="display:block;text-align:right;white-space:nowrap">${v}</span>`;
   const vide = (v) => v === '' || v === undefined || v === null;
   const francs = (v) => (vide(v) ? '' : `${fmt(v)} F`);
 
   const rows = list.map((x) => {
-    const t = totauxRapportMission(x);
+    const t = totauxSortieAbidjan(x);
     return [
       `<b style="white-space:nowrap">${esc(x.ref || '')}</b>`,
       esc(dateFR(x.date)),
@@ -116,6 +116,7 @@ export function renderSortiesAbidjan(page) {
       droite(esc(francs(t.carburant))),
       droite(esc(francs(t.fraisPeage))),
       droite(`<b>${esc(francs(t.total))}</b>`),
+      escLignes(x.observations || ''),
       canWrite()
         ? `${miniBtn('#008A3B', 'data-edit data-write', '✎')} ${miniBtn('#D32F2F', 'data-del data-write', '✕')}`
         : ''
@@ -163,7 +164,7 @@ function sortieAbidjanFields(x = {}) {
       hint: 'Proposée à la suite de la dernière ; modifiable' },
     { key: 'date', label: 'Date de la sortie', type: 'date', required: true, value: x.date || todayISO() },
     { key: 'conducteur', label: 'Conducteur', required: true, value: x.conducteur, list: knownDrivers() },
-    { key: 'vehicule', label: 'Véhicule', value: x.vehicule, list: knownImmats() },
+    champVehicule('vehicule', 'Véhicule', x.vehicule),
     // Les memes destinations que les missions : la distance depuis Abidjan
     // ne se renseigne qu'une fois, dans MISSIONS → DESTINATIONS.
     { key: 'destination', label: 'Destination', type: 'selectAdd', required: true, value: x.destination,
@@ -172,16 +173,17 @@ function sortieAbidjanFields(x = {}) {
     { key: 'kmDepart', label: 'Kilométrage départ', type: 'nombre', value: x.kmDepart },
     { key: 'kmArrivee', label: 'Kilométrage arrivée', type: 'nombre', value: x.kmArrivee },
     { key: 'dotationCarburant', label: 'Dotation (F)', type: 'montant', value: x.dotationCarburant },
-    { key: 'participant1', label: 'Participant 1', value: p[0] },
-    { key: 'participant2', label: 'Participant 2', value: p[1] },
-    { key: 'participant3', label: 'Participant 3', value: p[2] },
-    { key: 'participant4', label: 'Participant 4', value: p[3] },
+    champParticipant('participant1', 'Participant 1', p[0]),
+    champParticipant('participant2', 'Participant 2', p[1]),
+    champParticipant('participant3', 'Participant 3', p[2]),
+    champParticipant('participant4', 'Participant 4', p[3]),
     { key: 'parcours', label: 'Parcours calculé (aller-retour)', type: 'static', value: texteParcoursSortie(x.destination),
       hint: 'Abidjan → destination → Abidjan' },
     { key: 'fraisPeage', label: 'Frais de péage (F)', type: 'montant', value: x.fraisPeage },
-    { key: 'fraisOm', label: 'Frais OM (F)', type: 'montant', value: x.fraisOm },
     { key: 'depenseDivers', label: 'Dépense divers (F)', type: 'montant', value: x.depenseDivers },
-    { key: 'justificationDivers', label: 'Justification de la dépense divers', value: x.justificationDivers }
+    { key: 'justificationDivers', label: 'Justification de la dépense divers', value: x.justificationDivers },
+    { key: 'observations', label: 'Observation', type: 'textarea', full: true, rows: 3, value: x.observations,
+      placeholder: 'Déroulement de la sortie, état du véhicule, remarques…' }
   ];
 }
 
@@ -202,7 +204,7 @@ export function openSortieAbidjanForm(x) {
     },
     // Les points de ravitaillement et le total des depenses, comme dans le
     // rapport de mission.
-    extra: (scope) => { majTotaux = monterRavitaillements(scope, rav); },
+    extra: (scope) => { majTotaux = monterRavitaillements(scope, rav, { fraisOm: false, titre: 'Total des dépenses de la sortie' }); },
     onSubmit: (v) => {
       const ref = String(v.ref || '').trim().toUpperCase();
       if (refSortieAbidjanEnDouble(ref, x && x.id)) {
@@ -227,9 +229,11 @@ export function openSortieAbidjanForm(x) {
         participants: [v.participant1, v.participant2, v.participant3, v.participant4].filter(Boolean),
         ravitaillements: rav,
         fraisPeage: francsOuVide(v.fraisPeage),
-        fraisOm: francsOuVide(v.fraisOm),
+        // Plus de frais OM pour une sortie : un montant saisi avant s'efface.
+        fraisOm: '',
         depenseDivers: francsOuVide(v.depenseDivers),
-        justificationDivers: v.justificationDivers
+        justificationDivers: v.justificationDivers,
+        observations: v.observations
       };
       if (isEdit) update('sortiesAbidjan', x.id, payload);
       else insert('sortiesAbidjan', Object.assign({ createdAt: new Date().toISOString() }, payload));

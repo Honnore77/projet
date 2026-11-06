@@ -17,7 +17,7 @@
 import {
   DB, allVehicles, immatOf, libelleVehicule, kmCourant, etatVidange, missionsAvecCarburant, ravMontant,
   destinationsDe, parcoursMission, dureeIndisponibilite, indisponibilitesEnCours, nomComplet,
-  vehiculesDeLAgent, vehiculesImmobilises, cleVehicule, totauxRapportMission
+  vehiculesDeLAgent, vehiculesImmobilises, cleVehicule, totauxRapportMission, totauxSortieAbidjan
 } from './db.js';
 import { fmt, num, norm, sum, daysBetween, todayISO } from './utils.js';
 import { voitTout } from './acces.js';
@@ -346,7 +346,7 @@ export function statsSortiesAbidjan(annee) {
   return {
     tuiles: [
       { titre: 'Sorties d’Abidjan', valeur: fmt(sa.length), detail: annee ? `en ${annee}` : 'toutes années' },
-      { titre: 'Dépenses des sorties', valeur: F(sum(sa, (x) => totauxRapportMission(x).total)), detail: 'carburant et frais' }
+      { titre: 'Dépenses des sorties', valeur: F(sum(sa, (x) => totauxSortieAbidjan(x).total)), detail: 'carburant, péage, divers' }
     ],
     blocs: [
       blocMensuel('Sorties d’Abidjan par mois', parMois(sa, (x) => x.date, annee, { Sorties: () => 1 })),

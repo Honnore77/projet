@@ -30,7 +30,7 @@ import {
   voit, filtrer, seulementSiennes, peutModifier, peutValider, peutValiderPour, agentConnecte, estAMoi
 } from '../../core/acces.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
-import {
+import { champVehicule,
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
   dataTable, openModal, subEmpty, subtabs, statTile, sectionLabel, COLORS
 } from '../components.js';
@@ -45,7 +45,10 @@ function userFields(u = {}) {
   return [
     { key: 'nom', label: 'Nom', required: true, value: u.nom },
     { key: 'prenoms', label: 'Prénoms', value: u.prenoms },
-    { key: 'fonction', label: 'Fonction au PDU', value: u.fonction },
+    // Les fonctions deja portees par les agents ; une nouvelle s'ajoute par
+    // « + Nouvelle fonction » et sera proposee la fois suivante.
+    { key: 'fonction', label: 'Fonction au PDU', type: 'selectAdd', value: u.fonction,
+      options: fonctionsConnues(), emptyLabel: '— choisir —', addLabel: 'Nouvelle fonction' },
     {
       key: 'section',
       label: 'Section',
@@ -82,7 +85,7 @@ function incidentFields(h = {}) {
   return [
     { key: 'nature', label: 'Nature (accident, retard, dégradation…)', required: true, full: true, value: h.nature },
     { key: 'date', label: 'Date', type: 'date', value: h.date || todayISO() },
-    { key: 'vehicule', label: 'Véhicule concerné', value: h.vehicule, list: knownImmats() },
+    champVehicule('vehicule', 'Véhicule concerné', h.vehicule),
     { key: 'circonstances', label: 'Circonstances', type: 'textarea', full: true, value: h.circonstances },
     { key: 'responsabilite', label: 'Responsabilité', value: h.responsabilite },
     { key: 'suite', label: 'Suite donnée', value: h.suite },
@@ -151,7 +154,7 @@ function renderListe(page) {
       canWrite() && {
         label: '+ Nouvel agent',
         cls: 'addBtn',
-        color: COLORS.blue,
+        color: 'var(--couleur-rubrique, #008A3B)',
         write: true,
         onClick: () => openUserForm(null)
       },
@@ -291,6 +294,16 @@ function openHistorique(u) {
   });
 }
 
+/** Les fonctions des agents, sans doublon, dans l'ordre alphabetique. */
+function fonctionsConnues() {
+  const vues = new Map();
+  DB.users.forEach((x) => {
+    const f = String(x.fonction || '').trim();
+    if (f && !vues.has(f.toUpperCase())) vues.set(f.toUpperCase(), f);
+  });
+  return [...vues.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
 export function openUserForm(u) {
   const isEdit = !!u;
   openForm({
@@ -407,7 +420,7 @@ function renderTableauAbsences(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouvelle indisponibilité', cls: 'addBtn', color: COLORS.purple, write: true, onClick: () => openIndisponibiliteForm(null) },
+      canWrite() && { label: '+ Nouvelle indisponibilité', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => openIndisponibiliteForm(null) },
       { label: '⬇ Excel', color: '#1D6F42', onClick: () => exportIndisponibilites('excel', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => exportIndisponibilites('pdf', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => exportIndisponibilites('word', list) }
@@ -595,8 +608,8 @@ function renderDemandes(page) {
   );
   page.appendChild(
     toolbar([
-      peutDeposer() && { label: '+ Nouvelle demande de congé', cls: 'addBtn', color: COLORS.blue, write: true, onClick: () => openDemandeForm('conge', null) },
-      peutDeposer() && { label: '+ Nouvelle demande d’absence', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openDemandeForm('absence', null) }
+      peutDeposer() && { label: '+ Nouvelle demande de congé', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => openDemandeForm('conge', null) },
+      peutDeposer() && { label: '+ Nouvelle demande d’absence', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => openDemandeForm('absence', null) }
     ])
   );
 

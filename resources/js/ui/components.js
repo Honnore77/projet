@@ -4,7 +4,7 @@
    =================================================================== */
 
 import { esc, el, grouperMilliers, lireMontant } from '../core/utils.js';
-import { vehiculeDeLImmat } from '../core/db.js';
+import { DB, vehiculeDeLImmat, allVehicles, immatOf, nomsUtilisateurs } from '../core/db.js';
 import { ajouterImage, urlImage, libererUrl, supprimerImage } from '../core/images.js';
 import { voitTout, rubriqueCourante } from '../core/acces.js';
 import { isAndroid } from '../core/storage.js';
@@ -25,6 +25,43 @@ export function autreImmat(immat) {
   const ancienne = cle(immat) === cle(v.immatAncienne);
   const autre = ancienne ? v.immatNouvelle : v.immatAncienne;
   return `<small style="display:block;color:#5b7178;white-space:nowrap;font-weight:normal">${ancienne ? 'nouvelle' : 'ancienne'} : ${esc(autre)}</small>`;
+}
+
+/**
+ * Les vehicules du parc pour un champ « Véhicule » : la plaque, puis la
+ * marque et le modele. Un vehicule hors parc (loue, prete) s'ajoute par
+ * « + Autre immatriculation ».
+ */
+export function optionsVehicules() {
+  return allVehicles()
+    .filter((v) => immatOf(v))
+    .map((v) => {
+      const nom = `${v.marque || ''} ${v.modele || ''}`.trim();
+      return { value: immatOf(v), label: nom ? `${immatOf(v)} — ${nom}` : immatOf(v) };
+    })
+    .sort((a, b) => a.value.localeCompare(b.value, 'fr'));
+}
+
+/** Un champ « Véhicule » : toujours une liste deroulante des vehicules du parc. */
+export function champVehicule(key, label, value, extra = {}) {
+  return Object.assign({
+    key, label, type: 'selectAdd', value, options: optionsVehicules(),
+    emptyLabel: '— choisir un véhicule —', addLabel: 'Autre immatriculation'
+  }, extra);
+}
+
+/** Les agents, puis les noms deja portes comme participants (missions, sorties). */
+export function nomsParticipants() {
+  const vus = new Map();
+  const voir = (n) => { const nom = String(n || '').trim(); if (nom && !vus.has(nom.toUpperCase())) vus.set(nom.toUpperCase(), nom); };
+  nomsUtilisateurs().forEach(voir);
+  (DB.missions || []).concat(DB.sortiesAbidjan || []).forEach((x) => (x.participants || []).forEach(voir));
+  return [...vus.values()].sort((a, b) => a.localeCompare(b, 'fr'));
+}
+
+/** Un champ « Participant » : toujours une liste deroulante. */
+export function champParticipant(key, label, value) {
+  return { key, label, type: 'selectAdd', value, options: nomsParticipants(), emptyLabel: '— choisir —', addLabel: 'Autre participant' };
 }
 
 export const COLORS = {

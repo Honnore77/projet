@@ -16,7 +16,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, francSup, grouperMilliers, lireMontant } from '../../core/utils.js';
-import { autreImmat,
+import { champVehicule, autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
 } from '../components.js';
@@ -90,7 +90,7 @@ function dernierePrise(immat, exclureId) {
 function poolFields(d = {}) {
   return [
     { key: 'date', label: 'Date', type: 'date', required: true, value: d.date || todayISO() },
-    { key: 'immat', label: 'Immatriculation', required: true, value: d.immat, list: knownImmats() },
+    champVehicule('immat', 'Immatriculation', d.immat, { required: true }),
     { key: 'marqueModele', label: 'Marque / Modèle', value: d.marqueModele, hint: 'Rempli automatiquement si le véhicule est connu' },
     { key: 'carte', label: 'Numéro de la carte carburant', value: d.carte, list: cartesConnues(),
       hint: 'Repris de la dernière prise du véhicule' },
@@ -200,7 +200,7 @@ function renderPool(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouvelle dotation', cls: 'addBtn', color: COLORS.orange, write: true, onClick: () => openPoolForm(null) },
+      canWrite() && { label: '+ Nouvelle dotation', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => openPoolForm(null) },
       { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', 'pool', list) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', 'pool', list) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', 'pool', list) }

@@ -91,7 +91,7 @@ export function renderEtatsVehicules(page) {
     || String(b.dateSignalement || '').localeCompare(String(a.dateSignalement || '')));
 
   page.appendChild(toolbar([
-    canWrite() && { label: '+ Nouveau signalement', cls: 'addBtn', color: COULEUR_ETAT, write: true, onClick: () => ouvrirSignalement(null) },
+    canWrite() && { label: '+ Nouveau signalement', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => ouvrirSignalement(null) },
     { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }

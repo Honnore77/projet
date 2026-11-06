@@ -3,7 +3,7 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, immatAvecAutre } from '../core/db.js';
+import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, totauxSortieAbidjan, immatAvecAutre, origineKm, derniereLectureKm } from '../core/db.js';
 
 import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
@@ -58,6 +58,7 @@ export function dsVehicles(list = allVehicles()) {
       C('utilisateur', 'Utilisateur', 20),
       C('statut', 'Statut', 13),
       C('km', 'Kilométrage', 13),
+      C('origineKm', 'Origine du kilométrage', 24),
       C('kmVidange', 'Prochaine vidange (km)', 18),
       C('vidangeRestant', 'Km avant vidange', 15),
       C('vidangeEtat', 'Suivi vidange', 14),
@@ -78,6 +79,7 @@ export function dsVehicles(list = allVehicles()) {
       utilisateur: v.utilisateur || '',
       statut: v.statut || '',
       km: kmCourant(v),
+      origineKm: origineKm(derniereLectureKm(immatOf(v))),
       kmVidange: v.kmVidange === '' || v.kmVidange === undefined ? '' : num(v.kmVidange),
       vidangeRestant: etatVidange(v).restant === null ? '' : etatVidange(v).restant,
       vidangeEtat: LIBELLE_VIDANGE[etatVidange(v).statut],
@@ -611,7 +613,7 @@ export function dsVidanges(list = DB.vidanges || []) {
 /** SORTIES → SORTIES D'ABIDJAN : une ligne par sortie, frais et carburant compris. */
 export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
   const rows = list.map((x) => {
-    const t = totauxRapportMission(x);
+    const t = totauxSortieAbidjan(x);
     const p = parcoursMission(x);
     const dist = distanceCompteur(x);
     return {
@@ -628,11 +630,11 @@ export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
       dotation: nombreOuVide(x.dotationCarburant),
       litres: litres(sum(x.ravitaillements || [], (r) => r.quantite)),
       carburant: t.carburant,
-      fraisOm: t.fraisOm,
       fraisPeage: t.fraisPeage,
       depenseDivers: t.depenseDivers,
       justification: x.justificationDivers || '',
-      total: t.total
+      total: t.total,
+      observations: x.observations || ''
     };
   });
   return {
@@ -651,11 +653,11 @@ export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
       C('dotation', 'Dotation', 12),
       C('litres', 'Carburant (L)', 11),
       C('carburant', 'Carburant (F)', 12),
-      C('fraisOm', 'Frais OM', 11),
       C('fraisPeage', 'Péage', 11),
       C('depenseDivers', 'Dépense divers', 12),
       C('justification', 'Justification', 22),
-      C('total', 'Total', 13)
+      C('total', 'Total', 13),
+      C('observations', 'Observation', 30)
     ],
     rows,
     note: `${fmt(rows.length)} sortie(s) — total des dépenses : ${fmt(sum(rows, (r) => r.total))} F`

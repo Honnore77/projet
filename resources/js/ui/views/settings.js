@@ -50,8 +50,8 @@ const SOUS_RUBRIQUES_REGLAGES = [
     texte: 'Les comptes de l’application, leur rôle et l’agent auquel chacun est lié, puis ce que chaque rôle peut voir et faire dans chaque rubrique.',
     sections: [renderAccountsSection, renderNiveauxSection] },
   { key: 'parametres', label: 'PARAMÈTRES',
-    texte: 'L’identité du PDU sur les documents, les prix du litre, les frais de mission, les seuils d’alerte et la page de connexion.',
-    sections: [renderThresholdsSection, renderApparenceSection] },
+    texte: 'L’identité du PDU sur les documents, les prix du litre, les frais de mission, les seuils d’alerte, le style de l’interface et la page de connexion.',
+    sections: [renderThresholdsSection, renderStyleSection, renderApparenceSection] },
   { key: 'reseau', label: 'RÉSEAU ET SYNCHRONISATION',
     texte: 'Le PC serveur et les postes du bureau, et la synchronisation avec un autre PC ou avec le téléphone.',
     sections: [renderReseauSection, renderSynchroSection] },
@@ -67,6 +67,11 @@ const SOUS_RUBRIQUES_REGLAGES = [
  * Un clic l'applique tout de suite : on voit le resultat sans quitter
  * la page.
  */
+function renderStyleSection(page) {
+  // Le meme choix que le bouton 🎨 de l'en-tete : propre a cet appareil.
+  page.appendChild(apparenceNode({ style: true, taille: false, decor: false, surChoix: () => rerender() }));
+}
+
 function renderApparenceSection(page) {
   // Style et taille de l'affichage : bouton 🎨 de l'en-tete, ouvert a
   // tous. Ici ne reste que le fond de la page de connexion.
@@ -182,7 +187,7 @@ function renderAccountsSection(page) {
   page.appendChild(sectionLabel('COMPTES ET ACCÈS', COLORS.purple));
   page.appendChild(
     toolbar([
-      { label: '+ Nouveau compte', cls: 'addBtn', color: COLORS.purple, onClick: openCreateAccount },
+      { label: '+ Nouveau compte', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', onClick: openCreateAccount },
       { label: 'Changer mon mot de passe', color: COLORS.blue, onClick: () => openChangeOwnPassword() },
       { label: 'Clé de récupération', color: '#00695C', onClick: ouvrirCleRecuperation }
     ])

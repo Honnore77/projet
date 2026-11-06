@@ -10,7 +10,7 @@ import { renderGarages, COULEUR_GARAGES } from './garages.js';
 import { renderVidanges, COULEUR_VIDANGES } from './vidanges.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
-import {
+import { champVehicule,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, sectionLabel, subEmpty, dataTable, COLORS
 } from '../components.js';
@@ -24,7 +24,7 @@ import { dsMaintenance, dsInterventions } from '../../export/datasets.js';
 
 function ficheFields(m = {}) {
   return [
-    { key: 'immat', label: 'Immatriculation', required: true, value: m.immat, list: knownImmats() },
+    champVehicule('immat', 'Immatriculation', m.immat, { required: true }),
     // Memes listes que la fiche vehicule : c'est le meme parc.
     { key: 'marque', label: 'Marque', type: 'selectAdd', value: m.marque,
       options: valeursVehicules('marque', MARQUES), emptyLabel: '— choisir —', addLabel: 'Autre marque' },
@@ -119,7 +119,7 @@ export function renderMaintenance(page) {
 
   page.appendChild(
     toolbar([
-      canWrite() && { label: '+ Nouvelle fiche d’entretien', cls: 'addBtn', color: COLORS.green, write: true, onClick: () => openFicheForm(null) },
+      canWrite() && { label: '+ Nouvelle fiche d’entretien', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => openFicheForm(null) },
       { label: '⬇ Excel', color: '#1D6F42', onClick: () => doExport('excel', retenus) },
       { label: '⬇ PDF', color: COLORS.red, onClick: () => doExport('pdf', retenus) },
       { label: '⬇ Word', color: '#2B579A', onClick: () => doExport('word', retenus) }

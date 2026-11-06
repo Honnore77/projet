@@ -18,7 +18,7 @@ import {
 } from '../../core/db.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
-import { autreImmat,
+import { champVehicule, autreImmat,
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   statTile, dataTable, COLORS
 } from '../components.js';
@@ -191,7 +191,7 @@ function dechargeFields(d = {}) {
     { key: 'recuperePar', label: 'Décharge récupérée par', type: 'selectAdd', value: d.recuperePar,
       options: nomsRecuperePar(), emptyLabel: '— choisir —', addLabel: 'Ajouter un nom' },
     { key: 'conducteur', label: 'Nom du conducteur', value: d.conducteur, list: knownDrivers() },
-    { key: 'immat', label: 'Immatriculation du véhicule', value: d.immat, list: knownImmats() },
+    champVehicule('immat', 'Immatriculation du véhicule', d.immat),
     { key: 'images', label: 'Photo de la décharge signée', type: 'images', full: true, value: d.images,
       hint: 'Photo ou scan de la décharge signée par le destinataire (JPEG ou PNG)' }
   ];

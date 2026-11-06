@@ -145,7 +145,7 @@ export function renderReformes(page) {
       canWrite() && {
         label: '+ Nouveau véhicule réformé',
         cls: 'addBtn',
-        color: COLORS.green,
+        color: 'var(--couleur-rubrique, #008A3B)',
         write: true,
         onClick: () => openReformeForm(null, CAT_REFORME)
       },

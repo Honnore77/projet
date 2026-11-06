@@ -68,7 +68,7 @@ export function renderVidanges(page) {
   const list = f.immat ? tous.filter((x) => cle(x.immat) === cle(f.immat)) : tous;
 
   page.appendChild(toolbar([
-    canWrite() && { label: '+ Nouvelle vidange', cls: 'addBtn', color: COULEUR_VIDANGES, write: true, onClick: () => ouvrirVidange(null) },
+    canWrite() && { label: '+ Nouvelle vidange', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => ouvrirVidange(null) },
     { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }

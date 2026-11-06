@@ -54,7 +54,7 @@ export function renderGarages(page) {
   page.appendChild(grid);
 
   page.appendChild(toolbar([
-    canWrite() && { label: '+ Nouveau garage', cls: 'addBtn', color: COULEUR_GARAGES, write: true, onClick: () => ouvrirGarage(null) },
+    canWrite() && { label: '+ Nouveau garage', cls: 'addBtn', color: 'var(--couleur-rubrique, #008A3B)', write: true, onClick: () => ouvrirGarage(null) },
     { label: '⬇ Excel', color: '#1D6F42', onClick: () => exporter('excel', list) },
     { label: '⬇ PDF', color: COLORS.red, onClick: () => exporter('pdf', list) },
     { label: '⬇ Word', color: '#2B579A', onClick: () => exporter('word', list) }

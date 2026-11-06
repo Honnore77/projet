@@ -9,7 +9,7 @@
 
 import { readDB, writeDB, readLegacy, platformName } from './storage.js';
 import { empreintesDe, estampiller } from './synchro.js';
-import { uid, num, norm, sum, daysBetween, francSup, todayISO } from './utils.js';
+import { uid, num, norm, sum, daysBetween, francSup, todayISO, dateFR } from './utils.js';
 import { hashPassword } from './crypto.js';
 import { validationAbsence } from './demandes.js';
 import { idsDesPieces } from './pieces.js';
@@ -151,6 +151,9 @@ export function emptyDB() {
     suiviComptes: [],
     // ÉTAT DES VÉHICULES : problemes signales sur les vehicules.
     etatsVehicules: [],
+    // VÉHICULES → « Actualiser KM » : le compteur releve a la main, par qui
+    // et quel jour. Il compte parmi les sources du kilometrage.
+    relevesKm: [],
     settings: {
       organisation: 'PDU',
       // Ville portee par la mention « Fait à … le … » des documents exportes.
@@ -348,7 +351,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(reglagesParDefaut, raw && raw.settings);
@@ -997,11 +1000,15 @@ export function derniereLectureKm(immat) {
   // Ancienne et nouvelle immatriculation : un seul compteur.
   const memeImmat = (x) => cleVehicule(x) === cle;
   const lectures = [];
-  const ajouter = (date, km, source) => {
+  const ajouter = (date, km, source, par) => {
     if (date && km !== '' && km !== undefined && km !== null) {
-      lectures.push({ date, km: num(km), source });
+      lectures.push({ date, km: num(km), source, par: par || '' });
     }
   };
+
+  (DB.relevesKm || []).forEach((r) => {
+    if (memeImmat(r.immat)) ajouter(r.date, r.km, 'actualisation', r.saisiPar);
+  });
 
   DB.dotationPool.forEach((d) => {
     if (memeImmat(d.immat)) ajouter(d.date, d.km, 'dotation carburant');
@@ -1034,6 +1041,19 @@ export function derniereLectureKm(immat) {
     const c = String(a.date).localeCompare(String(b.date));
     return c !== 0 ? c : a.km - b.km;
   }).pop() || null;
+}
+
+/**
+ * D'ou vient le kilometrage affiche, en clair : « carburant du 03/11/2026 »,
+ * « actualisé par KONE ALI le 06/11/2026 »… Vide sans lecture datee (le
+ * chiffre est alors celui de la fiche).
+ */
+export function origineKm(lecture) {
+  if (!lecture) return '';
+  const date = dateFR(lecture.date);
+  if (lecture.source === 'actualisation') return `actualisé${lecture.par ? ` par ${lecture.par}` : ''} le ${date}`;
+  const noms = { 'dotation carburant': 'carburant' };
+  return `${noms[lecture.source] || lecture.source} du ${date}`;
 }
 
 /**
@@ -1643,6 +1663,15 @@ export function totauxRapportMission(m) {
   const fraisPeage = num(m.fraisPeage);
   const depenseDivers = num(m.depenseDivers);
   return { carburant, fraisOm, fraisPeage, depenseDivers, total: carburant + fraisOm + fraisPeage + depenseDivers };
+}
+
+/**
+ * Totaux d'une sortie d'Abidjan : comme un rapport de mission, sans frais
+ * OM (le champ a ete retire du formulaire ; un montant saisi avant ne compte
+ * plus).
+ */
+export function totauxSortieAbidjan(x) {
+  return totauxRapportMission(Object.assign({}, x, { fraisOm: 0 }));
 }
 
 /** Missions dont le rapport porte au moins un ravitaillement. */

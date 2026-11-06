@@ -11,10 +11,10 @@ import {
   DB, CATEGORIES, CAT_REFORME, STATUT_NON_ATTRIBUE, STATUT_REFORME, statutsVehicule, ENERGIES, SECTIONS, MARQUES, MODELES, COULEURS,
   PREFIXE_IMMAT_NOUVELLE, PREFIXE_IMMAT_ANCIENNE,
   insert, update, remove, moveVehicle, immatOf, etatVidange, niveauVoyantVidange,
-  nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant
+  nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant, origineKm
 } from '../../core/db.js';
-import { canWrite } from '../../core/auth.js';
-import { esc, fmt, num, norm, dateFR, grouperMilliers, lireMontant } from '../../core/utils.js';
+import { canWrite, currentUser } from '../../core/auth.js';
+import { esc, fmt, num, norm, dateFR, todayISO, grouperMilliers, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   dataTable, statTile, COLORS
@@ -204,7 +204,7 @@ export function renderVehicles(page) {
       canWrite() && {
         label: '+ Nouveau véhicule',
         cls: 'addBtn',
-        color: COLORS.green,
+        color: 'var(--couleur-rubrique, #008A3B)',
         write: true,
         onClick: () => openVehicleForm(null, cat)
       },
@@ -232,6 +232,8 @@ export function renderVehicles(page) {
     'Km', 'Prochaine<br>vidange', 'Suivi vidange', 'État actuel<br>du véhicule', ''
   ];
 
+  // POOL et MISSION : le compteur s'actualise depuis le tableau.
+  const avecActualisation = cat === 'pool' || cat === 'mission';
   const rows = list.map((v) => {
     return [
       `<b>${esc(v.marque || '')}</b>`,
@@ -246,11 +248,14 @@ export function renderVehicles(page) {
       `<span style="display:block;text-align:right">${v.consommation === '' || v.consommation === undefined ? '—' : esc(String(v.consommation).replace('.', ','))}</span>`,
       `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
       ...(withSection ? [esc(v.section || ''), esc(v.utilisateur || '')] : []),
-      `<span style="display:block;text-align:right">${fmt(kmCourant(v))}</span>`,
+      celluleKm(v, avecActualisation),
       `<span style="display:block;text-align:right">${v.kmVidange === '' || v.kmVidange === undefined ? '—' : fmt(v.kmVidange)}</span>`,
       badgeVidange(etatVidange(v)),
       celluleEtat(v),
       `<button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
+        (canWrite() && avecActualisation
+          ? ` <button class="miniBtn" style="background:${moduleColor('VEHICULES')};padding:5px 8px;white-space:nowrap" data-km data-write>Actualiser KM</button>`
+          : '') +
         (canWrite()
           ? ` <button class="miniBtn" style="background:${COLORS.green};padding:5px 8px" data-edit data-write>✎</button>` +
             ` <button class="miniBtn" style="background:${COLORS.red};padding:5px 8px" data-del data-write>✕</button>`
@@ -266,6 +271,9 @@ export function renderVehicles(page) {
 
       const ed = tr.querySelector('[data-edit]');
       if (ed) ed.onclick = () => openVehicleForm(v, cat);
+
+      const km = tr.querySelector('[data-km]');
+      if (km) km.onclick = () => openActualiserKm(v);
 
       const del = tr.querySelector('[data-del]');
       if (del) {
@@ -284,6 +292,56 @@ export function renderVehicles(page) {
       }
     })
   );
+}
+
+/**
+ * La colonne Km : le kilometrage retenu et, dessous, d'ou il vient
+ * (« carburant du 03/11/2026 », « actualisé par KONE ALI le 06/11/2026 »).
+ */
+function celluleKm(v, avecOrigine) {
+  const origine = avecOrigine ? origineKm(derniereLectureKm(immatOf(v))) : '';
+  return `<span style="display:block;text-align:right;white-space:nowrap">${fmt(kmCourant(v))}` +
+    (origine ? `<small style="display:block;color:#5b7178;font-weight:normal">${esc(origine)}</small>` : '') + '</span>';
+}
+
+/**
+ * « Actualiser KM » : le compteur releve a la main. La date est celle du
+ * jour, posee d'office ; le nom de celui qui saisit est obligatoire.
+ */
+export function openActualiserKm(v) {
+  const immat = immatOf(v);
+  const actuel = kmCourant(v);
+  const moi = currentUser();
+  openForm({
+    title: `Actualiser le kilométrage — ${immat}`,
+    intro: `${`${v.marque || ''} ${v.modele || ''}`.trim()} · kilométrage actuel : ${fmt(actuel)} km` +
+      `${origineKm(derniereLectureKm(immat)) ? ` (${origineKm(derniereLectureKm(immat))})` : ''}`,
+    fields: [
+      { key: 'km', label: 'KM actuel', type: 'nombre', required: true, value: '' },
+      { key: 'saisiPar', label: 'Saisi par', type: 'selectAdd', required: true, value: (moi && moi.nom) || '',
+        options: nomsUtilisateurs(), emptyLabel: '— choisir —', addLabel: 'Autre nom',
+        hint: 'Celui qui entre le kilométrage' },
+      { key: 'date', label: 'Date de saisie', type: 'static', value: dateFR(todayISO()), hint: 'Le jour de la saisie, posé automatiquement' }
+    ],
+    okLabel: 'Enregistrer le kilométrage',
+    onSubmit: (values) => {
+      const km = num(values.km);
+      if (!(km > 0)) return 'Indiquez le kilométrage relevé au compteur.';
+      if (!String(values.saisiPar || '').trim()) return 'Indiquez le nom de celui qui entre le kilométrage.';
+      insert('relevesKm', {
+        immat,
+        date: todayISO(),
+        km,
+        saisiPar: String(values.saisiPar).trim(),
+        createdAt: new Date().toISOString()
+      });
+      toast(km < actuel
+        ? `Kilométrage enregistré : ${fmt(km)} km, plus bas que le précédent (${fmt(actuel)} km).`
+        : `Kilométrage enregistré : ${fmt(km)} km.`, km < actuel ? 'info' : 'ok', km < actuel ? 4500 : 2600);
+      rerender();
+      return null;
+    }
+  });
 }
 
 /** Ce que la recherche de l'en-tete lit d'une ligne du tableau. */
