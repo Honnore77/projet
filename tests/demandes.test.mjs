@@ -46,8 +46,9 @@ test('le lendemain change de mois et d’année', () => {
   assert.equal(lendemain(''), '');
 });
 
-test('la durée du congé compte le premier et le dernier jour', () => {
-  assert.equal(dureeConge('2026-11-02', '2026-11-21'), '20 jours');
+test('la durée du congé compte le premier et le dernier jour, en jours ouvrés', () => {
+  // Du lundi 2 au samedi 21 novembre 2026 : trois semaines de cinq jours.
+  assert.equal(dureeConge('2026-11-02', '2026-11-21'), '15 jours');
   assert.equal(dureeConge('2026-11-02', '2026-11-02'), '1 jour');
   assert.equal(dureeConge('2026-11-05', '2026-11-02'), '');
   assert.equal(dureeConge('2026-11-05', ''), '');

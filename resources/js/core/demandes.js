@@ -16,6 +16,9 @@
    =================================================================== */
 
 import { daysBetween } from './utils.js';
+import { joursOuvres } from './joursOuvres.js';
+// Les jours feries saisis dans RÉGLAGES, lus au moment du calcul.
+import { joursFeriesSaisis } from './db.js';
 
 export const TYPES_DEMANDE = {
   conge: 'Demande de congé',
@@ -35,13 +38,14 @@ export function lendemain(iso) {
 }
 
 /**
- * Durée d'un congé, du premier au dernier jour compris : du 5 au 8, quatre
- * jours. Vide tant qu'une date manque ou si la fin précède le début.
+ * Durée d'un congé, du premier au dernier jour compris, en jours ouvrés :
+ * ni samedis, ni dimanches, ni jours fériés. Vide tant qu'une date manque
+ * ou si la fin précède le début.
  */
 export function dureeConge(debut, fin) {
   const d = daysBetween(debut, fin);
   if (d === null || d < 0) return '';
-  const n = d + 1;
+  const n = joursOuvres(debut, lendemain(fin), joursFeriesSaisis());
   return `${n} jour${n > 1 ? 's' : ''}`;
 }
 
@@ -67,7 +71,9 @@ export function totalAbsence(dateDebut, heureDebut, dateRetour, heureRetour) {
     const t = b - a, h = Math.floor(t / 60), mn = t % 60;
     return mn ? `${h} h ${String(mn).padStart(2, '0')}` : `${h} h`;
   }
-  return `${jours} jour${jours > 1 ? 's' : ''}`;
+  // Sur plusieurs jours : les jours ouvrés, du départ à la veille du retour.
+  const n = joursOuvres(dateDebut, fin, joursFeriesSaisis());
+  return `${n} jour${n > 1 ? 's' : ''}`;
 }
 
 /**

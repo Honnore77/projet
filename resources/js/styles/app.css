@@ -1199,6 +1199,10 @@ html[data-theme="brillant"] .tab.active{background:linear-gradient(135deg,color-
 .barreFlottante>div{height:1px;}
 @media print{.barreFlottante{display:none !important;}}
 
+/* NOTES : « untel a effacé ce message de son côté ». */
+.noteEfface{margin:8px 0 2px;padding:6px 10px;border-radius:8px;background:#FFF3E0;color:#8a4b00;font-size:12.5px;}
+html[data-theme="sombre"] .noteEfface{background:#3a2a12;color:#ffcc80;}
+
 /* Propositions de mots pendant la saisie (ui/suggestions.js). */
 .suggestions{position:fixed;z-index:5000;max-width:min(340px,calc(100vw - 16px));background:var(--white);color:var(--text);
   border:1px solid var(--line);border-radius:10px;box-shadow:0 10px 30px rgba(23,49,59,.25);padding:4px;display:flex;flex-direction:column;}

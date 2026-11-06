@@ -12,6 +12,7 @@ import { empreintesDe, estampiller } from './synchro.js';
 import { uid, num, norm, sum, daysBetween, francSup, todayISO, dateFR } from './utils.js';
 import { hashPassword } from './crypto.js';
 import { validationAbsence } from './demandes.js';
+import { joursOuvres } from './joursOuvres.js';
 import { idsDesPieces } from './pieces.js';
 
 export const SCHEMA_VERSION = 4;
@@ -2728,15 +2729,25 @@ export function derniereConsommation(immat, db = DB) {
    conducteurs du pool, et l'interimaire qui les remplace.
 
    La date de reprise est le jour du retour au poste : l'indisponibilite
-   couvre les jours du depart a la veille de la reprise. Partir le 5 et
-   reprendre le 8 fait trois jours d'absence.
+   couvre les jours du depart a la veille de la reprise. Ne comptent que
+   les jours ouvres (core/joursOuvres.js) : ni samedis, ni dimanches, ni
+   jours feries. Partir le vendredi et reprendre le lundi fait un jour.
    ================================================================= */
 
 export const MOTIFS_INDISPONIBILITE = ['En congé', 'Permissionnaire', 'Repos maladie'];
 
-/** Nombre de jours d'absence, ou null tant qu'une date manque. */
-export function dureeIndisponibilite(dateDepart, dateReprise) {
-  return daysBetween(dateDepart, dateReprise);
+/** Les jours feries saisis dans RÉGLAGES (fetes musulmanes, decrets), en dates ISO. */
+export function joursFeriesSaisis(db = DB) {
+  const l = db && db.settings && db.settings.joursFeries;
+  return Array.isArray(l) ? l : [];
+}
+
+/**
+ * Nombre de jours d'absence — jours ouvres, du depart a la veille de la
+ * reprise —, ou null tant qu'une date manque.
+ */
+export function dureeIndisponibilite(dateDepart, dateReprise, db = DB) {
+  return joursOuvres(dateDepart, dateReprise, joursFeriesSaisis(db));
 }
 
 /**

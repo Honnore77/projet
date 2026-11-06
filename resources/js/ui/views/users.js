@@ -29,7 +29,7 @@ import { canWrite } from '../../core/auth.js';
 import {
   voit, filtrer, seulementSiennes, peutModifier, peutValider, peutValiderPour, agentConnecte, estAMoi
 } from '../../core/acces.js';
-import { esc, escLignes, el, fmt, norm, dateFR, todayISO } from '../../core/utils.js';
+import { esc, escLignes, el, fmt, norm, dateFR, todayISO, daysBetween } from '../../core/utils.js';
 import { champVehicule,
   card, toolbar, filterBar, emptyState, openForm, confirmDialog, toast,
   dataTable, openModal, subEmpty, subtabs, statTile, sectionLabel, COLORS
@@ -542,7 +542,8 @@ export function openIndisponibiliteForm(i) {
     onInput: (values, scope) => {
       const d = dureeIndisponibilite(values.dateDepart, values.dateReprise);
       const n = scope.querySelector('[data-key="duree"]');
-      if (n) n.value = d === null ? '—' : d < 1 ? 'reprise à corriger' : `${d} jour(s)`;
+      const ecart = daysBetween(values.dateDepart, values.dateReprise);
+      if (n) n.value = d === null ? '—' : ecart < 1 ? 'reprise à corriger' : `${d} jour(s) ouvré(s)`;
       // Un repos maladie ne se valide pas : la liste se vide et se fige.
       const v = scope.querySelector('[data-key="validee"]');
       if (v) {
@@ -555,7 +556,8 @@ export function openIndisponibiliteForm(i) {
       const conducteur = String(values.conducteur || '').trim();
       const interimaire = String(values.interimaire || '').trim();
       const d = dureeIndisponibilite(values.dateDepart, values.dateReprise);
-      if (d === null || d < 1) return 'La date de reprise doit être postérieure à la date de départ.';
+      const ecart = daysBetween(values.dateDepart, values.dateReprise);
+      if (d === null || ecart === null || ecart < 1) return 'La date de reprise doit être postérieure à la date de départ.';
       if (interimaire && norm(interimaire) === norm(conducteur)) return 'L’intérimaire ne peut pas être le conducteur absent.';
       const autre = chevauchementIndisponibilite(conducteur, values.dateDepart, values.dateReprise, i && i.id);
       if (autre) {

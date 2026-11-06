@@ -7,7 +7,8 @@ import { db, charger } from './aide.mjs';
 const {
   peutLire, notesRecues, notesEnvoyees, notesNonLues, marquerLues, comptesDestinataires,
   peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
-  accusesDe, etatAccuse, lecturesDeMesNotes, luLe, suiviDe, signalerActivite, estEnUtilisation, pointDesComptes
+  accusesDe, etatAccuse, lecturesDeMesNotes, luLe, suiviDe, signalerActivite, estEnUtilisation, pointDesComptes,
+  effacerNote, effacementsDe, effacementsDeMesNotes
 } = await import('../resources/js/core/notes.js');
 const { COLLECTIONS_SYNCHRO } = await import('../resources/js/core/synchro.js');
 
@@ -94,11 +95,38 @@ test('on écrit aux comptes actifs et validés, pas à soi-même', async () => {
   assert.deepEqual(comptesDestinataires('b').map((x) => x.id), ['a', 'c']);
 });
 
-test('modifier : l’auteur ; supprimer : l’auteur ou un administrateur', () => {
+test('modifier : l’auteur ; effacer : chacun de ses lecteurs, pour lui seul', () => {
   assert.equal(peutModifierNote(notes[0], { id: 'b', role: 'conducteur' }), true);
   assert.equal(peutModifierNote(notes[0], { id: 'a', role: 'admin' }), false);
   assert.equal(peutSupprimerNote(notes[0], { id: 'a', role: 'admin' }), true);
-  assert.equal(peutSupprimerNote(notes[0], { id: 'c', role: 'saisie' }), false);
+  assert.equal(peutSupprimerNote(notes[0], { id: 'c', role: 'saisie' }), true);
+  // Une note privee ne s'efface que par qui la lit.
+  assert.equal(peutSupprimerNote(notes[1], { id: 'a', role: 'admin' }), false);
+});
+
+test('effacer une note ne la retire que pour soi ; l’autre le voit et en est averti', async () => {
+  const base = await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
+  // Bob efface sa note privee a Cleo : elle reste chez Cleo.
+  assert.equal(effacerNote(base.notes[1], 'b', base, '2026-11-06T10:00:00Z'), 'effacee');
+  assert.equal(notesEnvoyees('b').some((n) => n.id === 'n2'), false);
+  assert.equal(notesRecues('c').some((n) => n.id === 'n2'), true);
+  assert.deepEqual(effacementsDe(base.notes[1], 'c').map((x) => [x.id, x.nom]), [['b', 'Bob']]);
+  assert.deepEqual(effacementsDeMesNotes('c').map((x) => [x.noteId, x.nom, x.envoyee]), [['n2', 'Bob', false]]);
+  // Cleo efface aussi : plus personne ne la lit, elle quitte la base.
+  assert.equal(effacerNote(base.notes.find((n) => n.id === 'n2'), 'c', base, '2026-11-06T11:00:00Z'), 'supprimee');
+  assert.equal(base.notes.some((n) => n.id === 'n2'), false);
+});
+
+test('le destinataire qui efface ne touche pas la note de l’auteur, qui en est averti', async () => {
+  const base = await charger({ accounts: structuredClone(comptes), notes: structuredClone(notes) });
+  effacerNote(base.notes[1], 'c', base, '2026-11-06T10:00:00Z');
+  assert.equal(notesEnvoyees('b').some((n) => n.id === 'n2'), true);
+  assert.deepEqual(effacementsDeMesNotes('b').map((x) => [x.noteId, x.nom, x.envoyee]), [['n2', 'Cléo', true]]);
+  // Une note publique effacee par un lecteur reste chez tous les autres.
+  effacerNote(base.notes[0], 'a', base, '2026-11-06T10:00:00Z');
+  assert.equal(notesRecues('a').some((n) => n.id === 'n1'), false);
+  assert.equal(notesRecues('c').some((n) => n.id === 'n1'), true);
+  assert.ok(base.notes.some((n) => n.id === 'n1'));
 });
 
 test('répondre à une note privée s’adresse à l’auteur et aux autres destinataires', async () => {

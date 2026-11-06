@@ -5,7 +5,9 @@
 
    Elle annonce aussi les accuses de lecture : « Bob a lu votre note » des
    qu'un destinataire ouvre une note que l'on a ecrite (lecture faite sur
-   ce poste, ou apportee par la synchronisation).
+   ce poste, ou apportee par la synchronisation) ; et les effacements :
+   « Bob a effacé votre note », « Alice a effacé sa note », quand un autre
+   lecteur efface pour lui une note que l'on garde.
 
    Une note n'est annoncee qu'une fois par session : fermer la fenetre
    ne la fait pas revenir a la modification suivante de la base. Un clic
@@ -14,7 +16,7 @@
    =================================================================== */
 
 import { el, esc } from '../core/utils.js';
-import { notesNonLues, nomDuCompte, lecturesDeMesNotes } from '../core/notes.js';
+import { notesNonLues, nomDuCompte, lecturesDeMesNotes, effacementsDeMesNotes } from '../core/notes.js';
 
 /** Au-dela, la fenetre dit « et N autre(s) ». */
 const MAX_LIGNES = 5;
@@ -32,7 +34,7 @@ let notesAffichees = [];
 export function demarrerNotesFlottantes(id) {
   compteId = id;
   annoncees = new Set();
-  lecturesConnues = new Set(id ? lecturesDeMesNotes(id).map((l) => l.cle) : []);
+  lecturesConnues = new Set(id ? lecturesDeMesNotes(id).concat(effacementsDeMesNotes(id)).map((l) => l.cle) : []);
   lecturesAffichees = [];
   notesAffichees = [];
   fermer();
@@ -52,7 +54,7 @@ export function fermer() {
 export function annoncerNotes({ ouvrirNotes, surNotes = false }) {
   if (!compteId) return;
   const nonLues = notesNonLues(compteId);
-  const lectures = lecturesDeMesNotes(compteId).filter((l) => !lecturesConnues.has(l.cle));
+  const lectures = lecturesDeMesNotes(compteId).concat(effacementsDeMesNotes(compteId)).filter((l) => !lecturesConnues.has(l.cle));
   lectures.forEach((l) => lecturesConnues.add(l.cle));
   // Sur la page NOTES, tout s'y lit deja : rien a annoncer.
   if (surNotes) {
@@ -85,8 +87,10 @@ function dessiner(notes, lectures, ouvrirNotes) {
       '</div>' +
       '<div class="nfListe">' +
         lectures.slice(-MAX_LIGNES).map((l) =>
-          '<button type="button" class="nfLigne nfLu">' +
-            `<span class="nfDe"><b class="nfCoches">✓✓</b> ${esc(l.nom)} a lu votre note</span>` +
+          `<button type="button" class="nfLigne nfLu"${l.cle.startsWith('efface|') && !l.envoyee ? ' data-recue' : ''}>` +
+            (l.cle.startsWith('efface|')
+              ? `<span class="nfDe"><b class="nfCoches">🗑</b> ${esc(l.nom)} a effacé ${l.envoyee ? 'votre' : 'sa'} note</span>`
+              : `<span class="nfDe"><b class="nfCoches">✓✓</b> ${esc(l.nom)} a lu votre note</span>`) +
             `<span class="nfObjet">${esc(l.sujet || '(sans objet)')}</span>` +
           '</button>').join('') +
         lignes.map((n) =>
@@ -106,7 +110,7 @@ function dessiner(notes, lectures, ouvrirNotes) {
   fenetre.querySelector('.nfFermer').onclick = fermer;
   fenetre.querySelector('.nfVoir').onclick = () => aller(notes.length ? 'recues' : 'envoyees');
   fenetre.querySelectorAll('.nfLigne').forEach((b) => {
-    b.onclick = () => aller(b.classList.contains('nfLu') ? 'envoyees' : 'recues');
+    b.onclick = () => aller(b.classList.contains('nfLu') && !b.hasAttribute('data-recue') ? 'envoyees' : 'recues');
   });
   document.body.appendChild(fenetre);
 }

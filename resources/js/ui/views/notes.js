@@ -6,9 +6,9 @@
        ENVOYÉES   les notes ecrites par le compte connecte ;
 
    Ouverte a tous les comptes, quel que soit leur niveau d'acces : chacun
-   ecrit, modifie et supprime ses propres notes. L'administrateur peut en
-   plus supprimer une note publique (ou privee qu'il voit) qui n'a pas sa
-   place.
+   ecrit et modifie ses propres notes, et efface pour lui seul celles qu'il
+   lit (core/notes.js, effacerNote) : les autres les gardent, et voient
+   qu'il les a effacees.
    =================================================================== */
 
 import { DB, insert, update, remove } from '../../core/db.js';
@@ -22,8 +22,7 @@ import { ouvrirPiece } from '../pieceViewer.js';
 import {
   PUBLIQUE, PRIVEE, notesRecues, notesEnvoyees, estLue, marquerLues, comptesDestinataires,
   nomDuCompte, peutModifierNote, peutSupprimerNote, destinatairesReponse, reponsesA,
-  accusesDe, etatAccuse, pointDesComptes
-} from '../../core/notes.js';
+  accusesDe, etatAccuse, pointDesComptes, effacerNote, effacementsDe } from '../../core/notes.js';
 
 const SUBS = [
   { key: 'recues', label: 'NOTES REÇUES' },
@@ -248,10 +247,11 @@ function carteNote(n, moi, { nouvelle }) {
             `<i>${esc(taillePiece(p.taille))}${p.modifieLe ? ` · modifié par ${esc(p.modifiePar || '—')}` : ''}</i></button>`).join('')}</div>`
         : '') +
       (n.auteurId === moi.id ? accuseHtml(n) : '') +
+      effacementsHtml(n, moi) +
       '<div class="noteActions">' +
         (n.auteurId !== moi.id ? '<button type="button" class="miniBtn" data-repondre style="background:#1976D2">↩ Répondre</button>' : '') +
         (peutModifierNote(n, moi) ? '<button type="button" class="miniBtn" data-modifier style="background:#008A3B">✎ Modifier</button>' : '') +
-        (peutSupprimerNote(n, moi) ? '<button type="button" class="miniBtn" data-supprimer style="background:#D32F2F">✕ Supprimer</button>' : '') +
+        (peutSupprimerNote(n, moi) ? '<button type="button" class="miniBtn" data-supprimer style="background:#D32F2F">✕ Effacer pour moi</button>' : '') +
         (nbReponses ? `<span class="noteNbRep">${nbReponses} réponse${nbReponses > 1 ? 's' : ''}</span>` : '') +
       '</div>' +
     '</div>'
@@ -282,16 +282,26 @@ function carteNote(n, moi, { nouvelle }) {
   if (sup) {
     sup.onclick = async () => {
       if (!(await confirmDialog({
-        title: 'Supprimer la note',
-        message: `Supprimer la note « ${n.sujet || '(sans sujet)'} » ? Elle disparaîtra pour tous ses lecteurs.`,
-        okLabel: 'Supprimer', danger: true
+        title: 'Effacer la note',
+        message: `Effacer la note « ${n.sujet || '(sans sujet)'} » de votre compte ? ` +
+          'Elle reste chez les autres comptes, qui verront que vous l’avez effacée.',
+        okLabel: 'Effacer', danger: true
       }))) return;
-      remove('notes', n.id);
-      toast('Note supprimée.', 'ok');
+      effacerNote(n, moi.id);
+      toast('Note effacée de votre compte.', 'ok');
       rerender();
     };
   }
   return carte;
+}
+
+/** « 🗑 KONE a effacé ce message de son côté le … », pour chaque autre lecteur qui l'a fait. */
+function effacementsHtml(n, moi) {
+  const e = effacementsDe(n, moi.id);
+  if (!e.length) return '';
+  return '<div class="noteEfface">' + e.map((x) =>
+    `🗑 <b>${esc(x.nom)}</b> ${x.id === n.auteurId ? '(l’expéditeur) ' : ''}a effacé ce message de son côté le ${esc(quand(x.le))}`
+  ).join('<br>') + '</div>';
 }
 
 /**

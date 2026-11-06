@@ -14,8 +14,13 @@
 
    Chaque compte a donc sa fiche de suivi (`suiviComptes`, meme
    identifiant que le compte) :
-     notesLues  identifiant de la note -> date de lecture ;
-     activite   date du dernier signe de vie de la session ouverte.
+     notesLues      identifiant de la note -> date de lecture ;
+     notesEffacees  identifiant de la note -> date ou le compte l'a effacee ;
+     activite       date du dernier signe de vie de la session ouverte.
+
+   Effacer une note ne la retire que pour soi : elle reste chez les autres,
+   qui voient qu'on l'a effacee (et en sont avertis). Une note privee que
+   son auteur et tous ses destinataires ont effacee disparait de la base.
 
    Les dates de lecture font l'accuse de reception : l'expediteur voit qui
    a lu sa note, et quand (✓ envoyee, ✓✓ lue).
@@ -24,7 +29,7 @@
    ce que l'application montre : la note n'est pas chiffree dans la base.
    =================================================================== */
 
-import { DB, persist } from './db.js';
+import { DB, persist, remove } from './db.js';
 
 export const PUBLIQUE = 'publique';
 export const PRIVEE = 'privee';
@@ -38,10 +43,10 @@ export function peutLire(note, compteId) {
   return note.auteurId === compteId || (note.destinataires || []).includes(compteId);
 }
 
-/** Les notes que le compte peut lire, les plus recentes d'abord. */
+/** Les notes que le compte peut lire, et qu'il n'a pas effacees, les plus recentes d'abord. */
 export function notesVisibles(compteId, db = DB) {
   return (db.notes || [])
-    .filter((n) => peutLire(n, compteId))
+    .filter((n) => peutLire(n, compteId) && !effaceeLe(n, compteId, db))
     .sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')));
 }
 
@@ -105,6 +110,72 @@ export function marquerLues(ids, compteId, db = DB, quand = new Date().toISOStri
   suiviDe(compteId, db, true).notesLues = apres;
   if (db === DB) persist({ silent: true });
   return true;
+}
+
+/* ------------------------- Effacer pour soi ------------------------- */
+
+/** Les notes effacees par un compte : { idNote: date }. */
+function effaceesDe(compteId, db) {
+  const e = (suiviDe(compteId, db) || {}).notesEffacees;
+  return e && typeof e === 'object' ? e : {};
+}
+
+/** Date a laquelle le compte a efface la note, ou null. */
+export function effaceeLe(note, compteId, db = DB) {
+  const e = effaceesDe(compteId, db);
+  return note && Object.prototype.hasOwnProperty.call(e, note.id) ? e[note.id] : null;
+}
+
+/** Ceux qui lisaient la note : son auteur et, privee, ses destinataires. */
+function lecteursPrives(note) {
+  return [...new Set([note.auteurId].concat(note.destinataires || []))].filter(Boolean);
+}
+
+/**
+ * Le compte efface la note, pour lui seul. Une note privee que tous ses
+ * lecteurs ont effacee est retiree de la base.
+ * @returns {'effacee'|'supprimee'|null}
+ */
+export function effacerNote(note, compteId, db = DB, quand = new Date().toISOString()) {
+  if (!note || !compteId || !peutLire(note, compteId)) return null;
+  const suivi = suiviDe(compteId, db, true);
+  suivi.notesEffacees = Object.assign({}, effaceesDe(compteId, db), { [note.id]: quand });
+  if (note.visibilite === PRIVEE && lecteursPrives(note).every((id) => effaceeLe(note, id, db) || !compteDe(id, db))) {
+    // Plus personne ne la lit : elle s'en va, et les marques avec elle.
+    (db.suiviComptes || []).forEach((x) => {
+      if (x.notesEffacees && note.id in x.notesEffacees) {
+        const e = Object.assign({}, x.notesEffacees); delete e[note.id]; x.notesEffacees = e;
+      }
+    });
+    if (db === DB) remove('notes', note.id);
+    else db.notes = (db.notes || []).filter((n) => n.id !== note.id);
+    return 'supprimee';
+  }
+  if (db === DB) persist();
+  return 'effacee';
+}
+
+/**
+ * Qui, parmi les autres, a efface la note : [{ id, nom, le }]. L'auteur
+ * le voit sur ses notes envoyees ; un destinataire, si l'auteur ou un
+ * autre destinataire l'a effacee.
+ */
+export function effacementsDe(note, compteId, db = DB) {
+  return (db.suiviComptes || [])
+    .filter((x) => x.id !== compteId && x.notesEffacees && Object.prototype.hasOwnProperty.call(x.notesEffacees, note.id))
+    .map((x) => ({ id: x.id, nom: nomDuCompte(x.id, db), le: x.notesEffacees[note.id] }))
+    .sort((a, b) => String(a.le).localeCompare(String(b.le)));
+}
+
+/**
+ * Les effacements faits par les autres sur les notes que le compte lit
+ * encore, a plat : { cle, noteId, sujet, nom, le, envoyee }. La fenetre
+ * flottante y repere les nouveaux, comme les accuses de lecture.
+ */
+export function effacementsDeMesNotes(compteId, db = DB) {
+  return notesVisibles(compteId, db).flatMap((n) => effacementsDe(n, compteId, db).map((x) => ({
+    cle: `efface|${n.id}|${x.id}`, noteId: n.id, sujet: n.sujet, nom: x.nom, le: x.le, envoyee: n.auteurId === compteId
+  })));
 }
 
 /* ------------------------- Comptes en ligne ------------------------- */
@@ -195,13 +266,13 @@ export function nomDuCompte(id, db = DB, defaut = 'Compte supprimé') {
   return c ? (c.nom || c.login) : defaut;
 }
 
-/** Modifier : l'auteur seul. Supprimer : l'auteur ou un administrateur. */
+/** Modifier : l'auteur seul. Effacer : chacun de ses lecteurs, pour lui seul. */
 export function peutModifierNote(note, compte) {
   return !!note && !!compte && note.auteurId === compte.id;
 }
 
 export function peutSupprimerNote(note, compte) {
-  return !!note && !!compte && (note.auteurId === compte.id || compte.role === 'admin');
+  return !!note && !!compte && peutLire(note, compte.id);
 }
 
 /**

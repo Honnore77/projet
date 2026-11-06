@@ -3,7 +3,7 @@
    Rubrique reservee aux administrateurs (voir MODULES dans shell.js).
    =================================================================== */
 
-import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour, nomsUtilisateurs, seuilsVoyantVidange } from '../../core/db.js';
+import { DB, persistNow, replaceDB, emptyDB, saveSettings, fraisOmParParticipant, FRAIS_OM_PAR_PARTICIPANT, kmInterneParJour, nomsUtilisateurs, seuilsVoyantVidange , joursFeriesSaisis } from '../../core/db.js';
 import { ROLES_ACCES, NIVEAUX, RUBRIQUES_ACCES, reglesDuRole, reglesParDefaut } from '../../core/acces.js';
 import {
   ROLES, currentUser, canAdmin, roleLabel, listAccounts,
@@ -14,7 +14,8 @@ import {
   platformName, dataLocation, saveFile, openBinaryFile,
   backupEtat, backupChoisirDossier, backupListe
 } from '../../core/storage.js';
-import { esc, el, num, francSup } from '../../core/utils.js';
+import { esc, el, num, francSup, dateFR } from '../../core/utils.js';
+import { lireJoursFeries } from '../../core/joursOuvres.js';
 import { construireArchive, lireArchive } from '../../core/archive.js';
 import {
   card, toolbar, subtabs, openForm, openModal, confirmDialog, toast, sectionLabel, dataTable, COLORS
@@ -568,6 +569,7 @@ function renderThresholdsSection(page) {
         `Parcours en interne (simulations) : ${kmInterneParJour() ? `${num(kmInterneParJour())} km par jour` : 'non réglé'}\n` +
         `Immobilisation signalée au-delà de : ${num(s.seuilImmobilisationJours)} jour(s)\n` +
         `Mission impayée signalée au-delà de : ${num(s.seuilMissionImpayeeJours)} jour(s)\n` +
+        `Autres jours fériés : ${joursFeriesSaisis().length ? joursFeriesSaisis().map(dateFR).join(', ') : 'aucun saisi'}\n` +
         `Intervalle de vidange : ${num(s.seuilVidangeKm)} km
 ` +
         `Voyants de vidange : jaune de ${num(voyant.jaune)} à ${num(voyant.orange)} km, ` +
@@ -601,6 +603,12 @@ function openSettingsForm() {
         hint: 'Utilisé par MISSIONS → SIMULATIONS : frais OM = participants × ce montant' },
       { key: 'parcoursInterneKmParJour', label: 'Parcours en interne (km par jour)', type: 'nombre', value: kmInterneParJour(),
         hint: 'Utilisé par MISSIONS → SIMULATIONS : km à l’intérieur d’une destination = jours sur place × ce nombre. 0 = non réglé' },
+      // Les feries fixes et ceux de Pâques se calculent ; ceux-ci changent
+      // chaque annee (fetes musulmanes, jours accordes par decret).
+      { key: 'joursFeries', label: 'Autres jours fériés', type: 'textarea', full: true, rows: 3,
+        value: joursFeriesSaisis().map(dateFR).join('\n'),
+        placeholder: 'Un jour par ligne, par exemple 20/03/2026',
+        hint: 'Ils ne comptent pas dans les congés et absences, comme les samedis, dimanches et jours fériés fixes (1er janvier, 1er mai, 7 août, 15 août, 1er novembre, 15 novembre, Noël) et ceux de Pâques (lundi de Pâques, Ascension, lundi de Pentecôte), déjà pris en compte. Ajoutez ici Korité, Tabaski, Maouloud, Nuit du Destin et les jours accordés par décret.' },
       { key: 'seuilImmobilisationJours', label: 'Alerte immobilisation (jours)', type: 'number', value: s.seuilImmobilisationJours },
       { key: 'seuilMissionImpayeeJours', label: 'Alerte mission impayée (jours)', type: 'number', value: s.seuilMissionImpayeeJours },
       { key: 'seuilVidangeKm', label: 'Intervalle de vidange (km)', type: 'nombre', value: s.seuilVidangeKm,
@@ -651,7 +659,8 @@ function openSettingsForm() {
         seuilVidangeKm: num(v.seuilVidangeKm) || 5000,
         seuilVoyantJaune: jaune,
         seuilVoyantOrange: orange,
-        seuilVoyantRouge: rouge
+        seuilVoyantRouge: rouge,
+        joursFeries: [...new Set(lireJoursFeries(v.joursFeries))].sort()
       });
       toast('Réglages enregistrés.', 'ok');
       rerender();
