@@ -38,7 +38,7 @@ test('un agent renomme suit partout, compte lie compris', async () => {
     missions: [{ id: 'm', conducteur: ancien, participants: ['YAO', ancien] }],
     sortiesAbidjan: [{ id: 's', conducteur: ancien, participants: [ancien] }],
     dotationPool: [{ id: 'd', conducteur: ancien }],
-    decharges: [{ id: 'c', conducteur: ancien, recuperePar: ancien }],
+    decharges: [{ id: 'c', conducteur: ancien, conducteur2: ancien, recuperePar: ancien }],
     vidanges: [{ id: 'v', conducteur: ancien }],
     maintenance: [{ id: 'e', conducteurEntree: ancien, conducteurRetour: ancien, signalePar: ancien }],
     etatsVehicules: [{ id: 'p', signalePar: ancien, signaleA: ancien }],
@@ -106,4 +106,14 @@ test('les observations de chaque rubrique arrivent dans ÉTAT DES VÉHICULES', a
   synchroniserEtats(base, '2026-11-06');
   const origines = base.etatsVehicules.map((e) => String(e.origine).split(':')[0]).sort();
   assert.deepEqual(origines, ['dotation', 'mission', 'sortie', 'vehicule', 'vidange']);
+});
+
+test('une course a deux conducteurs compte pour chacun dans les statistiques', async () => {
+  const st = await import('../resources/js/core/statistiques.js');
+  await charger({ decharges: [
+    { id: 'a', date: '2026-11-02', conducteur: 'YAO', conducteur2: 'KONE' },
+    { id: 'b', date: '2026-11-03', conducteur: 'YAO' }
+  ] });
+  const bloc = st.statsDecharges('').blocs.find((b) => b.titre === 'Courses par conducteur');
+  assert.deepEqual(bloc.lignes.map((l) => [l[0], l[1]]), [['YAO', '2'], ['KONE', '1']]);
 });

@@ -675,6 +675,7 @@ export function dsDecharges(list = DB.decharges) {
       C('date', 'Date', 12),
       C('recuperePar', 'Décharge récupérée par', 22),
       C('conducteur', 'Conducteur', 22),
+      C('conducteur2', 'Conducteur 2', 22),
       C('immat', 'Véhicule', 16),
       C('signee', 'Décharge signée', 14)
     ],
@@ -686,6 +687,7 @@ export function dsDecharges(list = DB.decharges) {
       date: dateFR(d.date),
       recuperePar: d.recuperePar || '',
       conducteur: d.conducteur || '',
+      conducteur2: d.conducteur2 || '',
       immat: immatAvecAutre(d.immat),
       signee: (d.images || []).length ? 'jointe' : 'à joindre'
     }))

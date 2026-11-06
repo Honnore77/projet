@@ -215,7 +215,7 @@ export function estAMoi(rub, fiche) {
       const immats = vehiculesDeLAgent(moi).map((v) => norm(immatOf(v)));
       return !!fiche.immat && immats.includes(norm(fiche.immat));
     }
-    case 'DECHARGE': return meme(fiche.conducteur, moi) || meme(fiche.recuperePar, moi);
+    case 'DECHARGE': return meme(fiche.conducteur, moi) || meme(fiche.conducteur2, moi) || meme(fiche.recuperePar, moi);
     default: return false;
   }
 }

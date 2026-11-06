@@ -40,7 +40,7 @@ export function dossierAgent(u, jour = todayISO()) {
       .filter((m) => (m.participants || []).some((x) => norm(x || '') === cle)),
     sorties: (DB.sortiesAbidjan || []).filter((x) => norm(x.conducteur || '') === cle),
     dotations: (DB.dotationPool || []).filter((x) => norm(x.conducteur || '') === cle),
-    courses: (DB.decharges || []).filter((x) => norm(x.conducteur || '') === cle || norm(x.recuperePar || '') === cle),
+    courses: (DB.decharges || []).filter((x) => [x.conducteur, x.conducteur2, x.recuperePar].some((n) => norm(n || '') === cle)),
     incidents: u.historique || [],
     absences,
     interims: (DB.indisponibilites || []).filter((i) => norm(i.interimaire || '') === cle),
@@ -131,7 +131,7 @@ export function historiquesAgent(d) {
       titre: 'Courses',
       entetes: ['Réf.', 'Date', 'Destinataire', 'Objet', 'Rôle'],
       lignes: d.courses.slice().sort(parDate('date')).map((x) => [x.ref || '', dateFR(x.date), x.destinataire || '',
-        String(x.objet || '').split('\n')[0], norm(x.conducteur || '') === norm(d.nom) ? 'conducteur' : 'décharge récupérée'])
+        String(x.objet || '').split('\n')[0], [x.conducteur, x.conducteur2].some((n) => norm(n || '') === norm(d.nom)) ? 'conducteur' : 'décharge récupérée'])
     },
     {
       titre: 'Incidents',

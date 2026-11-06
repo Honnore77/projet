@@ -131,7 +131,8 @@ function renderListeDecharges(page) {
     esc(d.destinataire || ''),
     esc(dateFR(d.date)),
     esc(d.recuperePar || ''),
-    esc(d.conducteur || ''),
+    // Un second conducteur, quand la course se fait a deux.
+    esc(d.conducteur || '') + (d.conducteur2 ? `<br>${esc(d.conducteur2)}` : ''),
     esc(d.immat || '') + autreImmat(d.immat),
     // La decharge signee est la preuve de remise : son absence se voit.
     (d.images || []).length
@@ -146,7 +147,7 @@ function renderListeDecharges(page) {
     dataTable(headers, rows, (tr, i) => {
       const d = list[i];
       tr.dataset.search = norm(
-        `${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.date} ${d.recuperePar} ${d.conducteur} ${d.immat}`
+        `${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.date} ${d.recuperePar} ${d.conducteur} ${d.conducteur2 || ''} ${d.immat}`
       );
 
       const ed = tr.querySelector('[data-edit]');
@@ -191,6 +192,8 @@ function dechargeFields(d = {}) {
     { key: 'recuperePar', label: 'Décharge récupérée par', type: 'selectAdd', value: d.recuperePar,
       options: nomsRecuperePar(), emptyLabel: '— choisir —', addLabel: 'Ajouter un nom' },
     { key: 'conducteur', label: 'Nom du conducteur', value: d.conducteur, list: knownDrivers() },
+    { key: 'conducteur2', label: 'Conducteur 2', value: d.conducteur2, list: knownDrivers(),
+      hint: 'Facultatif : le second conducteur, quand la course se fait à deux' },
     champVehicule('immat', 'Immatriculation du véhicule', d.immat),
     { key: 'images', label: 'Photo de la décharge signée', type: 'images', full: true, value: d.images,
       hint: 'Photo ou scan de la décharge signée par le destinataire (JPEG ou PNG)' }
@@ -233,6 +236,7 @@ export function openDechargeForm(d) {
         date: values.date,
         recuperePar: values.recuperePar,
         conducteur: values.conducteur,
+        conducteur2: values.conducteur2,
         immat: String(values.immat || '').trim().toUpperCase(),
         images: values.images
       };

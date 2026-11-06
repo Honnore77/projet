@@ -97,7 +97,7 @@ export function renderGlobalSearch(page) {
   });
 
   filtrer('DECHARGE', DB.decharges).forEach((d) => {
-    if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.immat}`).includes(q)) {
+    if (norm(`${d.ref} ${d.numeroCourrier} ${d.objet} ${d.destinataire} ${d.recuperePar} ${d.conducteur} ${d.conducteur2 || ''} ${d.immat}`).includes(q)) {
       results.push({
         type: 'COURSE',
         color: '#8D6E63',

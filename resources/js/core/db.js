@@ -2832,7 +2832,7 @@ export function renommerAgentDansLesFiches(ancien, nouveau, db = DB) {
   (db.missions || []).forEach((m) => { suivre(m, 'conducteur'); suivreListe(m); });
   (db.sortiesAbidjan || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
   (db.dotationPool || []).forEach((d) => suivre(d, 'conducteur'));
-  (db.decharges || []).forEach((d) => { suivre(d, 'conducteur'); suivre(d, 'recuperePar'); });
+  (db.decharges || []).forEach((d) => { suivre(d, 'conducteur'); suivre(d, 'conducteur2'); suivre(d, 'recuperePar'); });
   (db.vidanges || []).forEach((x) => suivre(x, 'conducteur'));
   (db.maintenance || []).forEach((m) => ['conducteurEntree', 'conducteurRetour', 'signalePar'].forEach((k) => suivre(m, k)));
   (db.etatsVehicules || []).forEach((e) => { suivre(e, 'signalePar'); suivre(e, 'signaleA'); });

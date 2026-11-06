@@ -62,6 +62,17 @@ export function deLAnnee(list, dateFn, annee) {
  * Repartition d'une liste selon une cle : [libelle, nombre, part], la plus
  * grande d'abord. Une cle vide se range sous « non renseigné ».
  */
+/**
+ * Une course a deux conducteurs compte pour chacun d'eux ; sans conducteur,
+ * elle compte une fois, « non renseigné ».
+ */
+function parConducteur(courses) {
+  return courses.flatMap((d) => {
+    const noms = [d.conducteur, d.conducteur2].map((n) => String(n || '').trim()).filter(Boolean);
+    return noms.length ? noms.map((nom) => ({ nom })) : [{ nom: '' }];
+  });
+}
+
 export function repartition(list, cleFn, { valeur = () => 1, limite = 0 } = {}) {
   const groupes = new Map();
   list.forEach((x) => {
@@ -157,7 +168,7 @@ export function statsVehicules(annee = '') {
       { titre: 'Sorties du pool', valeur: fmt(sorties.length), detail: `courses ${annee ? `en ${annee}` : 'toutes années'}` }
     ],
     blocs: [
-      blocFrequence('Fréquence de sortie des conducteurs du pool (courses)', repartition(sorties, (d) => d.conducteur, { limite: 15 })),
+      blocFrequence('Fréquence de sortie des conducteurs du pool (courses)', repartition(parConducteur(sorties), (x) => x.nom, { limite: 15 })),
       blocFrequence('Fréquence de sortie des véhicules du pool (courses)',
         // Ancienne et nouvelle immatriculation : un seul vehicule.
         repartition(sorties, (d) => libelleVehicule(d.immat), { limite: 15 })),
@@ -386,7 +397,7 @@ export function statsDecharges(annee) {
       blocMensuel('Courses par mois', parMois(ds, (d) => d.date, annee, { Courses: () => 1 })),
       blocRepartition('Courses par destinataire', repartition(ds, (d) => d.destinataire, { limite: 10 }), { type: 'bar' }),
       blocRepartition('Décharge signée', repartition(ds, (d) => ((d.images || []).length ? 'jointe' : 'à joindre'))),
-      blocRepartition('Courses par conducteur', repartition(ds, (d) => d.conducteur, { limite: 10 }), { type: 'bar' }),
+      blocRepartition('Courses par conducteur', repartition(parConducteur(ds), (x) => x.nom, { limite: 10 }), { type: 'bar' }),
       // Ancienne et nouvelle immatriculation : un seul vehicule.
       blocRepartition('Courses par véhicule', repartition(ds, (d) => libelleVehicule(d.immat), { limite: 10 }), { type: 'bar' }),
       blocRepartition('Décharges récupérées par', repartition(ds, (d) => d.recuperePar, { limite: 10 }), { type: 'bar' })
