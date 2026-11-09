@@ -142,6 +142,9 @@ export function emptyDB() {
     // pas des missions. A part des missions : ils ne comptent ni dans le tour
     // de role, ni dans les jours, ni dans le nombre de missions.
     sortiesAbidjan: [],
+    // MISSIONS → PROGRAMMES DES MISSIONS : les missions a venir. Une simple
+    // prevision, hors tour de role, jours et cumuls (core/programmes.js).
+    programmes: [],
     // ENTRETIEN → GARAGES : les garages ou passent les vehicules.
     garages: [],
     // ENTRETIEN → VIDANGES : chaque vidange faite, hors passages au garage.
@@ -352,7 +355,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'programmes', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(reglagesParDefaut, raw && raw.settings);
@@ -2514,7 +2517,7 @@ export function renommerDestinationMission(ancien, nouveau, db = DB) {
     x.destinations = [propre];
     n += 1;
   });
-  (db.simulations || []).forEach((x) => {
+  (db.simulations || []).concat(db.programmes || []).forEach((x) => {
     const liste = (x.destinations || []).slice();
     const i = liste.findIndex((d) => norm(d || '') === cle && d !== propre);
     if (i < 0) return;
@@ -2857,6 +2860,7 @@ export function renommerAgentDansLesFiches(ancien, nouveau, db = DB) {
   };
   (db.missions || []).forEach((m) => { suivre(m, 'conducteur'); suivreListe(m); });
   (db.sortiesAbidjan || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
+  (db.programmes || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
   (db.dotationPool || []).forEach((d) => suivre(d, 'conducteur'));
   (db.decharges || []).forEach((d) => { suivre(d, 'conducteur'); suivre(d, 'conducteur2'); suivre(d, 'recuperePar'); });
   (db.vidanges || []).forEach((x) => suivre(x, 'conducteur'));
@@ -2888,6 +2892,7 @@ export function renommerImmatriculation(ancienne, nouvelle, db = DB) {
   (db.maintenance || []).forEach((m) => suivre(m, 'immat'));
   (db.missions || []).forEach((m) => suivre(m, 'vehicule'));
   (db.sortiesAbidjan || []).forEach((x) => suivre(x, 'vehicule'));
+  (db.programmes || []).forEach((x) => suivre(x, 'vehicule'));
   (db.decharges || []).forEach((d) => suivre(d, 'immat'));
   (db.vidanges || []).forEach((x) => suivre(x, 'immat'));
   (db.etatsVehicules || []).forEach((e) => suivre(e, 'immat'));

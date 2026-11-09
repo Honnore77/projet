@@ -4,6 +4,8 @@
      SUIVI DES MISSIONS   toutes les missions en tableau, avec les
                           informations du formulaire et les cumuls par
                           conducteur (les missions se font a tour de role)
+     PROGRAMMES DES       les missions a venir, hors tour de role et
+     MISSIONS             cumuls (programmes.js)
      RAPPORTS DE MISSION  la liste des rapports en tableau, chacun
                           consultable par le bouton « Voir »
      SORTIES D'ABIDJAN    deplacements hors mission (sortiesAbidjan.js)
@@ -26,6 +28,7 @@ import { relierRapportMission, problemesEnCours } from '../../core/etatsVehicule
 import { canWrite } from '../../core/auth.js';
 import { filtrer, seulementSiennes, peutModifier, voit } from '../../core/acces.js';
 import { renderSortiesAbidjan } from './sortiesAbidjan.js';
+import { renderProgrammes } from './programmes.js';
 import { renderSimulations } from './simulation.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
 import { champVehicule, champParticipant, autreImmat,
@@ -42,6 +45,7 @@ import { exportMissionReport, printMissionReport, reportData } from '../../expor
 
 const SUBS = [
   { key: 'suivi', label: 'SUIVI DES MISSIONS' },
+  { key: 'programmes', label: 'PROGRAMMES DES MISSIONS' },
   { key: 'rapport', label: 'RAPPORTS DE MISSION' },
   { key: 'sorties', label: 'SORTIES D’ABIDJAN' },
   { key: 'simulations', label: 'SIMULATIONS', acces: 'SIMULATION' },
@@ -67,6 +71,7 @@ export function renderMissions(page) {
   page.appendChild(subtabs(subs, sub, (k) => { state.sub.MISSION = k; rerender(); }));
   if (sub === 'stats') renderStatistiques(page, 'MISSION');
   else if (sub === 'rapport') renderRapport(page);
+  else if (sub === 'programmes') renderProgrammes(page);
   else if (sub === 'sorties') renderSortiesAbidjan(page);
   else if (sub === 'simulations') renderSimulations(page);
   else if (sub === 'destinations') renderDestinations(page);

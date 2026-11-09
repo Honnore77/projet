@@ -120,6 +120,18 @@ export function renderGlobalSearch(page) {
     }
   });
 
+  filtrer('MISSION', DB.programmes || []).forEach((p) => {
+    if (norm(`${p.ref} ${p.conducteur} ${p.vehicule} ${(p.destinations || []).join(' ')} ${p.objet || ''} ${(p.participants || []).join(' ')} ${p.observations || ''}`).includes(q)) {
+      results.push({
+        type: 'MISSION PROGRAMMÉE',
+        color: '#C2185B',
+        title: `${p.ref || 'Programme'} — ${(p.destinations || []).join(', ') || '—'}`,
+        sub: `Départ le ${dateFR(p.dateDepart) || '…'}${p.conducteur ? ` · ${p.conducteur}` : ''}${p.objet ? `\n${p.objet}` : ''}`,
+        action: () => { state.sub.MISSION = 'programmes'; navigate('MISSION'); }
+      });
+    }
+  });
+
   (voitTout('DECHARGE') ? DB.destinataires : []).forEach((d) => {
     if (norm(`${d.nom} ${d.contacts} ${d.localisation}`).includes(q)) {
       results.push({

@@ -1,5 +1,8 @@
 /* ===================================================================
-   TABLEAU DE BORD — indicateurs, alertes, graphiques.
+   TABLEAU DE BORD — sous-rubriques :
+     VUE D'ENSEMBLE   indicateurs, alertes, graphiques
+     PROGRAMMES       missions programmees, conges et absences a venir
+                      (programmes.js)
    =================================================================== */
 
 import {
@@ -9,11 +12,26 @@ import {
 import { fmt, fmtF, num, sum, groupBy, monthKey, monthLabel, esc, el } from '../../core/utils.js';
 import { statTile, card, COLORS } from '../components.js';
 import { chartCard, destroyCharts, colorsFor } from '../charts.js';
-import { navigate } from '../shell.js';
+import { navigate, state, rerender } from '../shell.js';
+import { subtabs } from '../components.js';
+import { renderAgendaProgrammes } from './programmes.js';
 import { COULEUR_NON_ATTRIBUE, COULEUR_REFORME } from './vehicles.js';
+
+const SOUS_RUBRIQUES = [
+  { key: 'ensemble', label: 'VUE D’ENSEMBLE' },
+  { key: 'programmes', label: 'PROGRAMMES' }
+];
 
 export function renderDashboard(page) {
   destroyCharts();
+  const k = 'TABLEAU DE BORD';
+  if (!SOUS_RUBRIQUES.some((s) => s.key === state.sub[k])) state.sub[k] = 'ensemble';
+  page.appendChild(subtabs(SOUS_RUBRIQUES, state.sub[k], (v) => { state.sub[k] = v; rerender(); }));
+  if (state.sub[k] === 'programmes') renderAgendaProgrammes(page);
+  else renderVueEnsemble(page);
+}
+
+function renderVueEnsemble(page) {
 
   const vehicles = allVehicles();
   const nbVeh = vehicles.length;

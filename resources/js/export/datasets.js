@@ -3,8 +3,9 @@
    exactement les memes colonnes).
    =================================================================== */
 
-import { DB, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, totauxSortieAbidjan, immatAvecAutre, origineKm, derniereLectureKm } from '../core/db.js';
+import { DB, joursMission, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, totauxSortieAbidjan, immatAvecAutre, origineKm, derniereLectureKm } from '../core/db.js';
 
+import { etatProgramme, conflitsProgramme, missionDuProgramme } from '../core/programmes.js';
 import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
 
@@ -610,6 +611,53 @@ export function dsVidanges(list = DB.vidanges || []) {
 }
 
 /** Decharges : memes colonnes que le tableau de la rubrique. */
+/** MISSIONS → PROGRAMMES DES MISSIONS : une ligne par programme. */
+export function dsProgrammes(list = DB.programmes || []) {
+  const rows = list.map((p) => {
+    const j = joursMission(p.dateDepart, p.dateRetour);
+    const m = missionDuProgramme(p);
+    return {
+      ref: p.ref || '',
+      depart: dateFR(p.dateDepart),
+      retour: dateFR(p.dateRetour),
+      jours: j === null || j < 1 ? '' : j,
+      destinations: (p.destinations || []).join(', '),
+      objet: p.objet || '',
+      conducteur: p.conducteur || '',
+      vehicule: immatAvecAutre(p.vehicule),
+      participants: (p.participants || []).filter(Boolean).join(', '),
+      etat: etatProgramme(p) + (m && m.ref ? ` (${m.ref})` : ''),
+      conflits: etatProgramme(p) === 'à venir' || etatProgramme(p) === 'en cours' ? conflitsProgramme(p).join(' ') : '',
+      observations: p.observations || ''
+    };
+  });
+  return {
+    title: 'Programmes des missions',
+    columns: [
+      C('ref', 'Réf.', 10), C('depart', 'Départ', 12), C('retour', 'Retour', 12), C('jours', 'Jours', 7),
+      C('destinations', 'Destination(s)', 24), C('objet', 'Objet', 26), C('conducteur', 'Conducteur', 20),
+      C('vehicule', 'Véhicule', 14), C('participants', 'Participants', 28), C('etat', 'État', 14),
+      C('conflits', 'Conflits', 34), C('observations', 'Observation', 26)
+    ],
+    rows
+  };
+}
+
+/** TABLEAU DE BORD → PROGRAMMES : missions programmees, conges et absences. */
+export function dsAgendaProgrammes(lignes) {
+  return {
+    title: 'Programmes',
+    columns: [
+      C('type', 'Type', 10), C('agents', 'Agent(s)', 30), C('du', 'Du', 12), C('au', 'Au', 12),
+      C('detail', 'Détail', 34), C('vehicule', 'Véhicule', 14), C('etat', 'État', 10), C('conflits', 'Conflits', 34)
+    ],
+    rows: lignes.map((l) => ({
+      type: l.type, agents: l.agents, du: dateFR(l.du), au: dateFR(l.au), detail: l.detail,
+      vehicule: l.vehicule ? immatAvecAutre(l.vehicule) : '', etat: l.etat, conflits: l.conflits.join(' ')
+    }))
+  };
+}
+
 /** SORTIES → SORTIES D'ABIDJAN : une ligne par sortie, frais et carburant compris. */
 export function dsSortiesAbidjan(list = DB.sortiesAbidjan || []) {
   const rows = list.map((x) => {
