@@ -123,7 +123,7 @@ export function renderGlobalSearch(page) {
   filtrer('MISSION', DB.programmes || []).forEach((p) => {
     if (norm(`${p.ref} ${p.conducteur} ${p.vehicule} ${(p.destinations || []).join(' ')} ${p.objet || ''} ${(p.participants || []).join(' ')} ${p.observations || ''}`).includes(q)) {
       results.push({
-        type: 'MISSION PROGRAMMÉE',
+        type: p.annule ? 'MISSION ANNULÉE' : 'MISSION PROGRAMMÉE',
         color: '#C2185B',
         title: `${p.ref || 'Programme'} — ${(p.destinations || []).join(', ') || '—'}`,
         sub: `Départ le ${dateFR(p.dateDepart) || '…'}${p.conducteur ? ` · ${p.conducteur}` : ''}${p.objet ? `\n${p.objet}` : ''}`,
@@ -131,6 +131,21 @@ export function renderGlobalSearch(page) {
       });
     }
   });
+
+  if (voit('ENTRETIEN')) {
+    (DB.programmesEntretien || []).forEach((e) => {
+      if (norm(`${e.ref} ${e.immat} ${e.type || ''} ${e.travaux || ''} ${e.garage || ''} ${e.responsable || ''} ${e.observations || ''}`).includes(q)) {
+        results.push({
+          type: 'ENTRETIEN PROGRAMMÉ',
+          color: moduleColor('ENTRETIEN'),
+          title: `${e.ref || 'Entretien'} — ${e.immat || '—'}${e.type ? ` · ${e.type}` : ''}`,
+          sub: `Prévu le ${dateFR(e.datePrevue) || '…'}${e.garage ? ` · ${e.garage}` : ''}${e.travaux ? `
+${e.travaux}` : ''}`,
+          action: () => { state.sub.ENTRETIEN = 'programme'; navigate('ENTRETIEN'); }
+        });
+      }
+    });
+  }
 
   (voitTout('DECHARGE') ? DB.destinataires : []).forEach((d) => {
     if (norm(`${d.nom} ${d.contacts} ${d.localisation}`).includes(q)) {

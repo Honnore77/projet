@@ -14,13 +14,13 @@ import {
   nomsUtilisateurs, assurerAgent, valeursVehicules, derniereLectureKm, kmCourant, origineKm, renommerImmatriculation
 } from '../../core/db.js';
 import { canWrite, currentUser } from '../../core/auth.js';
-import { esc, fmt, num, norm, dateFR, todayISO, grouperMilliers, lireMontant } from '../../core/utils.js';
+import { esc, el, fmt, num, norm, dateFR, todayISO, grouperMilliers, lireMontant } from '../../core/utils.js';
 import {
   card, toolbar, filterBar, subtabs, emptyState, openForm, confirmDialog, toast,
   dataTable, statTile, COLORS
 } from '../components.js';
 import { renderStatistiques, SOUS_RUBRIQUE_STATS } from './statistiques.js';
-import { state, rerender, openVehicleSheet, moduleColor } from '../shell.js';
+import { state, rerender, openVehicleSheet, moduleColor, viderRecherche } from '../shell.js';
 import { exportExcel } from '../../export/excel.js';
 import { exportPdf } from '../../export/pdf.js';
 import { exportWord } from '../../export/word.js';
@@ -161,6 +161,8 @@ export function renderVehicles(page) {
     )
   );
   if (cat === 'stats') return renderStatistiques(page, 'VEHICULES');
+  // Une recherche en cours fouille toutes les sous-rubriques a la fois.
+  if (norm(state.query).trim().length >= 2) return renderRechercheVehicules(page, norm(state.query).trim());
   if (cat === CAT_REFORME) return renderReformes(page);
   if (cat === 'etat') return renderEtatsVehicules(page);
 
@@ -352,28 +354,88 @@ function texteRecherche(v) {
 }
 
 /**
- * La recherche de l'en-tete parcourt POOL, MISSION et SERVICE : si rien ne
- * correspond dans la sous-rubrique ouverte, on passe a celle qui contient le
- * vehicule cherche (D45 5082 tapee depuis POOL ouvre SERVICE). Les filtres
- * statut / section sont alors remis a zero, sans quoi le vehicule trouve
- * pourrait rester cache.
- * @returns {boolean} vrai si la sous-rubrique a change (la page est a redessiner)
+ * La recherche de l'en-tete, dans VÉHICULES, fouille toutes les
+ * sous-rubriques a la fois (POOL, MISSION, SERVICE, RÉFORMÉS et l'état des
+ * véhicules) : la page est redessinee a chaque frappe, avec un seul tableau
+ * de resultats (voir renderRechercheVehicules). STATISTIQUES garde son
+ * filtre sur place.
+ * @returns {boolean} vrai si la page est a redessiner
  */
-export function suivreRechercheVehicules(query) {
-  const q = norm(query).trim();
-  const cat = state.sub.VEHICULES || 'pool';
-  if (q.length < 2 || !CATEGORIES.some((c) => c.key === cat)) return false;
-  const f = state.filters.vehicules;
-  const trouve = (c, avecFiltres) => filtrer('VEHICULES', DB.vehicles[c]).some((v) =>
-    (!avecFiltres || ((!f.statut || v.statut === f.statut) && (!f.section || v.section === f.section))) &&
-    texteRecherche(v).includes(q));
-  if (trouve(cat, true)) return false;
-  const autre = CATEGORIES.find((c) => c.key !== cat && trouve(c.key, false));
-  if (!autre) return false;
-  state.sub.VEHICULES = autre.key;
-  f.statut = '';
-  f.section = '';
-  return true;
+export function suivreRechercheVehicules() {
+  return (state.sub.VEHICULES || 'pool') !== 'stats';
+}
+
+/** Les sous-rubriques ou chercher, avec leur nom a l'ecran. */
+function sousRubriquesDeRecherche() {
+  return [
+    ...CATEGORIES.map((c) => ({ key: c.key, label: c.label })),
+    { key: CAT_REFORME, label: 'RÉFORMÉS' }
+  ];
+}
+
+/**
+ * Le resultat d'une recherche dans VÉHICULES : chaque vehicule trouve, quelle
+ * que soit sa sous-rubrique, avec ce qui l'a fait trouver (fiche ou état).
+ */
+function renderRechercheVehicules(page, q) {
+  const trouves = [];
+  sousRubriquesDeRecherche().forEach((sr) => {
+    filtrer('VEHICULES', DB.vehicles[sr.key] || []).forEach((v) => {
+      const pbs = sr.key === CAT_REFORME ? [] : problemesEnCours(v);
+      const texteEtat = norm(pbs.map((x) => x.probleme || '').join(' '));
+      const parFiche = texteRecherche(v).includes(q) ||
+        norm(`${v.couleur || ''} ${v.energie || ''} ${v.observations || ''} ${v.beneficiaire || ''}`).includes(q);
+      const parEtat = !!texteEtat && texteEtat.includes(q);
+      if (parFiche || parEtat) trouves.push({ v, sr, pbs, parEtat: parEtat && !parFiche });
+    });
+  });
+
+  page.appendChild(card(
+    `RECHERCHE DANS TOUTE LA RUBRIQUE VÉHICULES — ${trouves.length} résultat${trouves.length > 1 ? 's' : ''}`,
+    `« ${state.query.trim()} » cherché dans POOL, MISSION, SERVICE, RÉFORMÉS et l’état des véhicules. ` +
+      'Effacez la recherche pour revenir à la sous-rubrique ; « Ouvrir » mène à celle du véhicule.'
+  ));
+  if (!trouves.length) {
+    page.appendChild(emptyState('Aucun véhicule ne correspond, dans aucune sous-rubrique de VÉHICULES.'));
+    return;
+  }
+
+  const parSousRubrique = sousRubriquesDeRecherche()
+    .map((sr) => `${sr.label} : ${trouves.filter((t) => t.sr.key === sr.key).length}`)
+    .join(' · ');
+  page.appendChild(el(`<div class="empty" style="text-align:left;padding:4px 2px">${esc(parSousRubrique)}</div>`));
+
+  const headers = ['Sous-rubrique', 'Marque', 'Modèle', 'Immat.<br>nouvelle', 'Immat.<br>ancienne', 'Statut',
+    'Section', 'Utilisateur', 'Km', 'État actuel<br>du véhicule', ''];
+  const rows = trouves.map(({ v, sr, parEtat }) => [
+    `<span class="badge" style="background:${sr.key === CAT_REFORME ? COULEUR_REFORME : moduleColor('VEHICULES')}">${esc(sr.label)}</span>` +
+      (parEtat ? `<br><small>trouvé dans l’état</small>` : ''),
+    `<b>${esc(v.marque || '')}</b>`,
+    esc(v.modele || ''),
+    esc(v.immatNouvelle || ''),
+    esc(v.immatAncienne || ''),
+    `<span class="badge" style="background:${statutColor(v.statut)}">${esc(v.statut || '')}</span>`,
+    esc(v.section || ''),
+    esc(v.utilisateur || ''),
+    `<span style="display:block;text-align:right">${fmt(sr.key === CAT_REFORME && v.kmReforme !== '' && v.kmReforme !== undefined ? v.kmReforme : kmCourant(v))}</span>`,
+    sr.key === CAT_REFORME ? '' : celluleEtat(v),
+    `<span style="white-space:nowrap"><button class="miniBtn" style="background:${COLORS.blue};padding:5px 8px" data-sheet>Fiche</button>` +
+      ` <button class="miniBtn" style="background:${COLORS.grey};padding:5px 8px" data-ouvrir title="Ouvrir ${esc(sr.label)}">Ouvrir</button></span>`
+  ]);
+  page.appendChild(dataTable(headers, rows, (tr, i) => {
+    const { v, sr, pbs } = trouves[i];
+    // Tout ce qui a fait trouver la ligne : le filtre de la page la garde.
+    tr.dataset.search = norm(`${sr.label} ${texteRecherche(v)} ${v.couleur || ''} ${v.energie || ''} ${v.observations || ''} ` +
+      `${v.beneficiaire || ''} ${pbs.map((x) => x.probleme || '').join(' ')}`);
+    tr.querySelector('[data-sheet]').onclick = () => openVehicleSheet(immatOf(v));
+    tr.querySelector('[data-ouvrir]').onclick = () => {
+      state.sub.VEHICULES = sr.key;
+      state.filters.vehicules.statut = '';
+      state.filters.vehicules.section = '';
+      viderRecherche();
+      rerender();
+    };
+  }));
 }
 
 /**

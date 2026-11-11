@@ -29,6 +29,7 @@ import { canWrite } from '../../core/auth.js';
 import { filtrer, seulementSiennes, peutModifier, voit } from '../../core/acces.js';
 import { renderSortiesAbidjan } from './sortiesAbidjan.js';
 import { renderProgrammes } from './programmes.js';
+import { missionEnCoursDe } from '../../core/programmes.js';
 import { renderSimulations } from './simulation.js';
 import { esc, el, fmt, num, norm, dateFR, todayISO, sum, groupBy, francSup, lireMontant } from '../../core/utils.js';
 import { champVehicule, champParticipant, autreImmat,
@@ -208,6 +209,17 @@ function renderRotation(page) {
     )
   );
 
+  // Le conducteur parti en mission porte une bande verte, comme celui en
+  // conge porte la sienne, jusqu'au lendemain de son retour.
+  const enMission = new Map(rot.map((r) => [r.nom, missionEnCoursDe(r.nom)]));
+  const bandeMission = (r) => {
+    const m = enMission.get(r.nom);
+    if (!m) return '';
+    const dest = texteDestinations(destinationsDe(m));
+    return `<br><span class="badge" style="background:${COLORS.green}">🚗 En mission` +
+      `${m.ref ? ` ${esc(m.ref)}` : ''}${dest ? ` — ${esc(dest)}` : ''}` +
+      ` — retour le ${esc(dateFR(m.dateRetour || m.dateDepart) || '…')}</span>`;
+  };
   const wrap = el('<div class="entry"></div>');
   wrap.style.borderLeftColor = COULEUR();
   wrap.innerHTML =
@@ -224,6 +236,7 @@ function renderRotation(page) {
               ` — reprise le ${esc(dateFR(r.indisponible.dateReprise) || '…')}</span>` +
               (r.indisponible.interimaire ? ` <small>intérimaire : <b>${esc(r.indisponible.interimaire)}</b></small>` : '')
             : '') +
+          bandeMission(r) +
           '</span>' +
           `<b>${r.nbMissions} mission(s)<br><small style="font-weight:normal">${fmt(r.totalJours)} jour(s)</small></b></div>`
       )
@@ -232,7 +245,8 @@ function renderRotation(page) {
     '<div class="fields"><small>Seuls les conducteurs du pool figurent ici : ils sont les seuls ' +
     'autorisés à conduire les véhicules de mission. Un agent y entre par la mention « conducteur ' +
     'du pool » de sa fiche, dans PERSONNEL. Un conducteur en congé, en permission ou en repos ' +
-    'maladie (PERSONNEL → CONGÉS ET ABSENCES) passe en fin de liste jusqu’à sa reprise.</small></div>';
+    'maladie (PERSONNEL → CONGÉS ET ABSENCES) passe en fin de liste jusqu’à sa reprise. Un conducteur ' +
+    'parti en mission porte la bande verte « En mission » jusqu’au lendemain de son retour.</small></div>';
   page.appendChild(wrap);
 }
 

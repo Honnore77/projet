@@ -145,6 +145,9 @@ export function emptyDB() {
     // MISSIONS → PROGRAMMES DES MISSIONS : les missions a venir. Une simple
     // prevision, hors tour de role, jours et cumuls (core/programmes.js).
     programmes: [],
+    // ENTRETIEN → PROGRAMME D'ENTRETIEN : les passages au garage prevus
+    // (core/programmesEntretien.js).
+    programmesEntretien: [],
     // ENTRETIEN → GARAGES : les garages ou passent les vehicules.
     garages: [],
     // ENTRETIEN → VIDANGES : chaque vidange faite, hors passages au garage.
@@ -355,7 +358,7 @@ export function normalize(raw) {
   ['pool', 'mission', 'service', 'reforme'].forEach((k) => {
     if (!Array.isArray(db.vehicles[k])) db.vehicles[k] = [];
   });
-  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'programmes', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'].forEach((k) => {
+  ['accounts', 'users', 'dotationPool', 'missions', 'maintenance', 'decharges', 'destinataires', 'sortiesAbidjan', 'programmes', 'programmesEntretien', 'garages', 'vidanges', 'trajets', 'simulations', 'indisponibilites', 'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'].forEach((k) => {
     if (!Array.isArray(db[k])) db[k] = [];
   });
   db.settings = Object.assign(reglagesParDefaut, raw && raw.settings);
@@ -2025,6 +2028,9 @@ export function renommerGarage(ancien, nouveau, db = DB) {
       if (norm(iv.garage || '') === cle && iv.garage !== propre) { iv.garage = propre; n += 1; }
     });
   });
+  (db.programmesEntretien || []).forEach((x) => {
+    if (norm(x.garage || '') === cle && x.garage !== propre) { x.garage = propre; n += 1; }
+  });
   // Une vidange faite au garage le cite comme « Garage ou station ».
   (db.vidanges || []).forEach((x) => {
     if (norm(x.structure || '') === cle && x.structure !== propre) { x.structure = propre; n += 1; }
@@ -2860,7 +2866,8 @@ export function renommerAgentDansLesFiches(ancien, nouveau, db = DB) {
   };
   (db.missions || []).forEach((m) => { suivre(m, 'conducteur'); suivreListe(m); });
   (db.sortiesAbidjan || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
-  (db.programmes || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); });
+  (db.programmes || []).forEach((x) => { suivre(x, 'conducteur'); suivreListe(x); suivre(x, 'annulePar'); });
+  (db.programmesEntretien || []).forEach((x) => suivre(x, 'responsable'));
   (db.dotationPool || []).forEach((d) => suivre(d, 'conducteur'));
   (db.decharges || []).forEach((d) => { suivre(d, 'conducteur'); suivre(d, 'conducteur2'); suivre(d, 'recuperePar'); });
   (db.vidanges || []).forEach((x) => suivre(x, 'conducteur'));
@@ -2893,6 +2900,7 @@ export function renommerImmatriculation(ancienne, nouvelle, db = DB) {
   (db.missions || []).forEach((m) => suivre(m, 'vehicule'));
   (db.sortiesAbidjan || []).forEach((x) => suivre(x, 'vehicule'));
   (db.programmes || []).forEach((x) => suivre(x, 'vehicule'));
+  (db.programmesEntretien || []).forEach((x) => suivre(x, 'immat'));
   (db.decharges || []).forEach((d) => suivre(d, 'immat'));
   (db.vidanges || []).forEach((x) => suivre(x, 'immat'));
   (db.etatsVehicules || []).forEach((e) => suivre(e, 'immat'));

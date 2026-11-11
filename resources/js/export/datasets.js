@@ -5,7 +5,8 @@
 
 import { DB, joursMission, allVehicles, immatOf, vehiculesDuGarage, passagesDuGarage, maintenanceCost, fuelCost, openMaintenance, missionsAvecCarburant, ravMontant, etatVidange, kmCourant, parcoursMission, missionsVersDestination, distanceSurPlace, distanceCompteur, vehicleByImmat, vehiculeDeLImmat, memeVehicule, vehiculesDeLAgent, nomComplet, dureeIndisponibilite, etatIndisponibilite, suiviDotationPool, cumulsJoursConducteurs, rangsMissionsConducteurs, totauxRapportMission, totauxSortieAbidjan, immatAvecAutre, origineKm, derniereLectureKm } from '../core/db.js';
 
-import { etatProgramme, conflitsProgramme, missionDuProgramme } from '../core/programmes.js';
+import { etatProgramme, conflitsProgramme, missionDuProgramme, programmeDeLaMission } from '../core/programmes.js';
+import { etatProgrammeEntretien, conflitsEntretien, ficheDuProgrammeEntretien } from '../core/programmesEntretien.js';
 import { dateFR, daysBetween, fmt, num, norm, sum, groupBy } from '../core/utils.js';
 import { problemesEnCours } from '../core/etatsVehicules.js';
 
@@ -412,6 +413,14 @@ export function dsMissionsParConducteur(list = DB.missions) {
 
 /* ------------------------------ ENTRETIEN -------------------------- */
 
+/** Km sortie moins Km entree, vide tant que l'un des deux manque. */
+export function kmEffectueAuGarage(m) {
+  const vide = (x) => x === '' || x === undefined || x === null;
+  if (!m || vide(m.kmEntree) || vide(m.kmRetour)) return '';
+  const d = num(m.kmRetour) - num(m.kmEntree);
+  return Number.isFinite(d) ? d : '';
+}
+
 export function dsMaintenance(list = DB.maintenance) {
   return {
     title: 'Entretien',
@@ -429,6 +438,7 @@ export function dsMaintenance(list = DB.maintenance) {
       C('cout', 'Coût total', 12),
       C('dateRetour', 'Sortie', 12),
       C('kmRetour', 'Km sortie', 12),
+      C('kmEffectue', 'KM effectué', 12),
       C('duree', 'Durée (j)', 10),
       C('etat', 'État', 12)
     ],
@@ -449,6 +459,9 @@ export function dsMaintenance(list = DB.maintenance) {
         cout: sum(iv, (x) => x.cout),
         dateRetour: dateFR(m.dateRetour),
         kmRetour: nombreOuVide(m.kmRetour),
+        // La distance parcourue entre l'entree et la sortie du garage
+        // (essais, convoyage) : Km sortie moins Km entree.
+        kmEffectue: kmEffectueAuGarage(m),
         duree: daysBetween(m.dateEntree, m.dateRetour) ?? '',
         etat: m.dateRetour ? 'Sorti' : 'Au garage'
       };
@@ -612,8 +625,27 @@ export function dsVidanges(list = DB.vidanges || []) {
 
 /** Decharges : memes colonnes que le tableau de la rubrique. */
 /** MISSIONS → PROGRAMMES DES MISSIONS : une ligne par programme. */
-export function dsProgrammes(list = DB.programmes || []) {
-  const rows = list.map((p) => {
+export function dsProgrammes(list = DB.programmes || [], enCours = []) {
+  // Les missions en cours d'abord, comme a l'ecran.
+  const lignesEnCours = enCours.map((m) => {
+    const j = joursMission(m.dateDepart, m.dateRetour);
+    const p = programmeDeLaMission(m);
+    return {
+      ref: m.ref || '',
+      depart: dateFR(m.dateDepart),
+      retour: dateFR(m.dateRetour),
+      jours: j === null || j < 1 ? '' : j,
+      destinations: (Array.isArray(m.destinations) ? m.destinations : [m.destination]).filter(Boolean).join(', '),
+      objet: (p && p.objet) || '',
+      conducteur: m.conducteur || '',
+      vehicule: immatAvecAutre(m.vehicule),
+      participants: (m.participants || []).filter(Boolean).join(', '),
+      etat: 'en cours' + (p && p.ref ? ` (programme ${p.ref})` : ''),
+      conflits: '',
+      observations: ''
+    };
+  });
+  const rows = lignesEnCours.concat(list.map((p) => {
     const j = joursMission(p.dateDepart, p.dateRetour);
     const m = missionDuProgramme(p);
     return {
@@ -630,7 +662,7 @@ export function dsProgrammes(list = DB.programmes || []) {
       conflits: etatProgramme(p) === 'à venir' || etatProgramme(p) === 'en cours' ? conflitsProgramme(p).join(' ') : '',
       observations: p.observations || ''
     };
-  });
+  }));
   return {
     title: 'Programmes des missions',
     columns: [
@@ -640,6 +672,46 @@ export function dsProgrammes(list = DB.programmes || []) {
       C('conflits', 'Conflits', 34), C('observations', 'Observation', 26)
     ],
     rows
+  };
+}
+
+/** MISSIONS → PROGRAMMES DES MISSIONS → MISSIONS ANNULÉES. */
+export function dsProgrammesAnnules(list = (DB.programmes || []).filter((p) => p.annule)) {
+  return {
+    title: 'Missions annulées',
+    columns: [
+      C('ref', 'Réf.', 10), C('depart', 'Départ prévu', 12), C('retour', 'Retour prévu', 12),
+      C('destinations', 'Destination(s)', 24), C('objet', 'Objet', 26), C('conducteur', 'Conducteur', 20),
+      C('vehicule', 'Véhicule', 14), C('participants', 'Participants', 28), C('dateAnnulation', 'Annulée le', 12),
+      C('motif', 'Motif de l’annulation', 34), C('annulePar', 'Annulée par', 20)
+    ],
+    rows: list.map((p) => ({
+      ref: p.ref || '', depart: dateFR(p.dateDepart), retour: dateFR(p.dateRetour),
+      destinations: (p.destinations || []).join(', '), objet: p.objet || '', conducteur: p.conducteur || '',
+      vehicule: immatAvecAutre(p.vehicule), participants: (p.participants || []).filter(Boolean).join(', '),
+      dateAnnulation: dateFR(p.dateAnnulation), motif: p.motifAnnulation || '', annulePar: p.annulePar || ''
+    }))
+  };
+}
+
+/** ENTRETIEN → PROGRAMME D'ENTRETIEN : une ligne par entretien prevu. */
+export function dsProgrammesEntretien(list = DB.programmesEntretien || []) {
+  return {
+    title: 'Programme d’entretien',
+    columns: [
+      C('ref', 'Réf.', 10), C('datePrevue', 'Date prévue', 12), C('immat', 'Véhicule', 16), C('type', 'Type', 16),
+      C('travaux', 'Travaux prévus', 34), C('garage', 'Garage', 20), C('kmPrevu', 'Km prévu', 12),
+      C('responsable', 'Responsable', 20), C('etat', 'État', 14), C('conflits', 'Conflits', 34), C('observations', 'Observation', 26)
+    ],
+    rows: list.map((e) => {
+      const fiche = ficheDuProgrammeEntretien(e);
+      return {
+        ref: e.ref || '', datePrevue: dateFR(e.datePrevue), immat: immatAvecAutre(e.immat), type: e.type || '',
+        travaux: e.travaux || '', garage: e.garage || '', kmPrevu: nombreOuVide(e.kmPrevu), responsable: e.responsable || '',
+        etat: etatProgrammeEntretien(e) + (fiche ? ` (entré le ${dateFR(fiche.dateEntree)})` : ''),
+        conflits: conflitsEntretien(e).join(' '), observations: e.observations || ''
+      };
+    })
   };
 }
 

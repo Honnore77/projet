@@ -8,6 +8,7 @@ import { immatAvecAutre,
 } from '../../core/db.js';
 import { renderGarages, COULEUR_GARAGES } from './garages.js';
 import { renderVidanges, COULEUR_VIDANGES } from './vidanges.js';
+import { renderProgrammeEntretien } from './programmeEntretien.js';
 import { canWrite } from '../../core/auth.js';
 import { esc, escLignes, el, fmt, num, norm, dateFR, todayISO, daysBetween, sum, groupBy, francSup } from '../../core/utils.js';
 import { champVehicule,
@@ -74,7 +75,13 @@ function retourFields(m = {}) {
   ];
 }
 
-const SUBS = [{ key: 'liste', label: 'FICHES D’ENTRETIEN' }, { key: 'vidanges', label: 'VIDANGES' }, { key: 'garages', label: 'GARAGES' }, SOUS_RUBRIQUE_STATS];
+const SUBS = [
+  { key: 'liste', label: 'FICHES D’ENTRETIEN' },
+  { key: 'programme', label: 'PROGRAMME D’ENTRETIEN' },
+  { key: 'vidanges', label: 'VIDANGES' },
+  { key: 'garages', label: 'GARAGES' },
+  SOUS_RUBRIQUE_STATS
+];
 
 export function renderMaintenance(page) {
   const sub = state.sub.ENTRETIEN || 'liste';
@@ -82,6 +89,7 @@ export function renderMaintenance(page) {
   if (sub === 'stats') return renderStatistiques(page, 'ENTRETIEN');
   if (sub === 'garages') return renderGarages(page);
   if (sub === 'vidanges') return renderVidanges(page);
+  if (sub === 'programme') return renderProgrammeEntretien(page);
   const f = state.filters.maintenance;
 
   page.appendChild(
@@ -182,7 +190,7 @@ function renderRecapitulatif(page, list) {
     .map((r, i) => ({ r, m: list[i] }))
     .sort((a, b) => String(b.m.dateEntree).localeCompare(String(a.m.dateEntree)));
 
-  const aDroite = new Set(['kmEntree', 'kmRetour', 'cout', 'duree']);
+  const aDroite = new Set(['kmEntree', 'kmRetour', 'kmEffectue', 'cout', 'duree']);
   // Les libelles des colonnes, tels que la fiche d'une ligne les affiche.
   const entetes = [...ds.columns.map((c) => c.label), ''];
 
@@ -399,11 +407,20 @@ function poserTravaux(fiche, travaux, cout) {
   return iv;
 }
 
-export function openFicheForm(m, prefillImmat) {
+/**
+ * @param {object|null} m fiche a modifier, ou null pour une entree au garage
+ * @param {string} [prefillImmat] vehicule de la nouvelle fiche
+ * @param {object} [options]
+ * @param {object} [options.preset] valeurs de depart d'une nouvelle fiche
+ *   (reprises d'un entretien programme)
+ * @param {string} [options.titre] titre du formulaire
+ * @param {Function} [options.apresCreation] (fiche creee) => void
+ */
+export function openFicheForm(m, prefillImmat, options = {}) {
   const isEdit = !!m;
-  const base = m || (prefillImmat ? { immat: prefillImmat } : {});
+  const base = m || Object.assign(prefillImmat ? { immat: prefillImmat } : {}, options.preset || {});
   openForm({
-    title: isEdit ? `Modifier la fiche — ${m.immat}` : 'Nouvelle fiche d’entretien — entrée au garage',
+    title: isEdit ? `Modifier la fiche — ${m.immat}` : options.titre || 'Nouvelle fiche d’entretien — entrée au garage',
     // En modification, le retour du garage se corrige dans le meme
     // formulaire ; la date de sortie y reste facultative : vide, le
     // vehicule est encore au garage.
@@ -443,8 +460,9 @@ export function openFicheForm(m, prefillImmat) {
         update('maintenance', m.id, payload);
         toast('Fiche mise à jour.', 'ok');
       } else {
-        insert('maintenance', Object.assign({ kmRetour: '', dateRetour: '', conducteurRetour: '', observationRetour: '' }, payload));
+        const cree = insert('maintenance', Object.assign({ kmRetour: '', dateRetour: '', conducteurRetour: '', observationRetour: '' }, payload));
         toast('Fiche enregistrée. Ajoutez les interventions puis le retour du garage.', 'ok');
+        if (options.apresCreation) options.apresCreation(cree);
       }
       rerender();
       return null;

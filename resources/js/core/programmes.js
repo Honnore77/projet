@@ -7,8 +7,15 @@
    dans le cumul des missions. Il quitte le tableau des programmes :
      - quand la mission est creee depuis lui (bouton « Créer la mission ») :
        il est alors « réalisé » et retient la mission (missionId) ;
-     - quand sa date de retour est passee sans mission : il est « passé ».
+     - quand sa date de retour est passee sans mission : il est « passé » ;
+     - quand il est annule : il passe au tableau « MISSIONS ANNULÉES »,
+       qui en garde l'historique (date, motif, auteur de l'annulation).
    Rien ne s'efface : les programmes passes et realises se retrouvent.
+
+   Les missions en cours (SUIVI DES MISSIONS, parties et pas encore
+   revenues : depart passe, retour aujourd'hui ou plus tard) figurent aussi
+   aux deux tableaux, avec la mention « en cours » ; elles en sortent le
+   lendemain de leur date de retour.
 
    TABLEAU DE BORD → PROGRAMMES : les missions programmees et les conges et
    absences a venir ou en cours (PERSONNEL → CONGÉS ET ABSENCES), dans un
@@ -16,8 +23,9 @@
    mission pendant son absence, un vehicule pris deux fois ou au garage.
    =================================================================== */
 
-import { DB, indisponibiliteSurMission, absenceRefusee, etatIndisponibilite, memeVehicule, texteDestinations } from './db.js';
+import { DB, indisponibiliteSurMission, absenceRefusee, etatIndisponibilite, memeVehicule, texteDestinations, destinationsDe } from './db.js';
 import { norm, todayISO } from './utils.js';
+import { programmeEntretienActif, etatProgrammeEntretien, conflitsEntretien } from './programmesEntretien.js';
 
 /** Le dernier jour d'un programme (le depart s'il n'a pas de retour). */
 const fin = (p) => p.dateRetour || p.dateDepart || '';
@@ -32,6 +40,7 @@ export function missionDuProgramme(p, db = DB) {
  * @returns {'à venir'|'en cours'|'réalisé'|'passé'}
  */
 export function etatProgramme(p, jour = todayISO(), db = DB) {
+  if (p && p.annule) return 'annulé';
   if (missionDuProgramme(p, db)) return 'réalisé';
   if (fin(p) && fin(p) < jour) return 'passé';
   if (p.dateDepart && p.dateDepart <= jour) return 'en cours';
@@ -55,7 +64,40 @@ export function programmesActifs(jour = todayISO(), db = DB) {
 
 /** Les programmes sortis du tableau (realises ou passes), du plus recent au plus ancien. */
 export function programmesPasses(jour = todayISO(), db = DB) {
-  return (db.programmes || []).filter((p) => !programmeActif(p, jour, db)).sort((a, b) => parDate(b, a));
+  return (db.programmes || []).filter((p) => !p.annule && !programmeActif(p, jour, db)).sort((a, b) => parDate(b, a));
+}
+
+/** Les programmes annules, le plus recemment annule en tete. */
+export function programmesAnnules(db = DB) {
+  return (db.programmes || []).filter((p) => p.annule).sort((a, b) =>
+    String(b.dateAnnulation || '').localeCompare(String(a.dateAnnulation || '')) || parDate(b, a));
+}
+
+/**
+ * Une mission en cours : partie (depart aujourd'hui ou avant) et pas encore
+ * revenue (retour aujourd'hui ou plus tard). Sans date de retour, elle n'est
+ * en cours que le jour de son depart. Le lendemain du retour, elle est achevee.
+ */
+export function missionEnCours(m, jour = todayISO()) {
+  if (!m || !m.dateDepart || m.dateDepart > jour) return false;
+  return (m.dateRetour || m.dateDepart) >= jour;
+}
+
+/** Les missions en cours, du depart le plus ancien au plus recent. */
+export function missionsEnCours(jour = todayISO(), db = DB) {
+  return (db.missions || []).filter((m) => missionEnCours(m, jour)).sort(parDate);
+}
+
+/** Le programme d'ou vient une mission (« Créer la mission »), s'il existe. */
+export function programmeDeLaMission(m, db = DB) {
+  return (m && (db.programmes || []).find((p) => p.missionId && p.missionId === m.id)) || null;
+}
+
+/** La mission en cours d'un agent (conducteur ou participant), s'il y en a une. */
+export function missionEnCoursDe(nom, jour = todayISO(), db = DB) {
+  const cle = norm(nom || '');
+  if (!cle) return null;
+  return missionsEnCours(jour, db).find((m) => agentsDuProgramme(m).some((n) => norm(n) === cle)) || null;
 }
 
 /** Prochaine reference : PM-001, PM-002... a la suite de la plus haute. */
@@ -112,6 +154,9 @@ export function conflitsProgramme(p, db = DB, jour = todayISO()) {
   if (p.vehicule) {
     const pris = autres.find(({ x }) => x.vehicule && memeVehicule(x.vehicule, p.vehicule));
     if (pris) out.push(`Le véhicule ${p.vehicule} est déjà pris par ${pris.quoi} (${periode(pris.x)}).`);
+    const prevu = (db.programmesEntretien || []).find((e) => e.immat && memeVehicule(e.immat, p.vehicule) &&
+      programmeEntretienActif(e, jour, db) && !e.ficheId && e.datePrevue && e.datePrevue >= du && e.datePrevue <= au);
+    if (prevu) out.push(`Le véhicule ${p.vehicule} est programmé à l’entretien le ${fr(prevu.datePrevue)} (${prevu.ref || 'programme d’entretien'}).`);
     const garage = (db.maintenance || []).find((m) => m.immat && memeVehicule(m.immat, p.vehicule) &&
       m.dateEntree && m.dateEntree <= au && (!m.dateRetour || m.dateRetour >= du));
     if (garage) {
@@ -137,8 +182,30 @@ function periode(x) {
  * @returns {{type:string, etat:string, agents:string, du:string, au:string,
  *   detail:string, source:'programmes'|'indisponibilites', fiche:object, conflits:string[]}[]}
  */
-export function agendaProgrammes({ programmes, indisponibilites } = {}, jour = todayISO(), db = DB) {
+export function agendaProgrammes({ programmes, indisponibilites, missions, entretiens } = {}, jour = todayISO(), db = DB) {
   const lignes = [];
+  // Les missions parties et pas encore revenues : « en cours », jusqu'au
+  // lendemain de leur retour.
+  (missions || []).filter((m) => missionEnCours(m, jour)).forEach((m) => {
+    const p = programmeDeLaMission(m, db);
+    lignes.push({
+      type: 'Mission', etat: 'en cours', agents: agentsDuProgramme(m).join(', '),
+      du: m.dateDepart || '', au: m.dateRetour || '',
+      detail: [m.ref, texteDestinations(destinationsDe(m)), p && p.objet].filter(Boolean).join(' — '),
+      vehicule: m.vehicule || '',
+      source: 'missions', fiche: m, conflits: []
+    });
+  });
+  (entretiens || []).filter((e) => programmeEntretienActif(e, jour, db)).forEach((e) => {
+    lignes.push({
+      type: 'Entretien', etat: etatProgrammeEntretien(e, jour, db), agents: e.responsable || '',
+      du: e.datePrevue || '', au: '',
+      detail: [e.type, String(e.travaux || '').split('\n').map((x) => x.replace(/^\s*-\s*/, '').trim()).filter(Boolean).join(', '),
+        e.garage ? `garage : ${e.garage}` : ''].filter(Boolean).join(' — '),
+      vehicule: e.immat || '',
+      source: 'programmesEntretien', fiche: e, conflits: conflitsEntretien(e, db, jour)
+    });
+  });
   (programmes || []).filter((p) => programmeActif(p, jour, db)).forEach((p) => {
     lignes.push({
       type: 'Mission', etat: etatProgramme(p, jour, db), agents: agentsDuProgramme(p).join(', '),
@@ -161,7 +228,9 @@ export function agendaProgrammes({ programmes, indisponibilites } = {}, jour = t
       source: 'indisponibilites', fiche: i, conflits: []
     });
   });
-  return lignes.sort((a, b) => a.du.localeCompare(b.du) || a.type.localeCompare(b.type, 'fr'));
+  // Ce qui est en cours d'abord, puis le reste du plus proche au plus lointain.
+  const rang = (l) => (l.etat === 'en cours' ? 0 : l.etat === 'en retard' ? 1 : 2);
+  return lignes.sort((a, b) => rang(a) - rang(b) || a.du.localeCompare(b.du) || a.type.localeCompare(b.type, 'fr'));
 }
 
 function veille(iso) {

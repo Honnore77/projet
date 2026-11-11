@@ -25,7 +25,7 @@
 /** Collections synchronisees, telles qu'elles sont rangees dans la base. */
 export const COLLECTIONS_SYNCHRO = [
   'accounts', 'users', 'dotationPool', 'missions', 'maintenance',
-  'decharges', 'destinataires', 'sortiesAbidjan', 'programmes', 'garages', 'vidanges', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
+  'decharges', 'destinataires', 'sortiesAbidjan', 'programmes', 'programmesEntretien', 'garages', 'vidanges', 'destinationsMission', 'trajets', 'simulations', 'indisponibilites',
   'demandes', 'notes', 'suiviComptes', 'etatsVehicules', 'relevesKm'
 ];
 
@@ -45,7 +45,7 @@ const DUREE_TRACES_MS = 400 * 24 * 3600 * 1000;
 /** Libelles des collections, pour le compte rendu. */
 export const LIBELLES_COLLECTIONS = {
   accounts: 'Comptes', users: 'Utilisateurs', dotationPool: 'Dotations pool', missions: 'Missions',
-  maintenance: 'Entretien', decharges: 'Courses', destinataires: 'Destinataires', sortiesAbidjan: 'Sorties d’Abidjan', programmes: 'Programmes des missions', garages: 'Garages', vidanges: 'Vidanges',
+  maintenance: 'Entretien', decharges: 'Courses', destinataires: 'Destinataires', sortiesAbidjan: 'Sorties d’Abidjan', programmes: 'Programmes des missions', programmesEntretien: 'Programme d’entretien', garages: 'Garages', vidanges: 'Vidanges',
   destinationsMission: 'Destinations', trajets: 'Trajets', simulations: 'Simulations',
   indisponibilites: 'Congés et absences', demandes: 'Demandes de congé et d’absence', notes: 'Notes', suiviComptes: 'Suivi des comptes', etatsVehicules: 'État des véhicules', relevesKm: 'Kilométrages actualisés', vehicules: 'Véhicules', reglages: 'Réglages'
 };
@@ -164,6 +164,7 @@ export function libelleFiche(c, f) {
   if (c === 'maintenance') return [f.dateEntree, f.immat].filter(Boolean).join(' — ');
   if (c === 'decharges') return [f.ref, f.destinataire].filter(Boolean).join(' — ');
   if (c === 'sortiesAbidjan') return [f.ref, f.conducteur, f.destination].filter(Boolean).join(' — ');
+  if (c === 'programmesEntretien') return [f.ref, f.immat, f.type].filter(Boolean).join(' — ');
   if (c === 'programmes') return [f.ref, f.conducteur, (f.destinations || []).join(', ')].filter(Boolean).join(' — ');
   if (c === 'indisponibilites') return [f.conducteur, f.motif, f.dateDepart].filter(Boolean).join(' — ');
   if (c === 'demandes') return [f.agent || f.nomPrenoms, f.type === 'conge' ? 'congé' : 'absence', f.dateDebut].filter(Boolean).join(' — ');

@@ -5,6 +5,7 @@
 import './styles/app.css';
 import { initDB, persist, persistNow, imagesCitees } from './core/db.js';
 import { synchroniserEtats } from './core/etatsVehicules.js';
+import { synchroniserStatutsGarage } from './core/statutGarage.js';
 import { menageImages } from './core/images.js';
 import { restoreSession, isLogged, arreterActivite } from './core/auth.js';
 import { renderLogin } from './ui/login.js';
@@ -79,6 +80,13 @@ async function boot() {
   // ailleurs (rapports, dotations, garage...) : les suivantes suivront a
   // chaque enregistrement.
   if (synchroniserEtats()) persist();
+
+  // Un vehicule entre au garage avant aujourd'hui et pas encore sorti passe
+  // « En entretien » (core/statutGarage.js). Le changement de jour se
+  // constate a l'ouverture, puis toutes les heures si l'application reste
+  // ouverte la nuit.
+  if (synchroniserStatutsGarage()) persist();
+  setInterval(() => { if (synchroniserStatutsGarage()) persist(); }, 60 * 60 * 1000);
 
   // Les images abandonnees en cours de saisie s'effacent ici, une fois la
   // base connue. Sans attendre : le menage ne bloque pas l'ouverture, et

@@ -99,6 +99,7 @@ export const state = {
     decharges: { dateFrom: '', dateTo: '', destinataire: '' },
     sortiesAbidjan: { dateFrom: '', dateTo: '', conducteur: '' },
     programmes: { passes: false },
+    programmesEntretien: { realises: false },
     indisponibilites: { etat: '', motif: '', conducteur: '' },
     // annee affichee par les sous-rubriques STATISTIQUES (l'annee en cours d'abord)
     statistiques: {}
@@ -211,7 +212,7 @@ export function mountShell(appRoot, { onLogout }) {
       if (state.module === 'RECHERCHE_GLOBALE') return rerender();
       globalBtn.style.display = state.query.trim().length >= 2 ? 'block' : 'none';
       // VEHICULES cherche aussi dans ses autres sous-rubriques.
-      if (state.module === 'VEHICULES' && suivreRechercheVehicules(state.query)) return rerender();
+      if (state.module === 'VEHICULES' && suivreRechercheVehicules()) { rerender(); return majExportRecherche(); }
       applyLocalFilter();
     }, 130)
   );
@@ -677,6 +678,14 @@ function escapeText(s) {
   return String(s === undefined || s === null ? '' : s).replace(/[&<>"]/g, (c) =>
     ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])
   );
+}
+
+/** Efface la recherche de l'en-tete (sans redessiner la page). */
+export function viderRecherche() {
+  state.query = '';
+  if (searchInput) searchInput.value = '';
+  if (globalBtn) globalBtn.style.display = 'none';
+  if (exportBtn) exportBtn.style.display = 'none';
 }
 
 export function getContentEl() {
